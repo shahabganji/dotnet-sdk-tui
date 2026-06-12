@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "hex1b.tool": {
+      "version": "0.1.0",
+      "commands": [
+        "hex1b"
+      ]
+    }
+  }
+}

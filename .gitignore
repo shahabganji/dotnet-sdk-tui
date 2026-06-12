@@ -1,0 +1,25 @@
+## Build outputs
+bin/
+obj/
+publish/
+
+## IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.csproj.user
+
+## NativeAOT
+*.dSYM/
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Test sandbox
+test-sandbox/
+test-artifacts/
+
+## Hex1b
+*.cast
