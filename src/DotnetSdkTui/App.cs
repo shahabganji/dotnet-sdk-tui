@@ -45,6 +45,13 @@ public sealed class App
     {
         Console.CursorVisible = false;
 
+        // Graceful Ctrl+C: stop the loop instead of killing the process
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            _running = false;
+        };
+
         if (!_skipSplash)
             await MarioTheme.RenderSplashAsync();
 
@@ -106,7 +113,7 @@ public sealed class App
         }
 
         Console.CursorVisible = true;
-        AnsiConsole.Clear();
+        MarioTheme.RenderGoodbye();
     }
 
     private void RenderScreen()

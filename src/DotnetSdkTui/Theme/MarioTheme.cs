@@ -38,10 +38,10 @@ public static class MarioTheme
     /// <summary>Dim text color for tertiary content.</summary>
     public static string DarkGray => ThemeManager.DimText;
 
-    // .NET brand purple — three shades for Aspire-style 3D pixel effect
-    private const string BannerPrimary = "#512BD4";   // Full blocks █
-    private const string BannerDark = "#7455DD";       // Half blocks ▀ (depth/shadow)
-    private const string BannerShine = "#CBBFF2";      // Shine sweep highlight
+    // Teal-to-lime gradient inspired by shahab-the-guy.dev banner
+    private const string BannerPrimary = "#1DB9A0";   // Full blocks █ (teal)
+    private const string BannerDark = "#148F7B";       // Half blocks ▀ (darker teal shadow)
+    private const string BannerShine = "#C8E64D";      // Shine sweep highlight (lime-yellow)
     private const int BannerRowCount = 6;
 
     // Block letter definitions: each letter is 6 rows with ▀ shadow for 3D depth.
@@ -405,5 +405,17 @@ public static class MarioTheme
             return parsed.ToString("dd MMMM yyyy");
 
         return date;
+    }
+
+    /// <summary>
+    /// Renders a goodbye message when the application exits.
+    /// </summary>
+    public static void RenderGoodbye()
+    {
+        AnsiConsole.Clear();
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"  [{BannerPrimary}]Thanks for using[/] [{Red} bold].NET SDK Manager[/]");
+        AnsiConsole.MarkupLine($"  [{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]");
+        AnsiConsole.WriteLine();
     }
 }
