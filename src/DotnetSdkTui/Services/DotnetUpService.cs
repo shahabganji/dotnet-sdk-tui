@@ -62,11 +62,10 @@ public static class DotnetUpService
     {
         if (OperatingSystem.IsWindows())
         {
-            // Prefer pwsh (PowerShell 7+), fall back to powershell.exe (Windows PowerShell 5.1)
-            string shell = ProcessRunner.IsCommandAvailable("pwsh") ? "pwsh" : "powershell.exe";
+            // Use cmd.exe wrapper to avoid "Access is denied" when launching PowerShell directly
             return ProcessRunner.RunWithCallbackAsync(
-                shell,
-                "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"",
+                "cmd.exe",
+                "/c powershell.exe -ExecutionPolicy Bypass -Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"",
                 null, null, null, ct);
         }
 

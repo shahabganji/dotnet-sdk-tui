@@ -56,9 +56,9 @@ internal static class AppVersion
     {
         if (OperatingSystem.IsWindows())
         {
-            string shell = ProcessRunner.IsCommandAvailable("pwsh") ? "pwsh" : "powershell.exe";
-            return ProcessRunner.RunInteractiveAsync(shell,
-                "-Command \"irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex\"");
+            // Use cmd.exe wrapper to avoid "Access is denied" when launching PowerShell directly
+            return ProcessRunner.RunInteractiveAsync("cmd.exe",
+                "/c powershell.exe -ExecutionPolicy Bypass -Command \"irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex\"");
         }
 
         return ProcessRunner.RunInteractiveAsync("bash",
