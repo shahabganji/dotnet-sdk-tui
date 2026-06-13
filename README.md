@@ -9,7 +9,7 @@
 
 </div>
 
-`.NET SDK Manager` is a keyboard-driven terminal application built with **Spectre.Console** and compiled with **NativeAOT**. It wraps the official [`dotnetup`](https://learn.microsoft.com/en-us/dotnet/core/install/dotnet-install-tool) CLI to provide a fast, visual experience for discovering, installing, updating, and removing .NET SDKs and Runtimes — all from a single screen.
+`.NET SDK Manager` is a keyboard-driven terminal application built with **Spectre.Console** and compiled with **NativeAOT**. It wraps the official [`dotnetup`](https://aka.ms/dotnetup/docs) CLI to provide a fast, visual experience for discovering, installing, updating, and removing .NET SDKs and Runtimes — all from a single screen.
 
 ## Features
 
@@ -107,7 +107,7 @@ Tests use [hex1b](https://github.com/nickvdyck/hex1b) for TUI screenshot asserti
 
 - .NET 10 / C# / NativeAOT
 - [Spectre.Console](https://spectreconsole.net) — rendering, layout, markup
-- [dotnetup](https://learn.microsoft.com/en-us/dotnet/core/install/dotnet-install-tool) — SDK/Runtime acquisition
+- [dotnetup](https://aka.ms/dotnetup/docs) — SDK/Runtime acquisition
 - System.Text.Json source generators — AOT-safe JSON parsing
 
 ## Contributing
