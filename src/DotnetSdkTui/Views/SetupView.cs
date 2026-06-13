@@ -17,15 +17,20 @@ public sealed class SetupView : IView
     private string? _statusMessage;
     private bool _isInstalled;
     private DotnetUpInfo? _info;
+    private readonly List<string> _outputLines = [];
 
-    public bool IsLoading => _loading || _actionRunning;
+    public bool NeedsLiveUpdate => _loading || _actionRunning;
+    public bool IsTextInputActive => false;
 
     public Task ActivateAsync()
     {
-        _loading = true;
-        _error = null;
-        _statusMessage = null;
-        _ = LoadAsync();
+        if (!_loading && _info is null && !_isInstalled)
+        {
+            _loading = true;
+            _error = null;
+            _statusMessage = null;
+            _ = LoadAsync();
+        }
         return Task.CompletedTask;
     }
 
@@ -50,17 +55,23 @@ public sealed class SetupView : IView
         }
     }
 
-    public IRenderable Render()
+    public IRenderable Render(bool focused)
     {
         if (_loading)
-            return MarioTheme.ContentPanel("dotnetup Setup", MarioTheme.Info("Checking dotnetup..."));
+        {
+            string focusInd = focused ? $"[{MarioTheme.Green} bold]●[/] " : $"[{MarioTheme.Gray}]○[/] ";
+            return new Panel(MarioTheme.Info("Checking dotnetup..."))
+                .Header($"{focusInd}[{MarioTheme.Yellow} bold]● Setup[/]")
+                .Border(BoxBorder.Rounded)
+                .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
+                .Expand();
+        }
 
         var parts = new List<IRenderable>();
 
         if (_isInstalled)
         {
             parts.Add(MarioTheme.Success("dotnetup is installed!"));
-            parts.Add(Text.Empty);
 
             if (_info is not null)
             {
@@ -79,52 +90,60 @@ public sealed class SetupView : IView
                     new Markup($"[{MarioTheme.White}]{Markup.Escape(_info.Rid)}[/]"));
                 parts.Add(infoTable);
             }
-            else
-            {
-                parts.Add(MarioTheme.Muted("Could not retrieve dotnetup info (--info --json may not be supported)."));
-            }
 
-            parts.Add(Text.Empty);
             parts.Add(new Markup($"[{MarioTheme.Blue}]u[/]:[{MarioTheme.White}]Update dotnetup[/]  " +
                                   $"[{MarioTheme.Blue}]r[/]:[{MarioTheme.White}]Refresh[/]"));
         }
         else
         {
             parts.Add(MarioTheme.Error("dotnetup is not installed."));
-            parts.Add(Text.Empty);
             parts.Add(MarioTheme.Info("dotnetup is the official .NET SDK acquisition tool."));
-            parts.Add(MarioTheme.Muted("It manages SDK installations, channels, and updates."));
-            parts.Add(Text.Empty);
 
             string installCmd = OperatingSystem.IsWindows()
                 ? "iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex"
                 : "curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash";
 
-            parts.Add(new Markup($"[{MarioTheme.Yellow}]Install command:[/]"));
-            parts.Add(new Markup($"[{MarioTheme.Gray}]  {Markup.Escape(installCmd)}[/]"));
-            parts.Add(Text.Empty);
+            parts.Add(new Markup($"[{MarioTheme.Yellow}]Install command:[/] [{MarioTheme.Gray}]{Markup.Escape(installCmd)}[/]"));
             parts.Add(new Markup($"[{MarioTheme.Gold}]Press 'i' to install dotnetup now.[/]"));
         }
 
-        if (_error is not null)
+        // Output from operations (rendered INSIDE the panel)
+        if (_outputLines.Count > 0)
         {
-            parts.Add(Text.Empty);
-            parts.Add(MarioTheme.Error(_error));
+            var outputParts = new List<IRenderable>();
+            int start = Math.Max(0, _outputLines.Count - 8);
+            for (int i = start; i < _outputLines.Count; i++)
+            {
+                string line = _outputLines[i];
+                string color = line.StartsWith("ERR|") ? ThemeManager.OutputError : ThemeManager.OutputText;
+                string text = line.StartsWith("ERR|") ? line[4..] : line;
+                outputParts.Add(new Markup($"[{color}]{Markup.Escape(text)}[/]"));
+            }
+            parts.Add(new Panel(new Rows(outputParts))
+                .Header($"[{MarioTheme.Brown}] Output [/]")
+                .Border(BoxBorder.Rounded)
+                .BorderColor(ThemeManager.TableBorderColor)
+                .Expand());
         }
+
+        if (_error is not null)
+            parts.Add(MarioTheme.Error(_error));
 
         if (_statusMessage is not null)
-        {
-            parts.Add(Text.Empty);
             parts.Add(MarioTheme.Coin(_statusMessage));
-        }
 
-        return MarioTheme.ContentPanel("dotnetup Setup", new Rows(parts));
+        string focusIndicator = focused ? $"[{MarioTheme.Green} bold]●[/] " : $"[{MarioTheme.Gray}]○[/] ";
+        return new Panel(new Rows(parts))
+            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]● Setup (dotnetup)[/]")
+            .Border(BoxBorder.Rounded)
+            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
+            .Expand();
     }
 
     public string GetStatusHints()
     {
         if (_actionRunning) return "Running...";
-        return _isInstalled ? "u:Update  r:Refresh" : "i:Install dotnetup  r:Refresh";
+        return _isInstalled ? "u:Update dotnetup  r:Refresh" : "i:Install dotnetup  r:Refresh";
     }
 
     public async Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)
@@ -138,13 +157,15 @@ public sealed class SetupView : IView
                 return KeyResult.Handled;
 
             case ConsoleKey.U when _isInstalled:
-                await UpdateDotnetUpAsync();
+                await UpdateDotnetUpSelfAsync();
                 return KeyResult.Handled;
 
             case ConsoleKey.R:
                 _loading = true;
                 _error = null;
                 _statusMessage = null;
+                _outputLines.Clear();
+                _info = null;
                 _ = LoadAsync();
                 return KeyResult.Handled;
 
@@ -156,15 +177,34 @@ public sealed class SetupView : IView
     private async Task InstallDotnetUpAsync()
     {
         _actionRunning = true;
+        _outputLines.Clear();
         _statusMessage = "Installing dotnetup...";
 
         try
         {
-            var result = await DotnetUpService.InstallDotnetUpAsync();
+            string cmd;
+            string args;
+            if (OperatingSystem.IsWindows())
+            {
+                cmd = "powershell";
+                args = "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"";
+            }
+            else
+            {
+                cmd = "bash";
+                args = "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"";
+            }
+
+            var result = await ProcessRunner.RunWithCallbackAsync(
+                cmd, args,
+                line => _outputLines.Add(line),
+                errLine => _outputLines.Add($"ERR|{errLine}"));
+
             if (result.ExitCode == 0)
             {
                 _statusMessage = "dotnetup installed successfully!";
                 _isInstalled = true;
+                _loading = true;
                 _ = LoadAsync();
             }
             else
@@ -184,16 +224,35 @@ public sealed class SetupView : IView
         }
     }
 
-    private async Task UpdateDotnetUpAsync()
+    private async Task UpdateDotnetUpSelfAsync()
     {
         _actionRunning = true;
-        _statusMessage = "Updating dotnetup...";
+        _outputLines.Clear();
+        _statusMessage = "Updating dotnetup itself...";
 
         try
         {
-            var result = await DotnetUpService.UpdateAllAsync();
+            // Re-run the install script to update dotnetup itself
+            string cmd;
+            string args;
+            if (OperatingSystem.IsWindows())
+            {
+                cmd = "powershell";
+                args = "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"";
+            }
+            else
+            {
+                cmd = "bash";
+                args = "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"";
+            }
+
+            var result = await ProcessRunner.RunWithCallbackAsync(
+                cmd, args,
+                line => _outputLines.Add(line),
+                errLine => _outputLines.Add($"ERR|{errLine}"));
+
             _statusMessage = result.ExitCode == 0
-                ? $"Update completed ({result.Duration.TotalSeconds:F1}s)."
+                ? $"dotnetup updated successfully ({result.Duration.TotalSeconds:F1}s)."
                 : $"Update failed (exit code {result.ExitCode}).";
         }
         catch (Exception ex)
@@ -203,6 +262,8 @@ public sealed class SetupView : IView
         finally
         {
             _actionRunning = false;
+            _info = null;
+            _loading = true;
             _ = LoadAsync();
         }
     }

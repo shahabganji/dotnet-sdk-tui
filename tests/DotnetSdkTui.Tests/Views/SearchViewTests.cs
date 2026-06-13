@@ -16,7 +16,7 @@ public class SearchViewTests
     {
         var view = new SearchView();
         await view.ActivateAsync();
-        Assert.True(view.InputMode);
+        Assert.True(view.IsTextInputActive);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class SearchViewTests
         await view.HandleKeyAsync(new ConsoleKeyInfo('.', ConsoleKey.OemPeriod, false, false, false));
         await view.HandleKeyAsync(new ConsoleKeyInfo('0', ConsoleKey.D0, false, false, false));
 
-        var renderable = view.Render();
+        var renderable = view.Render(true);
         Assert.NotNull(renderable);
     }
 
@@ -58,7 +58,7 @@ public class SearchViewTests
         await view.HandleKeyAsync(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
         await view.HandleKeyAsync(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false));
 
-        Assert.True(view.InputMode);
+        Assert.True(view.IsTextInputActive);
     }
 
     [Fact]
@@ -66,6 +66,6 @@ public class SearchViewTests
     {
         var view = new SearchView();
         var hints = view.GetStatusHints();
-        Assert.Contains("Search", hints);
+        Assert.Contains("search", hints, StringComparison.OrdinalIgnoreCase);
     }
 }

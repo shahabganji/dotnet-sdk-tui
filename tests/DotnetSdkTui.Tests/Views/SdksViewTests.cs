@@ -25,7 +25,7 @@ public class SdksViewTests
         await view.ActivateAsync();
         await Task.Delay(1000); // wait for background load
 
-        var renderable = view.Render();
+        var renderable = view.Render(true);
         Assert.NotNull(renderable);
     }
 

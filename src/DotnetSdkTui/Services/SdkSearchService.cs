@@ -191,6 +191,7 @@ internal sealed class ChannelInfo
     public string LatestRelease { get; init; } = string.Empty;
     public string LatestSdk { get; init; } = string.Empty;
     public string SupportPhase { get; init; } = string.Empty;
+    public string? EolDate { get; init; }
 
     [JsonPropertyName("releases.json")]
     public string ReleasesJsonUrl { get; init; } = string.Empty;

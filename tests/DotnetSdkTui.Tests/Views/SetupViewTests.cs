@@ -18,7 +18,7 @@ public class SetupViewTests
         await view.ActivateAsync();
         await Task.Delay(500);
 
-        var renderable = view.Render();
+        var renderable = view.Render(true);
         Assert.NotNull(renderable);
     }
 

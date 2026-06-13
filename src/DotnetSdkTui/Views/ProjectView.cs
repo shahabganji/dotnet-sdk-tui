@@ -19,67 +19,68 @@ public sealed class ProjectView : IView
     private int _outputScroll;
     private ProcessResult? _lastResult;
 
-    public bool IsRunning => _running;
+    public bool NeedsLiveUpdate => _running;
+    public bool IsTextInputActive => false;
 
     public Task ActivateAsync()
     {
-        _projects = ProjectDetector.Detect();
-        _selectedProject = 0;
+        if (_projects.Count == 0)
+        {
+            _projects = ProjectDetector.Detect();
+            _selectedProject = 0;
+        }
         return Task.CompletedTask;
     }
 
-    public IRenderable Render()
+    public IRenderable Render(bool focused)
     {
         var parts = new List<IRenderable>();
 
         if (_projects.Count == 0)
         {
-            parts.Add(MarioTheme.Muted("No .sln, .slnx, or .csproj files detected in current directory."));
-            parts.Add(Text.Empty);
-            parts.Add(MarioTheme.Info($"Current: {Directory.GetCurrentDirectory()}"));
-            return MarioTheme.ContentPanel("Project Actions", new Rows(parts));
-        }
-
-        // Project selector
-        if (_projects.Count > 1)
-        {
-            parts.Add(new Markup($"[{MarioTheme.Yellow} bold]Projects:[/]"));
-            for (int i = 0; i < _projects.Count; i++)
-            {
-                string prefix = i == _selectedProject ? "►" : " ";
-                string style = i == _selectedProject ? $"{MarioTheme.Yellow} bold" : MarioTheme.White;
-                parts.Add(new Markup($"  [{style}]{prefix} {Markup.Escape(_projects[i].FileName)}[/]"));
-            }
-            parts.Add(Text.Empty);
+            parts.Add(MarioTheme.Muted("No .sln, .slnx, or .csproj files detected."));
+            parts.Add(MarioTheme.Info($"Dir: {Directory.GetCurrentDirectory()}"));
         }
         else
         {
-            parts.Add(new Markup($"[{MarioTheme.Yellow} bold]Project:[/] [{MarioTheme.White}]{Markup.Escape(_projects[0].FileName)}[/]"));
-            parts.Add(Text.Empty);
-        }
+            // Project selector
+            if (_projects.Count > 1)
+            {
+                var projParts = new List<string>();
+                for (int i = 0; i < _projects.Count; i++)
+                {
+                    string prefix = i == _selectedProject ? "►" : " ";
+                    string style = i == _selectedProject ? $"{MarioTheme.Yellow} bold" : MarioTheme.White;
+                    projParts.Add($"[{style}]{prefix} {Markup.Escape(_projects[i].FileName)}[/]");
+                }
+                parts.Add(new Markup(string.Join("  ", projParts)));
+            }
+            else
+            {
+                parts.Add(new Markup($"[{MarioTheme.Yellow} bold]Project:[/] [{MarioTheme.White}]{Markup.Escape(_projects[0].FileName)}[/]"));
+            }
 
-        // Action bar
-        if (!_running)
-        {
-            var actions = new Markup($"[{MarioTheme.Blue}]r[/]:[{MarioTheme.White}]Restore[/]  " +
+            // Action bar
+            if (!_running)
+            {
+                parts.Add(new Markup($"[{MarioTheme.Blue}]r[/]:[{MarioTheme.White}]Restore[/]  " +
                                      $"[{MarioTheme.Blue}]b[/]:[{MarioTheme.White}]Build[/]  " +
                                      $"[{MarioTheme.Blue}]t[/]:[{MarioTheme.White}]Test[/]  " +
                                      $"[{MarioTheme.Blue}]n[/]:[{MarioTheme.White}]Run[/]  " +
-                                     $"[{MarioTheme.Blue}]p[/]:[{MarioTheme.White}]Publish[/]");
-            parts.Add(actions);
-            parts.Add(Text.Empty);
+                                     $"[{MarioTheme.Blue}]p[/]:[{MarioTheme.White}]Publish[/]"));
+            }
         }
 
-        // Output panel
+        // Running indicator
         if (_running)
         {
             parts.Add(new Markup($"[{MarioTheme.Yellow}]Running {Markup.Escape(_lastAction ?? "")}...[/]"));
-            parts.Add(Text.Empty);
         }
 
+        // Output panel - ALWAYS render inside the section
         if (_outputLines.Count > 0)
         {
-            int maxLines = 20;
+            int maxLines = 12;
             int start = Math.Max(0, _outputLines.Count - maxLines - _outputScroll);
             int end = Math.Min(_outputLines.Count, start + maxLines);
 
@@ -87,18 +88,16 @@ public sealed class ProjectView : IView
             for (int i = start; i < end; i++)
             {
                 string line = _outputLines[i];
-                string color = line.StartsWith("ERR|") ? MarioTheme.Red : MarioTheme.Gray;
+                string color = line.StartsWith("ERR|") ? ThemeManager.OutputError : ThemeManager.OutputText;
                 string text = line.StartsWith("ERR|") ? line[4..] : line;
                 outputParts.Add(new Markup($"[{color}]{Markup.Escape(text)}[/]"));
             }
 
-            var outputPanel = new Panel(new Rows(outputParts))
-                .Header($"[{MarioTheme.Brown}] Output [/]")
+            parts.Add(new Panel(new Rows(outputParts))
+                .Header($"[{MarioTheme.Brown}] Output ({_outputLines.Count} lines) [/]")
                 .Border(BoxBorder.Rounded)
-                .BorderColor(new Color(200, 76, 9))
-                .Expand();
-
-            parts.Add(outputPanel);
+                .BorderColor(ThemeManager.TableBorderColor)
+                .Expand());
         }
 
         // Result summary
@@ -110,21 +109,40 @@ public sealed class ProjectView : IView
                 parts.Add(MarioTheme.Error($"{_lastAction} failed (exit code {_lastResult.ExitCode}) in {_lastResult.Duration.TotalSeconds:F1}s"));
         }
 
-        return MarioTheme.ContentPanel("Project Actions", new Rows(parts));
+        string focusIndicator = focused ? $"[{MarioTheme.Green} bold]●[/] " : $"[{MarioTheme.Gray}]○[/] ";
+        return new Panel(new Rows(parts))
+            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]🔥 Project[/]")
+            .Border(BoxBorder.Rounded)
+            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
+            .Expand();
     }
 
     public string GetStatusHints()
     {
         if (_projects.Count == 0) return "No project detected";
-        if (_running) return $"Running {_lastAction}...  (output streaming)";
+        if (_running) return $"Running {_lastAction}...  (streaming)";
         if (_projects.Count > 1)
-            return "←→:Select project  r:Restore  b:Build  t:Test  n:Run  p:Publish  c:Clear";
+            return "←→:Select  r:Restore  b:Build  t:Test  n:Run  p:Publish  c:Clear";
         return "r:Restore  b:Build  t:Test  n:Run  p:Publish  c:Clear";
     }
 
     public async Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)
     {
-        if (_running) return KeyResult.NotHandled;
+        if (_running)
+        {
+            // Allow scrolling output during execution
+            if (key.Key == ConsoleKey.UpArrow)
+            {
+                _outputScroll = Math.Min(_outputScroll + 1, Math.Max(0, _outputLines.Count - 5));
+                return KeyResult.Handled;
+            }
+            if (key.Key == ConsoleKey.DownArrow)
+            {
+                _outputScroll = Math.Max(0, _outputScroll - 1);
+                return KeyResult.Handled;
+            }
+            return KeyResult.NotHandled;
+        }
 
         if (_projects.Count == 0) return KeyResult.NotHandled;
 
@@ -139,23 +157,23 @@ public sealed class ProjectView : IView
                 return KeyResult.Handled;
 
             case ConsoleKey.R:
-                await RunActionAsync("Restore", DotnetCliService.RestoreAsync);
+                await RunActionAsync("Restore", "restore");
                 return KeyResult.Handled;
 
             case ConsoleKey.B:
-                await RunActionAsync("Build", DotnetCliService.BuildAsync);
+                await RunActionAsync("Build", "build");
                 return KeyResult.Handled;
 
             case ConsoleKey.T:
-                await RunActionAsync("Test", DotnetCliService.TestAsync);
+                await RunActionAsync("Test", "test");
                 return KeyResult.Handled;
 
             case ConsoleKey.N:
-                await RunActionAsync("Run", DotnetCliService.RunAsync);
+                await RunActionAsync("Run", "run");
                 return KeyResult.Handled;
 
             case ConsoleKey.P:
-                await RunActionAsync("Publish", DotnetCliService.PublishAsync);
+                await RunActionAsync("Publish", "publish");
                 return KeyResult.Handled;
 
             case ConsoleKey.C:
@@ -178,9 +196,19 @@ public sealed class ProjectView : IView
         }
     }
 
-    private async Task RunActionAsync(string actionName, Func<ProjectInfo, CancellationToken, Task<ProcessResult>> action)
+    private async Task RunActionAsync(string actionName, string verb)
     {
         var project = _projects[_selectedProject];
+
+        if (verb == "run" && project.ProjectType != ProjectType.CSharpProject)
+        {
+            _outputLines.Clear();
+            _outputLines.Add("ERR|dotnet run is only supported for .csproj projects.");
+            _lastResult = new ProcessResult(-1, "", "Not supported", TimeSpan.Zero);
+            _lastAction = actionName;
+            return;
+        }
+
         _running = true;
         _lastAction = actionName;
         _outputLines.Clear();
@@ -189,8 +217,6 @@ public sealed class ProjectView : IView
 
         try
         {
-            // Use callback-based runner for live output in the panel
-            string verb = actionName.ToLowerInvariant();
             string projectArg = ProjectDetector.GetDotnetArgument(project);
             string workingDir = Path.GetDirectoryName(project.FilePath) ?? Directory.GetCurrentDirectory();
 

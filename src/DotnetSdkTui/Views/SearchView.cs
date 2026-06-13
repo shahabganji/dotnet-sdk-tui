@@ -9,33 +9,33 @@ public sealed class SearchView : IView
 {
     public string Name => "Search";
     public string Icon => "★";
-    public bool InputMode { get; private set; } = true;
 
     private string _searchQuery = "";
     private List<AvailableSdk> _results = [];
     private bool _searching;
     private string? _error;
     private int _selectedIndex;
+    private bool _inputActive = true;
+    private CancellationTokenSource? _debounceCts;
+    private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(300);
+
+    public bool NeedsLiveUpdate => _searching;
+    public bool IsTextInputActive => _inputActive;
 
     public Task ActivateAsync()
     {
-        InputMode = true;
-        _searchQuery = "";
-        _results = [];
-        _error = null;
-        _selectedIndex = 0;
+        _inputActive = true;
         return Task.CompletedTask;
     }
 
-    public IRenderable Render()
+    public IRenderable Render(bool focused)
     {
         var parts = new List<IRenderable>();
 
         // Search input
-        string cursor = InputMode ? "▌" : "";
-        string inputDisplay = _searchQuery.Length > 0 ? _searchQuery : (InputMode ? "" : "(press / to search)");
-        parts.Add(new Markup($"[{MarioTheme.Yellow} bold]Search:[/] [{MarioTheme.White}]{Markup.Escape(inputDisplay)}{cursor}[/]"));
-        parts.Add(Text.Empty);
+        string cursor = focused && _inputActive ? "▌" : "";
+        string inputDisplay = _searchQuery.Length > 0 ? _searchQuery : (focused && _inputActive ? "" : "type to search...");
+        parts.Add(new Markup($"[{MarioTheme.Yellow} bold]🔍 Search:[/] [{MarioTheme.White}]{Markup.Escape(inputDisplay)}{cursor}[/]"));
 
         if (_searching)
         {
@@ -49,10 +49,11 @@ public sealed class SearchView : IView
         {
             var table = MarioTheme.StyledTable("", "Version", "Channel", "Support", "Latest");
 
-            for (int i = 0; i < _results.Count; i++)
+            int maxRows = Math.Min(_results.Count, 10);
+            for (int i = 0; i < maxRows; i++)
             {
                 var sdk = _results[i];
-                bool selected = i == _selectedIndex;
+                bool selected = focused && !_inputActive && i == _selectedIndex;
                 string pointer = selected ? "►" : " ";
                 string style = selected ? $"{MarioTheme.Yellow} bold" : MarioTheme.White;
                 string latest = sdk.IsLatest ? "★" : "";
@@ -66,32 +67,40 @@ public sealed class SearchView : IView
             }
 
             parts.Add(table);
-            parts.Add(new Markup($"[{MarioTheme.Gray}]{_results.Count} result(s)[/]"));
+            if (_results.Count > maxRows)
+                parts.Add(MarioTheme.Muted($"Showing {maxRows} of {_results.Count} results"));
+            else
+                parts.Add(MarioTheme.Muted($"{_results.Count} result(s)"));
         }
-        else if (!InputMode)
+        else if (_searchQuery.Length == 0)
         {
-            parts.Add(MarioTheme.Muted("No results. Try a version number like 10.0, or 'latest', 'lts'."));
+            parts.Add(MarioTheme.Muted("Type a version (10.0, 9.0) or keyword (latest, lts, preview)."));
         }
         else
         {
-            parts.Add(MarioTheme.Muted("Type a version (e.g. 10.0, 9.0) or keyword (latest, lts, preview) and press Enter."));
+            parts.Add(MarioTheme.Muted("No results found."));
         }
 
-        return MarioTheme.ContentPanel("Search SDKs", new Rows(parts));
+        string focusIndicator = focused ? $"[{MarioTheme.Green} bold]●[/] " : $"[{MarioTheme.Gray}]○[/] ";
+        return new Panel(new Rows(parts))
+            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]★ Search[/]")
+            .Border(BoxBorder.Rounded)
+            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
+            .Expand();
     }
 
     public string GetStatusHints()
     {
         if (_searching) return "Searching...";
-        if (InputMode) return "Type query  Enter:Search  Esc:Clear";
-        return "↑↓:Navigate  i:Install  /:New search  Esc:Back";
+        if (_inputActive) return "Type to search (live)  Tab:Results  Esc:Clear";
+        return "↑↓:Navigate  i:Install  Tab:Input  Esc:Back";
     }
 
     public async Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)
     {
-        if (_searching) return KeyResult.NotHandled;
+        if (_searching && key.Key != ConsoleKey.Escape) return KeyResult.NotHandled;
 
-        if (InputMode)
+        if (_inputActive)
         {
             return await HandleInputModeAsync(key);
         }
@@ -103,28 +112,42 @@ public sealed class SearchView : IView
     {
         switch (key.Key)
         {
-            case ConsoleKey.Enter:
-                if (_searchQuery.Length > 0)
+            case ConsoleKey.Tab:
+                if (_results.Count > 0)
                 {
-                    InputMode = false;
-                    _searching = true;
-                    _ = SearchAsync();
+                    _inputActive = false;
+                    _selectedIndex = 0;
                 }
                 return KeyResult.Handled;
 
             case ConsoleKey.Backspace:
                 if (_searchQuery.Length > 0)
+                {
                     _searchQuery = _searchQuery[..^1];
+                    TriggerDebouncedSearch();
+                }
                 return KeyResult.Handled;
 
             case ConsoleKey.Escape:
                 _searchQuery = "";
+                _results = [];
+                _error = null;
+                _debounceCts?.Cancel();
+                return KeyResult.Handled;
+
+            case ConsoleKey.DownArrow:
+                if (_results.Count > 0)
+                {
+                    _inputActive = false;
+                    _selectedIndex = 0;
+                }
                 return KeyResult.Handled;
 
             default:
                 if (key.KeyChar is >= ' ' and <= '~')
                 {
                     _searchQuery += key.KeyChar;
+                    TriggerDebouncedSearch();
                     return KeyResult.Handled;
                 }
                 return KeyResult.NotHandled;
@@ -137,12 +160,25 @@ public sealed class SearchView : IView
         {
             case ConsoleKey.UpArrow or ConsoleKey.K:
                 if (_results.Count > 0)
-                    _selectedIndex = Math.Max(0, _selectedIndex - 1);
+                {
+                    if (_selectedIndex == 0)
+                    {
+                        _inputActive = true;
+                    }
+                    else
+                    {
+                        _selectedIndex = Math.Max(0, _selectedIndex - 1);
+                    }
+                }
                 return KeyResult.Handled;
 
             case ConsoleKey.DownArrow or ConsoleKey.J:
                 if (_results.Count > 0)
-                    _selectedIndex = Math.Min(_results.Count - 1, _selectedIndex + 1);
+                    _selectedIndex = Math.Min(Math.Min(_results.Count, 10) - 1, _selectedIndex + 1);
+                return KeyResult.Handled;
+
+            case ConsoleKey.Tab:
+                _inputActive = true;
                 return KeyResult.Handled;
 
             case ConsoleKey.I:
@@ -150,39 +186,72 @@ public sealed class SearchView : IView
                 return KeyResult.Handled;
 
             case ConsoleKey.Escape:
-                InputMode = true;
-                _searchQuery = "";
-                _results = [];
-                _selectedIndex = 0;
-                return KeyResult.Handled;
-
-            case ConsoleKey.Oem2: // '/' key
-                InputMode = true;
-                _searchQuery = "";
+                _inputActive = true;
                 return KeyResult.Handled;
 
             default:
+                // Allow typing to go back to input mode
+                if (key.KeyChar is >= ' ' and <= '~')
+                {
+                    _inputActive = true;
+                    _searchQuery += key.KeyChar;
+                    TriggerDebouncedSearch();
+                    return KeyResult.Handled;
+                }
                 return KeyResult.NotHandled;
         }
     }
 
-    private async Task SearchAsync()
+    private void TriggerDebouncedSearch()
     {
-        try
+        _debounceCts?.Cancel();
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+        var query = _searchQuery;
+
+        _ = Task.Run(async () =>
         {
-            _results = await SdkSearchService.SearchAvailableSdksAsync(_searchQuery);
-            _selectedIndex = 0;
-            _error = null;
-        }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-            _results = [];
-        }
-        finally
-        {
-            _searching = false;
-        }
+            try
+            {
+                await Task.Delay(DebounceDelay, token);
+                if (token.IsCancellationRequested) return;
+
+                _searching = true;
+
+                if (string.IsNullOrWhiteSpace(query))
+                {
+                    _results = [];
+                    _error = null;
+                    _searching = false;
+                    return;
+                }
+
+                var results = await SdkSearchService.SearchAvailableSdksAsync(query, token);
+                if (!token.IsCancellationRequested)
+                {
+                    _results = results;
+                    _selectedIndex = 0;
+                    _error = null;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Debounce cancelled — expected
+            }
+            catch (Exception ex)
+            {
+                if (!token.IsCancellationRequested)
+                {
+                    _error = ex.Message;
+                    _results = [];
+                }
+            }
+            finally
+            {
+                if (!token.IsCancellationRequested)
+                    _searching = false;
+            }
+        });
     }
 
     private async Task InstallSelectedAsync()
@@ -192,7 +261,7 @@ public sealed class SearchView : IView
         var sdk = _results[_selectedIndex];
         if (!DotnetUpService.IsInstalled())
         {
-            _error = "dotnetup not found. Go to Setup (4) to install it first.";
+            _error = "dotnetup not found. Install it first (F4 to focus Setup).";
             return;
         }
 

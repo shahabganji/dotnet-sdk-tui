@@ -8,8 +8,7 @@ namespace DotnetSdkTui;
 public sealed class App
 {
     private readonly IView[] _views;
-    private readonly (string Name, string Icon)[] _tabInfo;
-    private int _activeTab;
+    private int _focusedSection;
     private bool _running = true;
     private string _dotnetUpStatus = "checking...";
     private readonly bool _skipSplash;
@@ -24,14 +23,6 @@ public sealed class App
             new ProjectView(),
             new SetupView()
         ];
-
-        _tabInfo =
-        [
-            ("SDKs", "🍄"),
-            ("Search", "★"),
-            ("Project", "🔥"),
-            ("Setup", "●"),
-        ];
     }
 
     public async Task RunAsync()
@@ -42,25 +33,19 @@ public sealed class App
             await MarioTheme.RenderSplashAsync();
 
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
-        await _views[_activeTab].ActivateAsync();
 
-        var layout = new Layout("Root")
-            .SplitRows(
-                new Layout("Header").Size(3),
-                new Layout("Tabs").Size(1),
-                new Layout("Content").MinimumSize(5),
-                new Layout("Footer").Size(1));
+        // Activate all views on startup
+        foreach (var view in _views)
+            await view.ActivateAsync();
 
         while (_running)
         {
             AnsiConsole.Clear();
-            UpdateLayout(layout);
-            AnsiConsole.Write(layout);
+            RenderScreen();
 
-            // If a view needs live updates (e.g., command running), poll mode
             if (IsLiveUpdateNeeded())
             {
-                var deadline = DateTime.UtcNow.AddMilliseconds(200);
+                var deadline = DateTime.UtcNow.AddMilliseconds(150);
                 while (DateTime.UtcNow < deadline && _running)
                 {
                     try
@@ -98,76 +83,94 @@ public sealed class App
         AnsiConsole.Clear();
     }
 
-    private void UpdateLayout(Layout layout)
+    private void RenderScreen()
     {
         string cwd = Directory.GetCurrentDirectory();
         List<Models.ProjectInfo> projects = ProjectDetector.Detect();
         string? projectName = projects.Count > 0 ? projects[0].FileName : null;
+        string themeName = ThemeManager.Current == AppTheme.Dark ? "🌙 Dark" : "☀️ Light";
 
-        layout["Header"].Update(MarioTheme.Header(_dotnetUpStatus, cwd, projectName));
-        layout["Tabs"].Update(MarioTheme.TabBar(_tabInfo, _activeTab));
-        layout["Content"].Update(_views[_activeTab].Render());
-        layout["Footer"].Update(MarioTheme.Footer(_views[_activeTab].GetStatusHints()));
+        // Header
+        AnsiConsole.Write(MarioTheme.Header(_dotnetUpStatus, cwd, projectName, themeName));
+
+        // All sections rendered in a 2-column grid layout
+        var topGrid = new Grid().AddColumn().AddColumn();
+        topGrid.AddRow(
+            _views[0].Render(_focusedSection == 0),  // SDKs
+            _views[1].Render(_focusedSection == 1));  // Search
+
+        var bottomGrid = new Grid().AddColumn().AddColumn();
+        bottomGrid.AddRow(
+            _views[2].Render(_focusedSection == 2),  // Project
+            _views[3].Render(_focusedSection == 3));  // Setup
+
+        AnsiConsole.Write(topGrid);
+        AnsiConsole.Write(bottomGrid);
+
+        // Footer with focused section hints
+        AnsiConsole.Write(MarioTheme.Footer(_views[_focusedSection].GetStatusHints()));
     }
 
     private async Task HandleKeyAsync(ConsoleKeyInfo key)
     {
-        // Quit
-        if (key.Key == ConsoleKey.Q && !IsTextInputActive())
+        // Quit (only when not in text input)
+        if (key.Key == ConsoleKey.Q && !_views[_focusedSection].IsTextInputActive)
         {
             _running = false;
             return;
         }
 
-        // Tab switching with number keys (only when not in text input mode)
-        if (!IsTextInputActive())
+        // Theme toggle
+        if (key.Key == ConsoleKey.T && !_views[_focusedSection].IsTextInputActive)
         {
-            int tabIndex = key.Key switch
+            ThemeManager.Toggle();
+            return;
+        }
+
+        // Section focus switching with F1-F4
+        if (!_views[_focusedSection].IsTextInputActive)
+        {
+            int sectionIndex = key.Key switch
             {
-                ConsoleKey.D1 or ConsoleKey.NumPad1 => 0,
-                ConsoleKey.D2 or ConsoleKey.NumPad2 => 1,
-                ConsoleKey.D3 or ConsoleKey.NumPad3 => 2,
-                ConsoleKey.D4 or ConsoleKey.NumPad4 => 3,
+                ConsoleKey.F1 => 0,
+                ConsoleKey.F2 => 1,
+                ConsoleKey.F3 => 2,
+                ConsoleKey.F4 => 3,
                 _ => -1
             };
 
-            if (tabIndex >= 0 && tabIndex < _views.Length && tabIndex != _activeTab)
+            if (sectionIndex >= 0 && sectionIndex < _views.Length && sectionIndex != _focusedSection)
             {
-                _activeTab = tabIndex;
-                await _views[_activeTab].ActivateAsync();
+                _focusedSection = sectionIndex;
                 return;
             }
         }
 
-        // Tab cycling
-        if (key.Key == ConsoleKey.Tab)
+        // Tab cycling between sections (only when focused view is not capturing text)
+        if (key.Key == ConsoleKey.Tab && !_views[_focusedSection].IsTextInputActive)
         {
             if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
-                _activeTab = (_activeTab - 1 + _views.Length) % _views.Length;
+                _focusedSection = (_focusedSection - 1 + _views.Length) % _views.Length;
             else
-                _activeTab = (_activeTab + 1) % _views.Length;
-
-            await _views[_activeTab].ActivateAsync();
+                _focusedSection = (_focusedSection + 1) % _views.Length;
             return;
         }
 
-        // Pass to current view
-        var result = await _views[_activeTab].HandleKeyAsync(key);
+        // Pass key to focused view
+        var result = await _views[_focusedSection].HandleKeyAsync(key);
         if (result == KeyResult.Quit)
         {
             _running = false;
         }
     }
 
-    private bool IsTextInputActive()
-    {
-        return _views[_activeTab] is SearchView { InputMode: true };
-    }
-
     private bool IsLiveUpdateNeeded()
     {
-        return _views[_activeTab] is ProjectView { IsRunning: true }
-            || _views[_activeTab] is SdksView { IsLoading: true }
-            || _views[_activeTab] is SetupView { IsLoading: true };
+        foreach (var view in _views)
+        {
+            if (view.NeedsLiveUpdate)
+                return true;
+        }
+        return false;
     }
 }

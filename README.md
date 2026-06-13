@@ -20,12 +20,13 @@
 ## Features
 
 - **? Block coin animation splash** — Mario-themed startup with coin burst animation
-- **K9s-style layout** — persistent header, tab bar, content panel, and hotkey footer
-- **🍄 SDKs tab** — unified view of installed SDKs + active available channels (8.0, 9.0, 10.0, 11.0…)
-- **★ Search tab** — inline search with text input for installed & online SDK catalogs
-- **🔥 Project tab** — auto-detect `.sln`, `.slnx`, `.csproj` and run Restore, Build, Test, Run, Publish with live output
-- **● Setup tab** — install and configure `dotnetup` from inside the app
-- **Tab navigation** — switch tabs with `1-4`, `Tab`/`Shift+Tab`, quit with `q`
+- **K9s-style unified layout** — all sections visible on one screen: SDKs, Search, Project, Setup
+- **🍄 SDKs section** — real installed SDKs + available channels with Install/Uninstall/Update actions, lifecycle info
+- **★ Search section** — inline live search with debounce, results update as you type
+- **🔥 Project section** — auto-detect `.sln`, `.slnx`, `.csproj` and run Restore, Build, Test, Run, Publish with live streaming output
+- **● Setup section** — install and update `dotnetup` tool itself from inside the app
+- **🌙/☀️ Theme toggle** — dark and light themes, press `T` to switch
+- **Section focus** — switch focus with `F1-F4`, `Tab`/`Shift+Tab`, quit with `q`
 - **NativeAOT compiled** — fast startup, small binary, no runtime dependency
 
 ## Navigation
@@ -33,11 +34,11 @@
 ```text
  🍄 SDKs  │ ★ Search  │ 🔥 Project  │ ● Setup
 ───────────────────────────────────────────────
- Tab 1: SDKs      — ↑↓ navigate, i:Install, u:Uninstall, r:Refresh
- Tab 2: Search    — type query + Enter, ↑↓ results, i:Install, /:New search
- Tab 3: Project   — r:Restore, b:Build, t:Test, n:Run, p:Publish, c:Clear
- Tab 4: Setup     — i:Install dotnetup, u:Update, s:Status
- Global: 1-4 switch tabs, Tab/Shift+Tab cycle, q:Quit
+ F1: SDKs      — ↑↓ navigate, i:Install, u:Uninstall, p:Update, r:Refresh
+ F2: Search    — type to search (live), ↑↓ results, i:Install
+ F3: Project   — r:Restore, b:Build, t:Test, n:Run, p:Publish, c:Clear
+ F4: Setup     — i:Install dotnetup, u:Update dotnetup, r:Refresh
+ Global: F1-F4 focus, Tab/Shift+Tab cycle, T:Theme, q:Quit
 ```
 
 ## Installation
