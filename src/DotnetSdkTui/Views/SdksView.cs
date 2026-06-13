@@ -251,7 +251,7 @@ public sealed class SdksView : IView
                 return KeyResult.Handled;
 
             case ConsoleKey.U:
-                RequestUninstall();
+                await RequestUninstallAsync();
                 return KeyResult.Handled;
 
             case ConsoleKey.P:
@@ -287,7 +287,7 @@ public sealed class SdksView : IView
         PendingCommand = ("dotnetup", $"sdk install {row.Channel}");
     }
 
-    private void RequestUninstall()
+    private async Task RequestUninstallAsync()
     {
         if (_rows.Count == 0 || _selectedIndex >= _rows.Count) return;
 
@@ -304,7 +304,8 @@ public sealed class SdksView : IView
             return;
         }
 
-        PendingCommand = ("dotnetup", $"sdk uninstall {row.Version}");
+        string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, "SDK");
+        PendingCommand = ("dotnetup", $"sdk uninstall {spec}");
     }
 
     private void RequestUpdate()

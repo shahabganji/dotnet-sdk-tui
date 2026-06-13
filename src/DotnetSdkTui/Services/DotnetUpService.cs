@@ -75,6 +75,74 @@ public static class DotnetUpService
     }
 
     /// <summary>
+    /// Resolves an installed version to the dotnetup install spec (channel) that tracks it.
+    /// Parses <c>dotnetup list --format Json</c> and finds the best matching spec.
+    /// Falls back to the exact version if no matching spec is found.
+    /// </summary>
+    public static async Task<string> ResolveInstallSpecAsync(string version, string component, CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await ProcessRunner.RunAsync("dotnetup", "list --format Json", ct: ct);
+            if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.Output))
+                return version;
+
+            var doc = System.Text.Json.JsonDocument.Parse(result.Output);
+            if (!doc.RootElement.TryGetProperty("installSpecs", out var specs))
+                return version;
+
+            string targetComponent = component.Equals("SDK", StringComparison.OrdinalIgnoreCase) ? "SDK" : component;
+
+            // Collect all matching specs for this component
+            var candidates = new List<string>();
+            foreach (var spec in specs.EnumerateArray())
+            {
+                string specComponent = spec.GetProperty("component").GetString() ?? "";
+                string specChannel = spec.GetProperty("versionOrChannel").GetString() ?? "";
+
+                if (string.IsNullOrEmpty(specChannel)) continue;
+
+                // Normalize component names (dotnetup uses "SDK", "Runtime", "ASPNETCore")
+                bool componentMatch = component.Equals("SDK", StringComparison.OrdinalIgnoreCase)
+                    ? specComponent.Equals("SDK", StringComparison.OrdinalIgnoreCase)
+                    : !specComponent.Equals("SDK", StringComparison.OrdinalIgnoreCase);
+
+                if (!componentMatch) continue;
+
+                // Exact match
+                if (specChannel.Equals(version, StringComparison.OrdinalIgnoreCase))
+                    return version;
+
+                // Feature band pattern match (e.g. "10.0.2xx" matches "10.0.204")
+                if (specChannel.Contains("xx", StringComparison.OrdinalIgnoreCase))
+                {
+                    string prefix = specChannel.Replace("xx", "", StringComparison.OrdinalIgnoreCase);
+                    if (version.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        candidates.Add(specChannel);
+                }
+
+                // Major.minor match (e.g. "10.0" matches "10.0.204")
+                if (!specChannel.Contains('.', StringComparison.Ordinal) || specChannel.Count(c => c == '.') < 2)
+                {
+                    if (version.StartsWith(specChannel + ".", StringComparison.OrdinalIgnoreCase)
+                        || version.StartsWith(specChannel, StringComparison.OrdinalIgnoreCase))
+                        candidates.Add(specChannel);
+                }
+            }
+
+            // Prefer the most specific match (longest spec)
+            if (candidates.Count > 0)
+            {
+                candidates.Sort((a, b) => b.Length.CompareTo(a.Length));
+                return candidates[0];
+            }
+        }
+        catch { }
+
+        return version;
+    }
+
+    /// <summary>
     /// Parses the text output of <c>dotnet --list-sdks</c> into a list of <see cref="SdkInfo"/>.
     /// Each line has the format: <c>VERSION [INSTALL_PATH]</c>.
     /// </summary>

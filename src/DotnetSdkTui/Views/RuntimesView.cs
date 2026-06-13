@@ -251,7 +251,7 @@ public sealed class RuntimesView : IView
                 return KeyResult.Handled;
 
             case ConsoleKey.U:
-                RequestUninstall();
+                await RequestUninstallAsync();
                 return KeyResult.Handled;
 
             case ConsoleKey.R:
@@ -280,7 +280,7 @@ public sealed class RuntimesView : IView
         PendingCommand = ("dotnetup", $"runtime install {row.Channel}");
     }
 
-    private void RequestUninstall()
+    private async Task RequestUninstallAsync()
     {
         if (_rows.Count == 0 || _selectedIndex >= _rows.Count) return;
         var row = _rows[_selectedIndex];
@@ -294,7 +294,8 @@ public sealed class RuntimesView : IView
             _statusMessage = "dotnetup not found.";
             return;
         }
-        PendingCommand = ("dotnetup", $"runtime uninstall {row.Version}");
+        string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, row.Component);
+        PendingCommand = ("dotnetup", $"runtime uninstall {spec}");
     }
 
     private static IRenderable RenderPanel(bool focused, IRenderable content)
