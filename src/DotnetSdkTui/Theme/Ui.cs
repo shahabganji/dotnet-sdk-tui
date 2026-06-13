@@ -10,9 +10,23 @@ namespace DotnetSdkTui.Theme;
 /// </summary>
 public static class Ui
 {
-    /// <summary>Whether the terminal supports emoji rendering (Windows Terminal, macOS, Linux).</summary>
-    private static readonly bool SupportsEmoji = !OperatingSystem.IsWindows()
-        || Environment.GetEnvironmentVariable("WT_SESSION") is not null;
+    /// <summary>Whether the terminal supports emoji rendering.</summary>
+    private static readonly bool SupportsEmoji = DetectEmojiSupport();
+
+    private static bool DetectEmojiSupport()
+    {
+        // macOS and Linux terminals generally support emoji
+        if (!OperatingSystem.IsWindows()) return true;
+
+        // Windows Terminal sets WT_SESSION
+        if (Environment.GetEnvironmentVariable("WT_SESSION") is not null) return true;
+
+        // VS Code terminal
+        if (Environment.GetEnvironmentVariable("TERM_PROGRAM") is "vscode") return true;
+
+        // Default: Windows conhost does NOT support emoji
+        return false;
+    }
 
     // Convenience accessors that delegate to ThemeManager
     /// <summary>Red accent color.</summary>
