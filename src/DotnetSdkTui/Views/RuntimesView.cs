@@ -31,6 +31,7 @@ public sealed class RuntimesView : IView
     private string? _error;
     private string? _statusMessage;
     private int _selectedIndex;
+    private int _scrollOffset;
 
     internal (string Command, string Args)? PendingCommand { get; private set; }
 
@@ -162,9 +163,25 @@ public sealed class RuntimesView : IView
 
         var parts = new List<IRenderable>();
 
+        // Calculate visible window — reserve rows for header, description, status, borders
+        int availableHeight = Math.Max(4, Console.WindowHeight / 2 - 8);
+        int visibleCount = Math.Min(_rows.Count, availableHeight);
+
+        // Keep selected row in view
+        if (_selectedIndex < _scrollOffset)
+            _scrollOffset = _selectedIndex;
+        else if (_selectedIndex >= _scrollOffset + visibleCount)
+            _scrollOffset = _selectedIndex - visibleCount + 1;
+        _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, _rows.Count - visibleCount));
+
+        int endIndex = Math.Min(_scrollOffset + visibleCount, _rows.Count);
+
+        if (_scrollOffset > 0)
+            parts.Add(new Markup($"[{MarioTheme.DarkGray}]  \u25b2 {_scrollOffset} more above[/]"));
+
         var table = MarioTheme.StyledTable("", "", "Component", "Version", "Channel", "Status", "Arch", "Support", "EOL");
 
-        for (int i = 0; i < _rows.Count; i++)
+        for (int i = _scrollOffset; i < endIndex; i++)
         {
             var row = _rows[i];
             bool selected = focused && i == _selectedIndex;
@@ -197,6 +214,10 @@ public sealed class RuntimesView : IView
         }
 
         parts.Add(table);
+
+        int remaining = _rows.Count - endIndex;
+        if (remaining > 0)
+            parts.Add(new Markup($"[{MarioTheme.DarkGray}]  \u25bc {remaining} more below[/]"));
 
         if (focused && _selectedIndex < _rows.Count)
         {
