@@ -18,7 +18,7 @@
 - **Runtimes panel** — Same experience for .NET and ASP.NET Core runtimes
 - **Live search** — Non-blocking search with debounce and request cancellation. Type to search, results update as you go — the terminal never freezes
 - **Setup panel** — Install and manage the `dotnetup` tool itself from within the app
-- **Dark / Light themes** — Press `F5` to toggle. The terminal background adapts via OSC 11
+- **Dark / Light themes** — Press `F6` to toggle. The terminal background adapts via OSC 11
 - **Lifecycle icons** — At-a-glance status for each version: 🍀 Active, 🏭 Preview, 🚧 Maintenance, 👿 End of Life
 - **Scroll windowing** — Panels scroll smoothly when you have many installed versions
 - **Graceful exit** — Goodbye message on both `q` and `Ctrl+C`
@@ -35,7 +35,7 @@
 | `p` | Update selected SDK/Runtime |
 | `r` | Refresh data |
 | `F3` | Open search |
-| `F5` / `F6` | Toggle dark/light theme |
+| `F6` | Toggle dark/light theme |
 | `q` or `Ctrl+C` | Quit |
 
 ## Installation
