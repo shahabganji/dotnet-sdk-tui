@@ -72,10 +72,50 @@ public static class DotnetUpService
             return new ProcessResult(exitCode, "", "", TimeSpan.Zero);
         }
 
-        return await ProcessRunner.RunWithCallbackAsync(
+        var result = await ProcessRunner.RunWithCallbackAsync(
             "bash",
             "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"",
             null, null, null, ct);
+
+        // Auto-add dotnetup to PATH on macOS/Linux if not already there
+        if (result.ExitCode == 0)
+            EnsureDotnetUpOnPath();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Adds ~/.dotnetup to the shell profile and current process PATH if not already present.
+    /// </summary>
+    private static void EnsureDotnetUpOnPath()
+    {
+        string dotnetupDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnetup");
+        if (!Directory.Exists(dotnetupDir)) return;
+
+        // Add to current process PATH
+        string currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        if (!currentPath.Contains(dotnetupDir))
+        {
+            Environment.SetEnvironmentVariable("PATH", $"{dotnetupDir}:{currentPath}");
+        }
+
+        // Add to shell profile
+        string shell = Path.GetFileName(Environment.GetEnvironmentVariable("SHELL") ?? "/bin/bash");
+        string profile = shell switch
+        {
+            "zsh" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".zshrc"),
+            "fish" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "fish", "config.fish"),
+            _ => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".bashrc")
+        };
+
+        if (!File.Exists(profile) || !File.ReadAllText(profile).Contains(dotnetupDir))
+        {
+            string line = shell == "fish"
+                ? $"fish_add_path \"{dotnetupDir}\""
+                : $"export PATH=\"{dotnetupDir}:$PATH\"";
+            File.AppendAllText(profile, $"\n{line}\n");
+            Console.WriteLine($"Added {dotnetupDir} to {profile}");
+        }
     }
 
     /// <summary>
