@@ -70,7 +70,6 @@ jobs:
           --runtime ${{ matrix.rid }}
           --output publish/${{ matrix.rid }}
           ${{ matrix.cross && '/p:ObjCopyName=aarch64-linux-gnu-objcopy' || '' }}
-
       - name: Package (Unix)
         if: runner.os != 'Windows'
         run: |
