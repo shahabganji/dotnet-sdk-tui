@@ -438,7 +438,7 @@ public static class Ui
         AnsiConsole.Clear();
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"  [{BannerPrimary}]Thanks for using[/] [{Red} bold].NET SDK Manager[/]");
-        AnsiConsole.MarkupLine($"  [{DarkGray}]Made with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]");
+        AnsiConsole.MarkupLine($"  [{DarkGray}]Made with[/] [{Red}]\u2764[/]  [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]");
         AnsiConsole.WriteLine();
     }
 }

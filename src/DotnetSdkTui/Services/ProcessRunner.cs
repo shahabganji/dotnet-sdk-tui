@@ -261,7 +261,9 @@ public static class ProcessRunner
         {
             FileName = command,
             Arguments = arguments,
-            UseShellExecute = false
+            // UseShellExecute = true on Windows to avoid "Access is denied" from
+            // NativeAOT binaries marked as downloaded-from-internet (Zone.Identifier)
+            UseShellExecute = OperatingSystem.IsWindows()
         };
 
         if (!string.IsNullOrWhiteSpace(workingDirectory))

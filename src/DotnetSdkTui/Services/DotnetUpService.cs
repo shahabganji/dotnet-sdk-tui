@@ -62,10 +62,9 @@ public static class DotnetUpService
     {
         if (OperatingSystem.IsWindows())
         {
-            // Use cmd.exe wrapper to avoid "Access is denied" when launching PowerShell directly
             return ProcessRunner.RunWithCallbackAsync(
-                "cmd.exe",
-                "/c powershell.exe -ExecutionPolicy Bypass -Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"",
+                "powershell.exe",
+                "-ExecutionPolicy Bypass -Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"",
                 null, null, null, ct);
         }
 
