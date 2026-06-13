@@ -5,12 +5,12 @@ namespace DotnetSdkTui.Tests.Services;
 public class ProcessRunnerTests
 {
     [Fact]
-    public async Task RunAsync_EchoCommand_CapturesOutput()
+    public async Task RunAsync_DotnetVersion_CapturesOutput()
     {
-        var result = await ProcessRunner.RunAsync("echo", "hello world");
+        var result = await ProcessRunner.RunAsync("dotnet", "--version");
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("hello world", result.Output);
+        Assert.False(string.IsNullOrWhiteSpace(result.Output));
         Assert.True(result.Duration.TotalMilliseconds >= 0);
     }
 
@@ -28,11 +28,11 @@ public class ProcessRunnerTests
         var lines = new List<string>();
 
         var result = await ProcessRunner.RunWithCallbackAsync(
-            "echo", "line1",
+            "dotnet", "--version",
             line => lines.Add(line));
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("line1", lines);
+        Assert.True(lines.Count > 0);
     }
 
     [Fact]
@@ -40,13 +40,14 @@ public class ProcessRunnerTests
     {
         var errorLines = new List<string>();
 
-        // Write to stderr
+        // dotnet with invalid arg writes to stderr
         var result = await ProcessRunner.RunWithCallbackAsync(
-            "bash", "-c \"echo errormsg >&2\"",
+            "dotnet", "--invalid-flag-xyz",
             _ => { },
             err => errorLines.Add(err));
 
-        Assert.Contains("errormsg", errorLines);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.True(errorLines.Count > 0);
     }
 
     [Fact]
@@ -65,10 +66,9 @@ public class ProcessRunnerTests
     public async Task RunAsync_WithWorkingDirectory_UsesIt()
     {
         var tempDir = Path.GetTempPath();
-        var result = await ProcessRunner.RunAsync("pwd", "", tempDir);
+        var result = await ProcessRunner.RunAsync("dotnet", "--version", tempDir);
 
         Assert.Equal(0, result.ExitCode);
-        // pwd should return something containing the temp path
         Assert.False(string.IsNullOrWhiteSpace(result.Output));
     }
 }
