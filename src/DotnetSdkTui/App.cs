@@ -21,14 +21,14 @@ public sealed class App
     private enum Screen { Main, Search }
     private Screen _screen = Screen.Main;
 
-    // Focus on main screen: 0=SDKs, 1=Runtimes, 2=Setup
+    // Focus on main screen: 0=SDKs, 1=Runtimes
     private int _mainFocus;
     private const int FocusSdks = 0;
     private const int FocusRuntimes = 1;
-    private const int FocusSetup = 2;
 
     private bool _running = true;
     private string _dotnetUpStatus = "checking...";
+    private string? _setupInfo;
     private readonly bool _skipSplash;
 
     public App(bool skipSplash = false)
@@ -48,12 +48,12 @@ public sealed class App
             await MarioTheme.RenderSplashAsync();
 
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
+        _ = LoadSetupInfoAsync();
 
         // Activate views
         await Task.WhenAll(
             _sdksView.ActivateAsync(),
-            _runtimesView.ActivateAsync(),
-            _setupView.ActivateAsync());
+            _runtimesView.ActivateAsync());
 
         AnsiConsole.Clear();
 
@@ -122,24 +122,22 @@ public sealed class App
     {
         var root = new Layout("Root")
             .SplitRows(
-                new Layout("Header").Size(3),
+                new Layout("Header").Size(4),
                 new Layout("Body").MinimumSize(10),
                 new Layout("Footer").Size(1));
 
-        // Header
-        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus));
+        // Header with setup info side-by-side
+        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus, _setupInfo));
 
         // Footer
         IView focusedView = GetFocusedMainView();
         root["Footer"].Update(MarioTheme.Footer(focusedView.GetStatusHints()));
 
-        // Body: Setup (compact one-liner), SDKs and Runtimes below
+        // Body: SDKs and Runtimes
         root["Body"].SplitRows(
-            new Layout("Setup").Size(3),
             new Layout("SDKs").MinimumSize(8),
             new Layout("Runtimes").MinimumSize(5));
 
-        root["Body"]["Setup"].Update(_setupView.Render(_mainFocus == FocusSetup));
         root["Body"]["SDKs"].Update(_sdksView.Render(_mainFocus == FocusSdks));
         root["Body"]["Runtimes"].Update(_runtimesView.Render(_mainFocus == FocusRuntimes));
 
@@ -150,12 +148,12 @@ public sealed class App
     {
         var root = new Layout("Root")
             .SplitRows(
-                new Layout("Header").Size(3),
+                new Layout("Header").Size(4),
                 new Layout("SearchInput").Size(5),
                 new Layout("Results").MinimumSize(5),
                 new Layout("Footer").Size(1));
 
-        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus));
+        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus, _setupInfo));
         root["SearchInput"].Update(_searchView.RenderSearchInput());
         root["Results"].Update(_searchView.RenderResults());
         root["Footer"].Update(MarioTheme.Footer(_searchView.GetStatusHints()));
@@ -188,12 +186,11 @@ public sealed class App
             return;
         }
 
-        // F1/F2/F3 switch focus
+        // F1/F2 switch focus
         int sectionIndex = key.Key switch
         {
             ConsoleKey.F1 => FocusSdks,
             ConsoleKey.F2 => FocusRuntimes,
-            ConsoleKey.F3 => FocusSetup,
             _ => -1
         };
 
@@ -217,13 +214,10 @@ public sealed class App
             return;
         }
 
-        // Tab cycling between panels
+        // Tab cycling between SDKs and Runtimes
         if (key.Key == ConsoleKey.Tab && !GetFocusedMainView().IsTextInputActive)
         {
-            if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
-                _mainFocus = (_mainFocus - 1 + 3) % 3;
-            else
-                _mainFocus = (_mainFocus + 1) % 3;
+            _mainFocus = _mainFocus == FocusSdks ? FocusRuntimes : FocusSdks;
             return;
         }
 
@@ -273,11 +267,6 @@ public sealed class App
             pending = _runtimesView.PendingCommand;
             _runtimesView.ClearPendingCommand();
         }
-        else if (_setupView.PendingCommand is not null)
-        {
-            pending = _setupView.PendingCommand;
-            _setupView.ClearPendingCommand();
-        }
 
         if (pending is null)
             return false;
@@ -303,8 +292,8 @@ public sealed class App
         // Refresh data after install/uninstall
         _sdksView.Refresh();
         _runtimesView.Refresh();
-        _setupView.Refresh();
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
+        _ = LoadSetupInfoAsync();
 
         return true;
     }
@@ -313,7 +302,6 @@ public sealed class App
     {
         FocusSdks => _sdksView,
         FocusRuntimes => _runtimesView,
-        FocusSetup => _setupView,
         _ => _sdksView
     };
 
@@ -321,7 +309,20 @@ public sealed class App
     {
         return _sdksView.NeedsLiveUpdate
             || _runtimesView.NeedsLiveUpdate
-            || _searchView.NeedsLiveUpdate
-            || _setupView.NeedsLiveUpdate;
+            || _searchView.NeedsLiveUpdate;
+    }
+
+    private async Task LoadSetupInfoAsync()
+    {
+        try
+        {
+            if (DotnetUpService.IsInstalled())
+            {
+                var info = await DotnetUpService.GetInfoAsync();
+                if (info is not null)
+                    _setupInfo = $"v{info.Version}  {info.Architecture}  {info.Rid}";
+            }
+        }
+        catch { }
     }
 }

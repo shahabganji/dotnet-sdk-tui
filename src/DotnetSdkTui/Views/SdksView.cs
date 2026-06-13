@@ -128,6 +128,14 @@ public sealed class SdksView : IView
                 }
             }
 
+            // Sort: installed first, then by version descending (newest at top)
+            rows.Sort((a, b) =>
+            {
+                if (a.IsInstalled != b.IsInstalled)
+                    return a.IsInstalled ? -1 : 1;
+                return SdkSearchService.CompareSdkVersions(b.Version, a.Version);
+            });
+
             _rows = rows;
             _selectedIndex = Math.Clamp(_selectedIndex, 0, Math.Max(0, _rows.Count - 1));
         }

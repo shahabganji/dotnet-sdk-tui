@@ -134,20 +134,34 @@ public static class MarioTheme
     }
 
     /// <summary>
-    /// Renders the header bar with title, dotnetup status, and working directory.
+    /// Renders the combined header with app info (left) and setup/dotnetup info (right).
     /// </summary>
-    public static IRenderable Header(string dotnetUpStatus)
+    public static IRenderable Header(string dotnetUpStatus, string? setupInfo = null)
     {
         string cwd = Directory.GetCurrentDirectory();
-        string themeName = ThemeManager.Current == AppTheme.Dark ? "Dark" : "Classic";
 
-        var grid = new Grid().AddColumn().AddColumn().AddColumn();
-
+        // Left side: app info + credits
         string title = $"[{Red} bold].NET SDK Manager[/]";
-        string status = $"[{Green}]dotnetup: {Markup.Escape(dotnetUpStatus)}[/]";
-        string dir = $"[{Blue}]{Markup.Escape(TruncatePath(cwd, 40))}[/]  [{DarkGray}]{Markup.Escape(themeName)}[/]";
+        string dir = $"[{Blue}]{Markup.Escape(TruncatePath(cwd, 40))}[/]";
+        string credits = $"[{DarkGray}]Created with [{Red}]<3[/] by[/] [{Blue} link=https://shahab-the-guy.dev]Shahab the Guy[/]";
 
-        grid.AddRow(title, status, dir);
+        // Right side: dotnetup setup info
+        string setup;
+        if (setupInfo is not null)
+            setup = $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]";
+        else
+            setup = $"[{Green}]dotnetup: {Markup.Escape(dotnetUpStatus)}[/]";
+
+        var grid = new Grid()
+            .AddColumn(new GridColumn().NoWrap())
+            .AddColumn(new GridColumn().NoWrap());
+
+        grid.AddRow(
+            $"{title}  {dir}",
+            setup);
+        grid.AddRow(
+            credits,
+            "");
 
         return new Panel(grid)
             .Border(BoxBorder.Heavy)
@@ -160,8 +174,7 @@ public static class MarioTheme
     /// </summary>
     public static IRenderable Footer(string hints)
     {
-        string searchKey = OperatingSystem.IsMacOS() ? "Cmd+/" : "Ctrl+/";
-        string global = $"[{DarkGray}]F1:SDKs  F2:Runtimes  F3:Setup  {searchKey}:Search  F5:Theme  q:Quit[/]";
+        string global = $"[{DarkGray}]F1:SDKs  F2:Runtimes  /:Search  F5:Theme  q:Quit  Tab:Switch[/]";
         string hintMarkup = $"[{Gold}]{hints}[/]";
         return new Markup($" {hintMarkup}  {global}");
     }
