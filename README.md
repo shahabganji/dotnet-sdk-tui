@@ -7,6 +7,8 @@
 [![Build Status](https://github.com/shahabganji/dotnet-sdk-tui/actions/workflows/build.yml/badge.svg)](https://github.com/shahabganji/dotnet-sdk-tui/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](https://opensource.org/licenses/MIT)
 
+[Documentation](https://sdk-manager.net)
+
 </div>
 
 `.NET SDK Manager` is a keyboard-driven terminal application built with **Spectre.Console** and compiled with **NativeAOT**. It wraps the official [`dotnetup`](https://aka.ms/dotnetup/docs) CLI to provide a fast, visual experience for discovering, installing, updating, and removing .NET SDKs and Runtimes — all from a single screen.
