@@ -21,10 +21,11 @@ public sealed class App
     private enum Screen { Main, Search }
     private Screen _screen = Screen.Main;
 
-    // Focus on main screen: 0=SDKs, 1=Runtimes
+    // Focus on main screen: 0=SDKs, 1=Runtimes, 2=Setup
     private int _mainFocus;
     private const int FocusSdks = 0;
     private const int FocusRuntimes = 1;
+    private const int FocusSetup = 2;
 
     private bool _running = true;
     private string _dotnetUpStatus = "checking...";
@@ -53,7 +54,8 @@ public sealed class App
         // Activate views
         await Task.WhenAll(
             _sdksView.ActivateAsync(),
-            _runtimesView.ActivateAsync());
+            _runtimesView.ActivateAsync(),
+            _setupView.ActivateAsync());
 
         AnsiConsole.Clear();
 
@@ -122,12 +124,17 @@ public sealed class App
     {
         var root = new Layout("Root")
             .SplitRows(
-                new Layout("Header").Size(4),
+                new Layout("Top").Size(4),
                 new Layout("Body").MinimumSize(10),
                 new Layout("Footer").Size(1));
 
-        // Header with setup info side-by-side
-        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus, _setupInfo));
+        // Top row: Welcome info (left) + Setup panel (right, interactive)
+        root["Top"].SplitColumns(
+            new Layout("Welcome"),
+            new Layout("Setup"));
+
+        root["Top"]["Welcome"].Update(MarioTheme.WelcomePanel());
+        root["Top"]["Setup"].Update(_setupView.Render(_mainFocus == FocusSetup));
 
         // Footer
         IView focusedView = GetFocusedMainView();
@@ -153,7 +160,7 @@ public sealed class App
                 new Layout("Results").MinimumSize(5),
                 new Layout("Footer").Size(1));
 
-        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus, _setupInfo));
+        root["Header"].Update(MarioTheme.SearchHeader(_setupInfo));
         root["SearchInput"].Update(_searchView.RenderSearchInput());
         root["Results"].Update(_searchView.RenderResults());
         root["Footer"].Update(MarioTheme.Footer(_searchView.GetStatusHints()));
@@ -197,10 +204,10 @@ public sealed class App
             return;
         }
 
-        // Tab cycling between SDKs and Runtimes
+        // Tab cycling between SDKs, Runtimes, and Setup
         if (key.Key == ConsoleKey.Tab && !GetFocusedMainView().IsTextInputActive)
         {
-            _mainFocus = _mainFocus == FocusSdks ? FocusRuntimes : FocusSdks;
+            _mainFocus = (_mainFocus + 1) % 3;
             return;
         }
 
@@ -250,6 +257,11 @@ public sealed class App
             pending = _runtimesView.PendingCommand;
             _runtimesView.ClearPendingCommand();
         }
+        else if (_setupView.PendingCommand is not null)
+        {
+            pending = _setupView.PendingCommand;
+            _setupView.ClearPendingCommand();
+        }
 
         if (pending is null)
             return false;
@@ -275,6 +287,7 @@ public sealed class App
         // Refresh data after install/uninstall
         _sdksView.Refresh();
         _runtimesView.Refresh();
+        _setupView.Refresh();
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
         _ = LoadSetupInfoAsync();
 
@@ -285,6 +298,7 @@ public sealed class App
     {
         FocusSdks => _sdksView,
         FocusRuntimes => _runtimesView,
+        FocusSetup => _setupView,
         _ => _sdksView
     };
 

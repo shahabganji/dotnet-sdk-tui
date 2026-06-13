@@ -134,35 +134,44 @@ public static class MarioTheme
     }
 
     /// <summary>
-    /// Renders the header as two side-by-side panels: app info (left) and setup info (right).
+    /// Renders the welcome info panel (left side of header row).
     /// </summary>
-    public static IRenderable Header(string dotnetUpStatus, string? setupInfo = null)
+    public static IRenderable WelcomePanel()
     {
         string cwd = Directory.GetCurrentDirectory();
-
-        // Left panel: welcome info
         string title = $"[{Red} bold].NET SDK Manager[/]  [{Blue}]{Markup.Escape(TruncatePath(cwd, 40))}[/]";
-        string credits = $"[{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string credits = $"[{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
 
-        var leftPanel = new Panel(new Rows(new Markup(title), new Markup(credits)))
+        return new Panel(new Rows(new Markup(title), new Markup(credits)))
+            .Border(BoxBorder.Rounded)
+            .BorderColor(ThemeManager.HeaderBorderColor)
+            .Expand();
+    }
+
+    /// <summary>
+    /// Renders a simple header for the search screen.
+    /// </summary>
+    public static IRenderable SearchHeader(string? setupInfo)
+    {
+        string cwd = Directory.GetCurrentDirectory();
+        string title = $"[{Red} bold].NET SDK Manager[/]  [{Blue}]{Markup.Escape(TruncatePath(cwd, 40))}[/]";
+        string credits = $"[{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string setup = setupInfo is not null
+            ? $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]"
+            : $"[{Green}]dotnetup[/]";
+
+        var left = new Panel(new Rows(new Markup(title), new Markup(credits)))
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.HeaderBorderColor)
             .Expand();
 
-        // Right panel: setup/dotnetup info
-        string setupLine;
-        if (setupInfo is not null)
-            setupLine = $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]";
-        else
-            setupLine = $"[{Green}]dotnetup:[/] [{White}]{Markup.Escape(dotnetUpStatus)}[/]";
-
-        var rightPanel = new Panel(new Markup(setupLine))
+        var right = new Panel(new Markup(setup))
             .Header($"[{Yellow} bold]Setup[/]")
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.TableBorderColor)
             .Expand();
 
-        return new Columns(leftPanel, rightPanel);
+        return new Columns(left, right);
     }
 
     /// <summary>

@@ -210,8 +210,8 @@ internal static class SdkSearchService
     {
         results.Sort(static (left, right) =>
         {
-            // SDKs first, then runtimes
-            int typeCompare = string.Compare(left.Component, right.Component, StringComparison.OrdinalIgnoreCase);
+            // SDKs first, then runtimes (reverse alphabetical since "R" < "S")
+            int typeCompare = string.Compare(right.Component, left.Component, StringComparison.OrdinalIgnoreCase);
             if (typeCompare != 0) return typeCompare;
             return CompareSdkVersions(right.Version, left.Version);
         });
