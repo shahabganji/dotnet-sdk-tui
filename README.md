@@ -1,45 +1,42 @@
 <div align="center">
 
-```text
-    ╔═══════════════════════════════╗
-    ║  ★  dotnet-sdk-tui  ★        ║
-    ║  ●  It's-a me, SDK Manager!  ║
-    ╚═══════════════════════════════╝
-       🍄  ★  🔥  ●  🍄  ★  🔥
-```
+# .NET SDK Manager
 
-**A cross-platform NativeAOT C# terminal UI for managing .NET SDKs — Super Mario style!**
+**A cross-platform terminal UI for managing .NET SDKs and Runtimes**
 
 [![Build Status](https://github.com/shahabganji/dotnet-sdk-tui/actions/workflows/build.yml/badge.svg)](https://github.com/shahabganji/dotnet-sdk-tui/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](https://opensource.org/licenses/MIT)
 
 </div>
 
-`dotnet-sdk-tui` is a **Super Mario-themed** k9s-style terminal application built with **Spectre.Console** that wraps the official **`dotnetup`** tool and core **`dotnet`** CLI commands. It provides a fast, keyboard-driven, panel-based experience for discovering, installing, updating, and removing .NET SDKs, plus common project actions.
+`.NET SDK Manager` is a keyboard-driven terminal application built with **Spectre.Console** and compiled with **NativeAOT**. It wraps the official [`dotnetup`](https://learn.microsoft.com/en-us/dotnet/core/install/dotnet-install-tool) CLI to provide a fast, visual experience for discovering, installing, updating, and removing .NET SDKs and Runtimes — all from a single screen.
 
 ## Features
 
-- **? Block coin animation splash** — Mario-themed startup with coin burst animation
-- **K9s-style unified layout** — all sections visible on one screen: SDKs, Search, Project, Setup
-- **🍄 SDKs section** — real installed SDKs + available channels with Install/Uninstall/Update actions, lifecycle info
-- **★ Search section** — inline live search with debounce, results update as you type
-- **🔥 Project section** — auto-detect `.sln`, `.slnx`, `.csproj` and run Restore, Build, Test, Run, Publish with live streaming output
-- **● Setup section** — install and update `dotnetup` tool itself from inside the app
-- **🌙/☀️ Theme toggle** — dark and light themes, press `T` to switch
-- **Section focus** — switch focus with `F1-F4`, `Tab`/`Shift+Tab`, quit with `q`
-- **NativeAOT compiled** — fast startup, small binary, no runtime dependency
+- **Animated startup banner** — Aspire-style block letter animation with a teal-lime shine sweep
+- **SDKs panel** — View installed SDKs alongside the latest available versions for active and preview channels. Install, uninstall, and update with a single keystroke
+- **Runtimes panel** — Same experience for .NET and ASP.NET Core runtimes
+- **Live search** — Non-blocking search with debounce and request cancellation. Type to search, results update as you go — the terminal never freezes
+- **Setup panel** — Install and manage the `dotnetup` tool itself from within the app
+- **Dark / Light themes** — Press `F5` to toggle. The terminal background adapts via OSC 11
+- **Lifecycle icons** — At-a-glance status for each version: 🍀 Active, 🏭 Preview, 🚧 Maintenance, 👿 End of Life
+- **Scroll windowing** — Panels scroll smoothly when you have many installed versions
+- **Graceful exit** — Goodbye message on both `q` and `Ctrl+C`
+- **NativeAOT compiled** — Fast startup, small binary, no runtime dependency
 
 ## Navigation
 
-```text
- 🍄 SDKs  │ ★ Search  │ 🔥 Project  │ ● Setup
-───────────────────────────────────────────────
- F1: SDKs      — ↑↓ navigate, i:Install, u:Uninstall, p:Update, r:Refresh
- F2: Search    — type to search (live), ↑↓ results, i:Install
- F3: Project   — r:Restore, b:Build, t:Test, n:Run, p:Publish, c:Clear
- F4: Setup     — i:Install dotnetup, u:Update dotnetup, r:Refresh
- Global: F1-F4 focus, Tab/Shift+Tab cycle, F5:Theme, q:Quit
-```
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` or `j` / `k` | Navigate rows |
+| `Tab` | Cycle focus between panels |
+| `i` | Install selected SDK/Runtime |
+| `u` | Uninstall selected SDK/Runtime |
+| `p` | Update selected SDK/Runtime |
+| `r` | Refresh data |
+| `F3` or `/` | Open search |
+| `F5` | Toggle dark/light theme |
+| `q` or `Ctrl+C` | Quit |
 
 ## Installation
 
@@ -53,60 +50,78 @@ irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/in
 
 ## Build from source
 
+Requires [.NET 10 SDK](https://dotnet.microsoft.com/download) or later.
+
 ```bash
-dotnet build src/DotnetSdkTui
+# Run in development
 dotnet run --project src/DotnetSdkTui
-```
 
-## CLI flags
+# Run without the splash animation
+dotnet run --project src/DotnetSdkTui -- --no-splash
 
-```bash
-dotnet-sdk-tui              # Full app with splash animation
-dotnet-sdk-tui --no-splash  # Skip splash, go straight to tabs
-dotnet-sdk-tui --version    # Print version and exit
-```
-
-## NativeAOT publish
-
-```bash
+# Publish a NativeAOT binary
 dotnet publish src/DotnetSdkTui -c Release -r osx-arm64
 ```
 
-## Supported platforms
+### Supported platforms
 
-- `osx-x64`
-- `osx-arm64`
-- `win-x64`
-- `win-arm64`
-- `linux-x64`
-- `linux-arm64`
-
-## dotnetup integration
-
-- Uses **`dotnetup`**, the official .NET SDK acquisition tool, when available
-- Falls back to **`dotnet --list-sdks`** when `dotnetup` is not installed
-- Runs project actions through **`dotnetup dotnet <cmd>`** for correct SDK hive resolution
-- Shows active channels (LTS + current) directly — no explicit search required
+| Platform | RID |
+|----------|-----|
+| macOS (Apple Silicon) | `osx-arm64` |
+| macOS (Intel) | `osx-x64` |
+| Windows (x64) | `win-x64` |
+| Windows (ARM) | `win-arm64` |
+| Linux (x64) | `linux-x64` |
+| Linux (ARM) | `linux-arm64` |
 
 ## Testing
 
 ```bash
-dotnet test   # 39 unit + integration tests
+dotnet test
 ```
 
-## CI/CD
-
-- **GitHub Actions CI** builds and tests on Ubuntu, macOS, and Windows
-- **GitHub Actions CD** publishes NativeAOT binaries for 6 RIDs and creates a GitHub Release
+Tests use [hex1b](https://github.com/nickvdyck/hex1b) for TUI screenshot assertions in a headless virtual terminal.
 
 ## Tech stack
 
-- .NET 10 · C# · NativeAOT · Spectre.Console · System.Text.Json source generators
+- .NET 10 / C# / NativeAOT
+- [Spectre.Console](https://spectreconsole.net) — rendering, layout, markup
+- [dotnetup](https://learn.microsoft.com/en-us/dotnet/core/install/dotnet-install-tool) — SDK/Runtime acquisition
+- System.Text.Json source generators — AOT-safe JSON parsing
 
 ## Contributing
 
-Contributions welcome! Open an issue for bugs or ideas, submit a PR to improve the app.
+Contributions are welcome! Here's how to get started:
+
+1. **Fork** the repository and clone it locally
+2. **Create a branch** from `main` for your change (`git checkout -b feature/my-feature`)
+3. **Build and run** to make sure everything works: `dotnet run --project src/DotnetSdkTui`
+4. **Make your changes** — keep commits focused and well-described
+5. **Run the tests**: `dotnet test`
+6. **Open a Pull Request** against `main` with a clear description of what you changed and why
+
+### Areas where help is appreciated
+
+- **New platform support** — test and fix issues on platforms you use
+- **Accessibility** — improving keyboard navigation, screen reader support
+- **Themes** — new color palettes or improvements to the existing dark/light themes
+- **Offline mode** — better UX when there's no network connectivity
+- **Bug reports** — if something doesn't work, [open an issue](https://github.com/shahabganji/dotnet-sdk-tui/issues)
+
+### Code style
+
+- Keep it simple — avoid over-engineering
+- Follow existing patterns in the codebase
+- No external dependencies without discussion first
 
 ## License
 
-Released under the **MIT License**.
+Released under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+
+Made with ❤ by [Shahab the Guy](https://shahab-the-guy.dev)
+
+</div>
