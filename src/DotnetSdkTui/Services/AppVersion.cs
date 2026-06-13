@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 
@@ -56,10 +57,37 @@ internal static class AppVersion
     {
         if (OperatingSystem.IsWindows())
         {
-            return ProcessRunner.RunInteractiveAsync("powershell.exe",
-                "-ExecutionPolicy Bypass -Command \"irm -UseBasicParsing https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex\"");
+            // Write a temp script that waits for dsm to exit (file lock released),
+            // then runs the install script to replace the binary.
+            var pid = Environment.ProcessId;
+            var scriptPath = Path.Combine(Path.GetTempPath(), "dsm-update.cmd");
+            var script = $"""
+                @echo off
+                echo Waiting for dsm to exit...
+                :wait
+                tasklist /FI "PID eq {pid}" 2>NUL | find /I "{pid}" >NUL
+                if not errorlevel 1 (
+                    timeout /t 1 /nobreak >NUL
+                    goto wait
+                )
+                echo Installing update...
+                powershell.exe -ExecutionPolicy Bypass -Command "irm -UseBasicParsing https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex"
+                del "%~f0"
+                """;
+            File.WriteAllText(scriptPath, script);
+
+            // Launch the script detached and exit dsm
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = scriptPath,
+                UseShellExecute = true,
+                WindowStyle = ProcessWindowStyle.Normal
+            });
+
+            return Task.FromResult(0);
         }
 
+        // On Unix, the binary can be replaced while running
         return ProcessRunner.RunInteractiveAsync("bash",
             "-c \"curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | bash\"");
     }
