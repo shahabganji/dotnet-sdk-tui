@@ -164,8 +164,8 @@ public sealed class SdksView : IView
 
         var parts = new List<IRenderable>();
 
-        // Calculate visible window — reserve rows for header, description, status, borders
-        int availableHeight = Math.Max(4, Console.WindowHeight / 2 - 8);
+        // Calculate visible window — each row is ~2 lines with padding
+        int availableHeight = Math.Max(3, Console.WindowHeight / 4);
         int visibleCount = Math.Min(_rows.Count, availableHeight);
 
         // Keep selected row in view
@@ -176,9 +176,6 @@ public sealed class SdksView : IView
         _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, _rows.Count - visibleCount));
 
         int endIndex = Math.Min(_scrollOffset + visibleCount, _rows.Count);
-
-        if (_scrollOffset > 0)
-            parts.Add(new Markup($"[{MarioTheme.DarkGray}]  \u25b2 {_scrollOffset} more above[/]"));
 
         var table = MarioTheme.StyledTable("", "", "Version", "Channel", "Status", "Arch", "Support", "EOL");
 
@@ -214,10 +211,6 @@ public sealed class SdksView : IView
         }
 
         parts.Add(table);
-
-        int remaining = _rows.Count - endIndex;
-        if (remaining > 0)
-            parts.Add(new Markup($"[{MarioTheme.DarkGray}]  \u25bc {remaining} more below[/]"));
 
         if (focused && _selectedIndex < _rows.Count)
         {

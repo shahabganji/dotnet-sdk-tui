@@ -325,7 +325,7 @@ public static class MarioTheme
 
         foreach (string col in columns)
         {
-            table.AddColumn(new TableColumn($"[{Yellow} bold]{Markup.Escape(col)}[/]"));
+            table.AddColumn(new TableColumn($"[{Yellow} bold]{Markup.Escape(col)}[/]").Padding(1, 0, 1, 1));
         }
 
         return table;
