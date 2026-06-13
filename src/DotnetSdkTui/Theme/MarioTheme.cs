@@ -139,10 +139,10 @@ public static class MarioTheme
     public static IRenderable WelcomePanel()
     {
         string cwd = Directory.GetCurrentDirectory();
-        string title = $"[{Red} bold].NET SDK Manager[/]  [{Blue}]{Markup.Escape(TruncatePath(cwd, 40))}[/]";
-        string credits = $"[{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string path = $"[{Blue}]{Markup.Escape(TruncatePath(cwd, 60))}[/]";
 
-        return new Panel(new Rows(new Markup(title), new Markup(credits)))
+        return new Panel(new Rows(new Markup(title), new Markup(path)))
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.HeaderBorderColor)
             .Expand();
@@ -154,8 +154,8 @@ public static class MarioTheme
     public static IRenderable SearchHeader(string? setupInfo)
     {
         string cwd = Directory.GetCurrentDirectory();
-        string title = $"[{Red} bold].NET SDK Manager[/]  [{Blue}]{Markup.Escape(TruncatePath(cwd, 40))}[/]";
-        string credits = $"[{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string credits = $"[{Blue}]{Markup.Escape(TruncatePath(cwd, 60))}[/]";
         string setup = setupInfo is not null
             ? $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]"
             : $"[{Green}]dotnetup[/]";
@@ -260,5 +260,20 @@ public static class MarioTheme
         }
 
         return path.Length <= max ? path : "..." + path[^(max - 3)..];
+    }
+
+    /// <summary>
+    /// Formats an ISO date string (e.g. "2028-11-14") to "14 November 2028" format.
+    /// Returns the original string if parsing fails or input is "-".
+    /// </summary>
+    public static string FormatDate(string? date)
+    {
+        if (string.IsNullOrWhiteSpace(date) || date == "-")
+            return "-";
+
+        if (DateTime.TryParse(date, out DateTime parsed))
+            return parsed.ToString("dd MMMM yyyy");
+
+        return date;
     }
 }

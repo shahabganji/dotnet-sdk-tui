@@ -65,12 +65,18 @@ public sealed class SdksView : IView
         try
         {
             var installedTask = DotnetUpService.ListInstalledAsync();
-            var channelsTask = SdkSearchService.GetChannelsAsync();
+            List<ChannelInfo> channels;
+            try
+            {
+                channels = await SdkSearchService.GetChannelsAsync();
+            }
+            catch
+            {
+                channels = [];
+                _statusMessage = "Offline - showing local installations only";
+            }
 
-            await Task.WhenAll(installedTask, channelsTask);
-
-            List<SdkInfo> installed = installedTask.Result;
-            var channels = channelsTask.Result;
+            List<SdkInfo> installed = await installedTask;
 
             var rows = new List<SdkRow>();
 
@@ -84,7 +90,7 @@ public sealed class SdksView : IView
                 string supportPhase = channelInfo is not null
                     ? FormatSupportPhase(channelInfo.SupportPhase)
                     : "Installed";
-                string eolDate = channelInfo?.EolDate ?? "-";
+                string eolDate = MarioTheme.FormatDate(channelInfo?.EolDate);
                 string lifecycleIcon = GetLifecycleIcon(channelInfo?.SupportPhase, channelInfo?.EolDate);
                 string description = GetChannelDescription(channel, channelInfo?.SupportPhase ?? "unknown");
 
@@ -120,7 +126,7 @@ public sealed class SdksView : IView
                         channel.LatestSdk,
                         channel.ChannelVersion,
                         FormatSupportPhase(channel.SupportPhase),
-                        channel.EolDate ?? "-",
+                        MarioTheme.FormatDate(channel.EolDate),
                         false,
                         "-",
                         lifecycleIcon,
