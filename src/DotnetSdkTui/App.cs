@@ -6,36 +6,40 @@ using DotnetSdkTui.Services;
 namespace DotnetSdkTui;
 
 /// <summary>
-/// Main application class that renders all sections on a single unified screen
-/// and handles keyboard navigation between focused sections.
+/// Main application with two screens:
+/// - Main: dotnetup status + SDKs panel + Runtimes panel
+/// - Search: full-screen search (activated by "/", Esc returns)
+/// Install/uninstall operations exit TUI to show real terminal output.
 /// </summary>
 public sealed class App
 {
-    private readonly IView[] _views;
-    private int _focusedSection;
+    private readonly SdksView _sdksView;
+    private readonly RuntimesView _runtimesView;
+    private readonly SearchView _searchView;
+    private readonly SetupView _setupView;
+
+    private enum Screen { Main, Search }
+    private Screen _screen = Screen.Main;
+
+    // Focus on main screen: 0=SDKs, 1=Runtimes, 2=Setup
+    private int _mainFocus;
+    private const int FocusSdks = 0;
+    private const int FocusRuntimes = 1;
+    private const int FocusSetup = 2;
+
     private bool _running = true;
     private string _dotnetUpStatus = "checking...";
     private readonly bool _skipSplash;
 
-    /// <summary>
-    /// Initializes the application with all four view sections.
-    /// </summary>
-    /// <param name="skipSplash">When true, skips the startup splash animation.</param>
     public App(bool skipSplash = false)
     {
         _skipSplash = skipSplash;
-        _views =
-        [
-            new SdksView(),
-            new SearchView(),
-            new ProjectView(),
-            new SetupView()
-        ];
+        _sdksView = new SdksView();
+        _runtimesView = new RuntimesView();
+        _searchView = new SearchView();
+        _setupView = new SetupView();
     }
 
-    /// <summary>
-    /// Runs the main application loop: renders the screen, handles input, and polls for live updates.
-    /// </summary>
     public async Task RunAsync()
     {
         Console.CursorVisible = false;
@@ -45,14 +49,20 @@ public sealed class App
 
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
 
-        // Activate all views on startup
-        foreach (var view in _views)
-            await view.ActivateAsync();
+        // Activate views
+        await Task.WhenAll(
+            _sdksView.ActivateAsync(),
+            _runtimesView.ActivateAsync(),
+            _setupView.ActivateAsync());
 
         while (_running)
         {
             AnsiConsole.Clear();
             RenderScreen();
+
+            // Check for pending interactive commands from views
+            if (await CheckPendingCommandsAsync())
+                continue;
 
             if (IsLiveUpdateNeeded())
             {
@@ -68,11 +78,7 @@ public sealed class App
                             break;
                         }
                     }
-                    catch (InvalidOperationException)
-                    {
-                        break;
-                    }
-
+                    catch (InvalidOperationException) { break; }
                     await Task.Delay(50);
                 }
             }
@@ -94,108 +100,205 @@ public sealed class App
         AnsiConsole.Clear();
     }
 
-    /// <summary>
-    /// Renders the full unified screen: header, 2x2 section grid, and footer.
-    /// Uses Spectre.Console Layout for proper full-screen rendering.
-    /// </summary>
     private void RenderScreen()
     {
-        string cwd = Directory.GetCurrentDirectory();
-        List<Models.ProjectInfo> projects = ProjectDetector.Detect();
-        string? projectName = projects.Count > 0 ? projects[0].FileName : null;
-        string themeName = ThemeManager.Current == AppTheme.Dark ? "🌙 Dark" : "☀️ Light";
+        if (_screen == Screen.Search)
+        {
+            RenderSearchScreen();
+            return;
+        }
 
-        // Use Layout for proper full-screen sizing
+        RenderMainScreen();
+    }
+
+    private void RenderMainScreen()
+    {
         var root = new Layout("Root")
             .SplitRows(
                 new Layout("Header").Size(3),
                 new Layout("Body").MinimumSize(10),
                 new Layout("Footer").Size(1));
 
-        var body = root["Body"]
-            .SplitRows(
-                new Layout("TopRow"),
-                new Layout("BottomRow"));
+        // Header
+        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus));
 
-        body["TopRow"].SplitColumns(
-            new Layout("SDKs"),
-            new Layout("Search"));
+        // Footer
+        IView focusedView = GetFocusedMainView();
+        root["Footer"].Update(MarioTheme.Footer(focusedView.GetStatusHints()));
 
-        body["BottomRow"].SplitColumns(
-            new Layout("Project"),
-            new Layout("Setup"));
+        // Body: Setup at top (small), SDKs and Runtimes below
+        root["Body"].SplitRows(
+            new Layout("Setup").Size(DotnetUpService.IsInstalled() ? 8 : 5),
+            new Layout("SDKs").MinimumSize(8),
+            new Layout("Runtimes").MinimumSize(5));
 
-        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus, cwd, projectName, themeName));
-        root["Footer"].Update(MarioTheme.Footer(_views[_focusedSection].GetStatusHints()));
-
-        body["TopRow"]["SDKs"].Update(_views[0].Render(_focusedSection == 0));
-        body["TopRow"]["Search"].Update(_views[1].Render(_focusedSection == 1));
-        body["BottomRow"]["Project"].Update(_views[2].Render(_focusedSection == 2));
-        body["BottomRow"]["Setup"].Update(_views[3].Render(_focusedSection == 3));
+        root["Body"]["Setup"].Update(_setupView.Render(_mainFocus == FocusSetup));
+        root["Body"]["SDKs"].Update(_sdksView.Render(_mainFocus == FocusSdks));
+        root["Body"]["Runtimes"].Update(_runtimesView.Render(_mainFocus == FocusRuntimes));
 
         AnsiConsole.Write(root);
     }
 
-    /// <summary>
-    /// Handles a key press: global shortcuts first, then delegates to the focused section.
-    /// </summary>
+    private void RenderSearchScreen()
+    {
+        var root = new Layout("Root")
+            .SplitRows(
+                new Layout("Header").Size(3),
+                new Layout("SearchInput").Size(5),
+                new Layout("Results").MinimumSize(5),
+                new Layout("Footer").Size(1));
+
+        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus));
+        root["SearchInput"].Update(_searchView.RenderSearchInput());
+        root["Results"].Update(_searchView.RenderResults());
+        root["Footer"].Update(MarioTheme.Footer(_searchView.GetStatusHints()));
+
+        AnsiConsole.Write(root);
+    }
+
     private async Task HandleKeyAsync(ConsoleKeyInfo key)
     {
-        // F1-F4 ALWAYS switch section focus (even during text input)
-        int sectionIndex = key.Key switch
+        if (_screen == Screen.Search)
         {
-            ConsoleKey.F1 => 0,
-            ConsoleKey.F2 => 1,
-            ConsoleKey.F3 => 2,
-            ConsoleKey.F4 => 3,
-            _ => -1
-        };
-
-        if (sectionIndex >= 0 && sectionIndex < _views.Length)
-        {
-            _focusedSection = sectionIndex;
+            await HandleSearchKeyAsync(key);
             return;
         }
 
-        // F5 toggles theme (never conflicts with view keys)
+        await HandleMainKeyAsync(key);
+    }
+
+    private async Task HandleMainKeyAsync(ConsoleKeyInfo key)
+    {
+        // "/" opens search (when not in text input)
+        if (key.KeyChar == '/' && !GetFocusedMainView().IsTextInputActive)
+        {
+            _screen = Screen.Search;
+            await _searchView.ActivateAsync();
+            return;
+        }
+
+        // F1/F2/F3 switch focus
+        int sectionIndex = key.Key switch
+        {
+            ConsoleKey.F1 => FocusSdks,
+            ConsoleKey.F2 => FocusRuntimes,
+            ConsoleKey.F3 => FocusSetup,
+            _ => -1
+        };
+
+        if (sectionIndex >= 0)
+        {
+            _mainFocus = sectionIndex;
+            return;
+        }
+
+        // F5 toggles theme
         if (key.Key == ConsoleKey.F5)
         {
             ThemeManager.Toggle();
             return;
         }
 
-        // Quit (only when not in text input)
-        if (key.Key == ConsoleKey.Q && !_views[_focusedSection].IsTextInputActive)
+        // Quit
+        if (key.Key == ConsoleKey.Q && !GetFocusedMainView().IsTextInputActive)
         {
             _running = false;
             return;
         }
 
-        // Tab cycling between sections (only when focused view is not capturing text)
-        if (key.Key == ConsoleKey.Tab && !_views[_focusedSection].IsTextInputActive)
+        // Tab cycling between panels
+        if (key.Key == ConsoleKey.Tab && !GetFocusedMainView().IsTextInputActive)
         {
             if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
-                _focusedSection = (_focusedSection - 1 + _views.Length) % _views.Length;
+                _mainFocus = (_mainFocus - 1 + 3) % 3;
             else
-                _focusedSection = (_focusedSection + 1) % _views.Length;
+                _mainFocus = (_mainFocus + 1) % 3;
             return;
         }
 
         // Pass key to focused view
-        var result = await _views[_focusedSection].HandleKeyAsync(key);
+        await GetFocusedMainView().HandleKeyAsync(key);
+    }
+
+    private async Task HandleSearchKeyAsync(ConsoleKeyInfo key)
+    {
+        // F5 toggles theme even in search
+        if (key.Key == ConsoleKey.F5)
+        {
+            ThemeManager.Toggle();
+            return;
+        }
+
+        var result = await _searchView.HandleKeyAsync(key);
+
+        // Quit from search means "go back to main"
         if (result == KeyResult.Quit)
         {
-            _running = false;
+            _screen = Screen.Main;
         }
     }
 
+    /// <summary>
+    /// Checks if any view has a pending interactive command.
+    /// If so, exits TUI, runs the command with real terminal output, then resumes.
+    /// </summary>
+    private async Task<bool> CheckPendingCommandsAsync()
+    {
+        (string cmd, string args)? pending = null;
+
+        if (_sdksView.PendingCommand is not null)
+        {
+            pending = _sdksView.PendingCommand;
+            _sdksView.ClearPendingCommand();
+        }
+        else if (_searchView.PendingCommand is not null)
+        {
+            pending = _searchView.PendingCommand;
+            _searchView.ClearPendingCommand();
+        }
+
+        if (pending is null)
+            return false;
+
+        // Exit TUI, run command interactively
+        AnsiConsole.Clear();
+        Console.CursorVisible = true;
+
+        Console.WriteLine($"Running: {pending.Value.cmd} {pending.Value.args}");
+        Console.WriteLine(new string('-', 60));
+
+        int exitCode = await ProcessRunner.RunInteractiveAsync(pending.Value.cmd, pending.Value.args);
+
+        Console.WriteLine();
+        Console.WriteLine(new string('-', 60));
+        Console.WriteLine(exitCode == 0
+            ? "Completed successfully. Press any key to continue..."
+            : $"Failed (exit code {exitCode}). Press any key to continue...");
+
+        Console.ReadKey(true);
+        Console.CursorVisible = false;
+
+        // Refresh data after install/uninstall
+        _sdksView.Refresh();
+        _runtimesView.Refresh();
+        _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
+
+        return true;
+    }
+
+    private IView GetFocusedMainView() => _mainFocus switch
+    {
+        FocusSdks => _sdksView,
+        FocusRuntimes => _runtimesView,
+        FocusSetup => _setupView,
+        _ => _sdksView
+    };
+
     private bool IsLiveUpdateNeeded()
     {
-        foreach (var view in _views)
-        {
-            if (view.NeedsLiveUpdate)
-                return true;
-        }
-        return false;
+        return _sdksView.NeedsLiveUpdate
+            || _runtimesView.NeedsLiveUpdate
+            || _searchView.NeedsLiveUpdate
+            || _setupView.NeedsLiveUpdate;
     }
 }

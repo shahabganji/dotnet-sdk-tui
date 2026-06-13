@@ -5,25 +5,18 @@ using System.Text.Json.Serialization.Metadata;
 namespace DotnetSdkTui.Services;
 
 /// <summary>
-/// Represents an available SDK version discovered from the .NET release metadata.
+/// Represents an available SDK or runtime version discovered from the .NET release metadata.
 /// </summary>
-/// <param name="Version">The SDK version string (e.g. "10.0.300").</param>
-/// <param name="ChannelVersion">The channel this SDK belongs to (e.g. "10.0").</param>
-/// <param name="SupportPhase">The lifecycle support phase (active, maintenance, preview, eol).</param>
-/// <param name="IsLatest">Whether this is the latest SDK in its channel.</param>
-public sealed record AvailableSdk(string Version, string ChannelVersion, string SupportPhase, bool IsLatest);
+public sealed record AvailableSdk(string Version, string ChannelVersion, string SupportPhase, bool IsLatest, string Component = "SDK");
 
 /// <summary>
-/// Fetches .NET release metadata from Microsoft's CDN and searches available SDK versions.
+/// Fetches .NET release metadata from Microsoft's CDN and searches available SDK/runtime versions.
 /// </summary>
 internal static class SdkSearchService
 {
     private const string ReleasesIndexUrl = "https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/releases-index.json";
     private static readonly HttpClient HttpClient = new();
 
-    /// <summary>
-    /// Retrieves the list of all .NET release channels from the releases index.
-    /// </summary>
     internal static async Task<List<ChannelInfo>> GetChannelsAsync(CancellationToken ct = default)
     {
         string json = await HttpClient.GetStringAsync(ReleasesIndexUrl, ct);
@@ -32,9 +25,9 @@ internal static class SdkSearchService
     }
 
     /// <summary>
-    /// Searches for available SDK versions matching the given query.
-    /// Supports exact channel match (e.g. "10.0"), keywords ("latest", "lts", "preview"),
-    /// and version prefix matching (e.g. "9").
+    /// Searches for available SDK and runtime versions matching the given query.
+    /// Handles dots in version strings, supports keywords (latest, lts, preview),
+    /// and returns both SDK and runtime results.
     /// </summary>
     public static async Task<List<AvailableSdk>> SearchAvailableSdksAsync(string query, CancellationToken ct = default)
     {
@@ -43,16 +36,16 @@ internal static class SdkSearchService
 
         if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
-            return SortResults(CreateLatestSdkResults(channels));
+            return SortResults(CreateAllResults(channels));
         }
 
         string search = normalizedQuery.ToLowerInvariant();
 
-        // Keyword matching — also match partial keywords for live search
+        // Keyword matching
         if ("latest".StartsWith(search, StringComparison.OrdinalIgnoreCase) && search.Length >= 2)
         {
             var supportedChannels = channels.Where(static channel => IsSupportedChannel(channel.SupportPhase));
-            return SortResults(CreateLatestSdkResults(supportedChannels));
+            return SortResults(CreateAllResults(supportedChannels));
         }
 
         if ("lts".StartsWith(search, StringComparison.OrdinalIgnoreCase) && search.Length >= 2)
@@ -60,7 +53,7 @@ internal static class SdkSearchService
             var ltsChannels = channels
                 .Where(static channel => IsSupportedChannel(channel.SupportPhase))
                 .Where(static channel => IsLtsChannel(channel.ChannelVersion));
-            return SortResults(CreateLatestSdkResults(ltsChannels));
+            return SortResults(CreateAllResults(ltsChannels));
         }
 
         if ("preview".StartsWith(search, StringComparison.OrdinalIgnoreCase) && search.Length >= 2)
@@ -69,93 +62,70 @@ internal static class SdkSearchService
                 .Where(channel => string.Equals(channel.SupportPhase, "preview", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(channel.SupportPhase, "go-live", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(channel.SupportPhase, "rc", StringComparison.OrdinalIgnoreCase));
-            return SortResults(CreateLatestSdkResults(previewChannels));
+            return SortResults(CreateAllResults(previewChannels));
         }
 
-        // Exact channel match (e.g. "10.0")
-        List<ChannelInfo> channelMatches = channels
-            .Where(channel => string.Equals(channel.ChannelVersion, normalizedQuery, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (channelMatches.Count > 0)
+        // "runtime" or "sdk" keyword filter
+        if ("runtime".StartsWith(search, StringComparison.OrdinalIgnoreCase) && search.Length >= 3)
         {
-            List<AvailableSdk> results = [];
-            foreach (ChannelInfo channel in channelMatches)
-            {
-                results.AddRange(await GetChannelSdkResultsAsync(channel, ct));
-            }
-
-            return SortResults(results);
+            return SortResults(CreateAllResults(channels).Where(r => r.Component != "SDK").ToList());
         }
 
-        // Prefix matching on version or channel (e.g. "9", "10")
-        List<AvailableSdk> prefixMatches = CreateLatestSdkResults(channels)
-            .Where(sdk => sdk.Version.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase)
-                || sdk.ChannelVersion.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase))
+        // Normalize trailing dots for prefix matching (e.g. "10.0." -> "10.0")
+        string prefixQuery = normalizedQuery.TrimEnd('.');
+
+        // Prefix matching on version or channel for both SDKs and runtimes
+        List<AvailableSdk> prefixMatches = CreateAllResults(channels)
+            .Where(sdk => sdk.Version.StartsWith(prefixQuery, StringComparison.OrdinalIgnoreCase)
+                || sdk.ChannelVersion.StartsWith(prefixQuery, StringComparison.OrdinalIgnoreCase)
+                || sdk.Version.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         return SortResults(prefixMatches);
     }
 
-    private static async Task<List<AvailableSdk>> GetChannelSdkResultsAsync(ChannelInfo channel, CancellationToken ct)
+    /// <summary>
+    /// Creates results for both latest SDKs and latest runtimes from channels.
+    /// </summary>
+    private static List<AvailableSdk> CreateAllResults(IEnumerable<ChannelInfo> channels)
     {
-        ChannelReleases? channelReleases = await GetJsonAsync(channel.ReleasesJsonUrl, SdkSearchJsonContext.Default.ChannelReleases, ct);
-        if (channelReleases?.Releases is null || channelReleases.Releases.Count == 0)
+        var results = new List<AvailableSdk>();
+
+        foreach (var channel in channels)
         {
-            return [];
-        }
-
-        HashSet<string> seenVersions = new(StringComparer.OrdinalIgnoreCase);
-        List<AvailableSdk> results = [];
-
-        foreach (ReleaseEntry release in channelReleases.Releases)
-        {
-            AddSdkResult(results, seenVersions, release.Sdk, channel);
-
-            foreach (SdkEntry sdk in release.Sdks)
+            if (!string.IsNullOrWhiteSpace(channel.LatestSdk))
             {
-                AddSdkResult(results, seenVersions, sdk, channel);
+                results.Add(new AvailableSdk(
+                    channel.LatestSdk,
+                    channel.ChannelVersion,
+                    channel.SupportPhase,
+                    true,
+                    "SDK"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(channel.LatestRuntime))
+            {
+                results.Add(new AvailableSdk(
+                    channel.LatestRuntime,
+                    channel.ChannelVersion,
+                    channel.SupportPhase,
+                    true,
+                    "Runtime"));
             }
         }
 
         return results;
     }
 
-    private static void AddSdkResult(List<AvailableSdk> results, HashSet<string> seenVersions, SdkEntry? sdk, ChannelInfo channel)
-    {
-        if (sdk is null || string.IsNullOrWhiteSpace(sdk.Version) || !seenVersions.Add(sdk.Version))
-        {
-            return;
-        }
-
-        results.Add(new AvailableSdk(
-            sdk.Version,
-            channel.ChannelVersion,
-            channel.SupportPhase,
-            string.Equals(sdk.Version, channel.LatestSdk, StringComparison.OrdinalIgnoreCase)));
-    }
-
-    private static List<AvailableSdk> CreateLatestSdkResults(IEnumerable<ChannelInfo> channels)
-    {
-        return channels
-            .Where(channel => !string.IsNullOrWhiteSpace(channel.LatestSdk))
-            .Select(channel => new AvailableSdk(
-                channel.LatestSdk,
-                channel.ChannelVersion,
-                channel.SupportPhase,
-                true))
-            .ToList();
-    }
-
-    private static async Task<T?> GetJsonAsync<T>(string url, JsonTypeInfo<T> jsonTypeInfo, CancellationToken ct)
-    {
-        string json = await HttpClient.GetStringAsync(url, ct);
-        return JsonSerializer.Deserialize(json, jsonTypeInfo);
-    }
-
     private static List<AvailableSdk> SortResults(List<AvailableSdk> results)
     {
-        results.Sort(static (left, right) => CompareSdkVersions(right.Version, left.Version));
+        results.Sort(static (left, right) =>
+        {
+            // SDKs first, then runtimes
+            int typeCompare = string.Compare(left.Component, right.Component, StringComparison.OrdinalIgnoreCase);
+            if (typeCompare != 0) return typeCompare;
+            return CompareSdkVersions(right.Version, left.Version);
+        });
         return results;
     }
 
@@ -225,6 +195,7 @@ internal sealed class ChannelInfo
     public string ChannelVersion { get; init; } = string.Empty;
     public string LatestRelease { get; init; } = string.Empty;
     public string LatestSdk { get; init; } = string.Empty;
+    public string LatestRuntime { get; init; } = string.Empty;
     public string SupportPhase { get; init; } = string.Empty;
     public string? EolDate { get; init; }
 

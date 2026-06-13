@@ -251,6 +251,30 @@ public static class ProcessRunner
         }
     }
 
+    /// <summary>
+    /// Runs a process without redirecting stdout/stderr so the child process
+    /// writes directly to the terminal. Used for streaming install output.
+    /// </summary>
+    public static async Task<int> RunInteractiveAsync(string command, string arguments, string? workingDirectory = null)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = command,
+            Arguments = arguments,
+            UseShellExecute = false
+        };
+
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+            psi.WorkingDirectory = workingDirectory;
+
+        using var process = new Process { StartInfo = psi };
+        if (!process.Start())
+            return -1;
+
+        await process.WaitForExitAsync();
+        return process.ExitCode;
+    }
+
     private static ProcessStartInfo CreateStartInfo(string command, string arguments, string? workingDirectory)
     {
         var startInfo = new ProcessStartInfo

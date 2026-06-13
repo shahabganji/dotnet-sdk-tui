@@ -1,3 +1,4 @@
+using System.Text;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
@@ -37,58 +38,116 @@ public static class MarioTheme
     /// <summary>Dim text color for tertiary content.</summary>
     public static string DarkGray => ThemeManager.DimText;
 
-    private static readonly string[] SplashBanner =
-    [
-        @"    ___  _  _ ___ _____   ___ ___  _  __  __  __    _   _  _   _   ___ ___ ___  ",
-        @"   |   \| \| | __|_   _| / __|   \| |/ / |  \/  |  /_\ | \| | /_\ / __| __| _ \ ",
-        @"  _| |) | .` | _|  | |   \__ \ |) | ' <  | |\/| | / _ \| .` |/ _ \ (_ | _||   / ",
-        @" (_)___/|_|\_|___| |_|   |___/___/|_|\_\ |_|  |_|/_/ \_\_|\_/_/ \_\___|___|_|_\ ",
-        @"                                                                                  ",
+    // .NET brand purple — two shades for Aspire-style 3D pixel effect
+    private const string BannerPrimary = "#512BD4";
+    private const string BannerHighlight = "#9B8ADE";
+
+    // Block letter definitions: each letter is 5 rows, 7 chars wide.
+    // Two words rendered as two lines: ".NET SDK" and "MANAGER".
+    private static readonly Dictionary<char, string[]> BannerFont = new()
+    {
+        ['.'] = ["       ", "       ", "       ", "  ██   ", "  ██   "],
+        ['N'] = ["██   ██", "███  ██", "██ █ ██", "██  ███", "██   ██"],
+        ['E'] = ["███████", "██     ", "█████  ", "██     ", "███████"],
+        ['T'] = ["███████", "  ███  ", "  ███  ", "  ███  ", "  ███  "],
+        ['S'] = [" █████ ", "██     ", " █████ ", "     ██", " █████ "],
+        ['D'] = ["██████ ", "██   ██", "██   ██", "██   ██", "██████ "],
+        ['K'] = ["██  ██ ", "██ ██  ", "████   ", "██ ██  ", "██  ██ "],
+        ['M'] = ["██   ██", "███ ███", "██ █ ██", "██   ██", "██   ██"],
+        ['A'] = [" █████ ", "██   ██", "███████", "██   ██", "██   ██"],
+        ['G'] = [" █████ ", "██     ", "██ ████", "██   ██", " █████ "],
+        ['R'] = ["██████ ", "██   ██", "██████ ", "██  ██ ", "██   ██"],
+    };
+
+    private static readonly string[][] BannerWords = [
+        [".","N","E","T"," ","S","D","K"],
+        ["M","A","N","A","G","E","R"],
     ];
 
     /// <summary>
-    /// Renders the startup splash animation with an Aspire-style ASCII banner.
+    /// Renders the startup splash animation with an Aspire-style block letter banner.
+    /// Uses filled █ characters with two shades of .NET purple for a 3D pixel-art effect.
+    /// Spells ".NET SDK" on line 1, "MANAGER" on line 2, animated row by row.
     /// </summary>
     public static async Task RenderSplashAsync()
     {
         AnsiConsole.Clear();
         Console.CursorVisible = false;
 
-        // Animate banner line by line
         AnsiConsole.WriteLine();
-        foreach (string line in SplashBanner)
+        AnsiConsole.MarkupLine($"  [{BannerHighlight}]Welcome to the[/]");
+        AnsiConsole.WriteLine();
+
+        // Render each word line
+        foreach (var wordLetters in BannerWords)
         {
-            AnsiConsole.MarkupLine($"[{ThemeManager.MarioRed} bold]{Markup.Escape(line)}[/]");
-            await Task.Delay(80);
+            for (int row = 0; row < 5; row++)
+            {
+                var line = new StringBuilder("  ");
+                for (int i = 0; i < wordLetters.Length; i++)
+                {
+                    char ch = wordLetters[i][0];
+                    if (ch == ' ')
+                    {
+                        line.Append("   "); // word gap
+                    }
+                    else
+                    {
+                        line.Append(BannerFont[ch][row]);
+                        if (i < wordLetters.Length - 1 && wordLetters[i + 1][0] != ' ')
+                            line.Append("  ");
+                    }
+                }
+
+                RenderBannerLine(line.ToString());
+                await Task.Delay(60);
+            }
+
+            AnsiConsole.WriteLine();
         }
 
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[{ThemeManager.MarioGold} bold]  ★ .NET SDK Manager — Super Edition ★[/]");
-        AnsiConsole.MarkupLine($"[{ThemeManager.MarioGreen}]  Manage your .NET SDKs with style![/]");
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[{ThemeManager.MarioBlue}]  It's-a me, dotnet![/]");
+        await Task.Delay(1200);
+    }
 
-        await Task.Delay(1500);
+    private static void RenderBannerLine(string line)
+    {
+        var sb = new StringBuilder();
+        int blockRun = 0;
+
+        foreach (char c in line)
+        {
+            if (c == '█')
+            {
+                // Alternate colors every 2 consecutive blocks for pixel-art depth
+                string color = (blockRun / 2) % 2 == 0 ? BannerPrimary : BannerHighlight;
+                sb.Append($"[{color}]█[/]");
+                blockRun++;
+            }
+            else
+            {
+                sb.Append(c);
+                blockRun = 0;
+            }
+        }
+
+        AnsiConsole.MarkupLine(sb.ToString());
     }
 
     /// <summary>
-    /// Renders the header bar with title, dotnetup status, working directory, and theme indicator.
+    /// Renders the header bar with title, dotnetup status, and working directory.
     /// </summary>
-    public static IRenderable Header(string dotnetUpStatus, string cwd, string? project, string themeName)
+    public static IRenderable Header(string dotnetUpStatus)
     {
-        var grid = new Grid().AddColumn().AddColumn().AddColumn().AddColumn();
+        string cwd = Directory.GetCurrentDirectory();
+        string themeName = ThemeManager.Current == AppTheme.Dark ? "Dark" : "Classic";
 
-        string title = $"[{Red} bold]★ .NET SDK Manager ★[/]";
+        var grid = new Grid().AddColumn().AddColumn().AddColumn();
+
+        string title = $"[{Red} bold].NET SDK Manager[/]";
         string status = $"[{Green}]dotnetup: {Markup.Escape(dotnetUpStatus)}[/]";
-        string dir = $"[{Blue}]{Markup.Escape(TruncatePath(cwd, 35))}[/]";
-        string theme = $"[{DarkGray}]{Markup.Escape(themeName)}[/]";
+        string dir = $"[{Blue}]{Markup.Escape(TruncatePath(cwd, 40))}[/]  [{DarkGray}]{Markup.Escape(themeName)}[/]";
 
-        if (project is not null)
-        {
-            dir += $" [{Yellow}]● {Markup.Escape(project)}[/]";
-        }
-
-        grid.AddRow(title, status, dir, theme);
+        grid.AddRow(title, status, dir);
 
         return new Panel(grid)
             .Border(BoxBorder.Heavy)
@@ -101,7 +160,7 @@ public static class MarioTheme
     /// </summary>
     public static IRenderable Footer(string hints)
     {
-        string global = $"[{DarkGray}]F1:SDKs  F2:Search  F3:Project  F4:Setup  F5:Theme  q:Quit[/]";
+        string global = $"[{DarkGray}]F1:SDKs  F2:Runtimes  F3:Setup  /:Search  F5:Theme  q:Quit[/]";
         string hintMarkup = $"[{Gold}]{hints}[/]";
         return new Markup($" {hintMarkup}  {global}");
     }
