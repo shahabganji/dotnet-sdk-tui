@@ -294,7 +294,7 @@ public sealed class RuntimesView : IView
             _statusMessage = "dotnetup not found.";
             return;
         }
-        PendingCommand = ("dotnetup", $"runtime uninstall {row.Channel}");
+        PendingCommand = ("dotnetup", $"runtime uninstall {row.Version}");
     }
 
     private static IRenderable RenderPanel(bool focused, IRenderable content)

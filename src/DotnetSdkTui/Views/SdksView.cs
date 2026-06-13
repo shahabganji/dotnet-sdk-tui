@@ -304,7 +304,7 @@ public sealed class SdksView : IView
             return;
         }
 
-        PendingCommand = ("dotnetup", $"sdk uninstall {row.Channel}");
+        PendingCommand = ("dotnetup", $"sdk uninstall {row.Version}");
     }
 
     private void RequestUpdate()
