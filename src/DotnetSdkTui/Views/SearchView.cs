@@ -8,6 +8,8 @@ namespace DotnetSdkTui.Views;
 /// <summary>
 /// Full-screen search interface for discovering available .NET SDK and runtime versions.
 /// Activated by "/" shortcut, Esc returns to main screen.
+/// Search is fully non-blocking: typing is always responsive, results update asynchronously
+/// with debounce, and previous HTTP requests are cancelled when a new query arrives.
 /// </summary>
 public sealed class SearchView : IView
 {
@@ -20,7 +22,7 @@ public sealed class SearchView : IView
     private string? _error;
     private int _selectedIndex;
     private bool _inputActive = true;
-    private CancellationTokenSource? _debounceCts;
+    private CancellationTokenSource? _searchCts;
     private bool _hasPendingSearch;
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(300);
 
@@ -129,8 +131,7 @@ public sealed class SearchView : IView
 
     public async Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)
     {
-        if (_searching && key.Key != ConsoleKey.Escape) return KeyResult.NotHandled;
-
+        // Input is NEVER blocked — typing is always responsive regardless of search state
         if (_inputActive)
             return await HandleInputModeAsync(key);
 
@@ -162,8 +163,8 @@ public sealed class SearchView : IView
                 _searchQuery = "";
                 _results = [];
                 _error = null;
-                _debounceCts?.Cancel();
-                return KeyResult.Quit; // Signal App to switch back to main screen
+                CancelSearch();
+                return KeyResult.Quit;
 
             default:
                 if (key.KeyChar is >= ' ' and <= '~')
@@ -199,24 +200,42 @@ public sealed class SearchView : IView
                 _results = [];
                 _error = null;
                 _inputActive = true;
-                _debounceCts?.Cancel();
-                return KeyResult.Quit; // Signal App to switch back to main screen
+                CancelSearch();
+                return KeyResult.Quit;
 
             case ConsoleKey.I:
                 RequestInstall();
                 return KeyResult.Handled;
 
             default:
+                // Any printable character switches back to input mode and types
+                if (key.KeyChar is >= ' ' and <= '~')
+                {
+                    _inputActive = true;
+                    _searchQuery += key.KeyChar;
+                    TriggerDebouncedSearch();
+                    return KeyResult.Handled;
+                }
                 return KeyResult.NotHandled;
         }
     }
 
+    private void CancelSearch()
+    {
+        _searchCts?.Cancel();
+        _searchCts = null;
+        _searching = false;
+        _hasPendingSearch = false;
+    }
+
     private void TriggerDebouncedSearch()
     {
-        _debounceCts?.Cancel();
-        _debounceCts = new CancellationTokenSource();
+        // Cancel any previous debounce timer AND in-flight HTTP request
+        _searchCts?.Cancel();
+        _searching = false;
+        _searchCts = new CancellationTokenSource();
         _hasPendingSearch = true;
-        var token = _debounceCts.Token;
+        var token = _searchCts.Token;
         var query = _searchQuery;
 
         _ = Task.Run(async () =>
@@ -227,11 +246,11 @@ public sealed class SearchView : IView
                 if (token.IsCancellationRequested) return;
 
                 _searching = true;
+                _error = null;
 
                 if (string.IsNullOrWhiteSpace(query))
                 {
                     _results = [];
-                    _error = null;
                     _searching = false;
                     _hasPendingSearch = false;
                     return;
