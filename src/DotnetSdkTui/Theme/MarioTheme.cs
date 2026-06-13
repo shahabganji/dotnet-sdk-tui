@@ -309,7 +309,7 @@ public static class MarioTheme
     /// </summary>
     public static IRenderable Footer(string hints)
     {
-        string global = $"[{DarkGray}]Tab:Switch  F3:Search  F5:Theme  q:Quit[/]";
+        string global = $"[{DarkGray}]Tab:Switch  F3:Search  F5/F6:Theme  q:Quit[/]";
         string hintMarkup = $"[{Gold}]{hints}[/]";
         return new Markup($" {hintMarkup}  {global}");
     }

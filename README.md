@@ -34,8 +34,8 @@
 | `u` | Uninstall selected SDK/Runtime |
 | `p` | Update selected SDK/Runtime |
 | `r` | Refresh data |
-| `F3` or `/` | Open search |
-| `F5` | Toggle dark/light theme |
+| `F3` | Open search |
+| `F5` / `F6` | Toggle dark/light theme |
 | `q` or `Ctrl+C` | Quit |
 
 ## Installation

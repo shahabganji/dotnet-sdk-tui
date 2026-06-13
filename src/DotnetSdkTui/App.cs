@@ -203,8 +203,8 @@ public sealed class App
             return;
         }
 
-        // F5 toggles theme
-        if (key.Key == ConsoleKey.F5)
+        // F5/F6 toggles theme
+        if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
         {
             ThemeManager.Toggle();
             return;
@@ -230,8 +230,8 @@ public sealed class App
 
     private async Task HandleSearchKeyAsync(ConsoleKeyInfo key)
     {
-        // F5 toggles theme even in search
-        if (key.Key == ConsoleKey.F5)
+        // F5/F6 toggles theme even in search
+        if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
         {
             ThemeManager.Toggle();
             return;
