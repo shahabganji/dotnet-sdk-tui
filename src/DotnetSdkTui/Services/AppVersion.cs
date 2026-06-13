@@ -57,7 +57,7 @@ internal static class AppVersion
         if (OperatingSystem.IsWindows())
         {
             return ProcessRunner.RunInteractiveAsync("powershell.exe",
-                "-ExecutionPolicy Bypass -Command \"irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex\"");
+                "-ExecutionPolicy Bypass -Command \"irm -UseBasicParsing https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex\"");
         }
 
         return ProcessRunner.RunInteractiveAsync("bash",

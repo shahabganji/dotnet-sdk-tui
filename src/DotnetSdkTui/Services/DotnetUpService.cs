@@ -65,7 +65,7 @@ public static class DotnetUpService
         {
             int exitCode = await ProcessRunner.RunInteractiveAsync(
                 "powershell.exe",
-                "-ExecutionPolicy Bypass -Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
+                "-ExecutionPolicy Bypass -Command \"iwr -UseBasicParsing https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
             return new ProcessResult(exitCode, "", "", TimeSpan.Zero);
         }
 
