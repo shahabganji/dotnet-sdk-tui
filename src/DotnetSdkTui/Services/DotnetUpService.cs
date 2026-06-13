@@ -77,7 +77,8 @@ public static class DotnetUpService
     /// <summary>
     /// Resolves an installed version to the dotnetup install spec (channel) that tracks it.
     /// Parses <c>dotnetup list --format Json</c> and finds the best matching spec.
-    /// Falls back to the exact version if no matching spec is found.
+    /// Tries: exact version → feature band pattern (xx) → major.minor → keywords (latest/lts).
+    /// Falls back to computing the feature band from the version if nothing matches.
     /// </summary>
     public static async Task<string> ResolveInstallSpecAsync(string version, string component, CancellationToken ct = default)
     {
@@ -91,54 +92,74 @@ public static class DotnetUpService
             if (!doc.RootElement.TryGetProperty("installSpecs", out var specs))
                 return version;
 
-            string targetComponent = component.Equals("SDK", StringComparison.OrdinalIgnoreCase) ? "SDK" : component;
+            var candidates = new List<(string spec, int priority)>();
+            bool hasLatest = false;
 
-            // Collect all matching specs for this component
-            var candidates = new List<string>();
             foreach (var spec in specs.EnumerateArray())
             {
                 string specComponent = spec.GetProperty("component").GetString() ?? "";
                 string specChannel = spec.GetProperty("versionOrChannel").GetString() ?? "";
-
                 if (string.IsNullOrEmpty(specChannel)) continue;
 
-                // Normalize component names (dotnetup uses "SDK", "Runtime", "ASPNETCore")
                 bool componentMatch = component.Equals("SDK", StringComparison.OrdinalIgnoreCase)
                     ? specComponent.Equals("SDK", StringComparison.OrdinalIgnoreCase)
                     : !specComponent.Equals("SDK", StringComparison.OrdinalIgnoreCase);
-
                 if (!componentMatch) continue;
 
-                // Exact match
+                // Exact match — best possible
                 if (specChannel.Equals(version, StringComparison.OrdinalIgnoreCase))
                     return version;
 
-                // Feature band pattern match (e.g. "10.0.2xx" matches "10.0.204")
+                // Feature band pattern (e.g. "10.0.2xx" matches "10.0.204")
                 if (specChannel.Contains("xx", StringComparison.OrdinalIgnoreCase))
                 {
                     string prefix = specChannel.Replace("xx", "", StringComparison.OrdinalIgnoreCase);
                     if (version.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                        candidates.Add(specChannel);
+                        candidates.Add((specChannel, 0)); // highest priority
                 }
 
-                // Major.minor match (e.g. "10.0" matches "10.0.204")
-                if (!specChannel.Contains('.', StringComparison.Ordinal) || specChannel.Count(c => c == '.') < 2)
+                // Major.minor match (e.g. "10.0" or "10" matches "10.0.301")
+                if (specChannel.Count(c => c == '.') < 2 && !specChannel.Contains("xx"))
                 {
-                    if (version.StartsWith(specChannel + ".", StringComparison.OrdinalIgnoreCase)
-                        || version.StartsWith(specChannel, StringComparison.OrdinalIgnoreCase))
-                        candidates.Add(specChannel);
+                    string prefix = specChannel.EndsWith('.') ? specChannel : specChannel + ".";
+                    if (version.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        candidates.Add((specChannel, 1));
                 }
+
+                if (specChannel.Equals("latest", StringComparison.OrdinalIgnoreCase)
+                    || specChannel.Equals("lts", StringComparison.OrdinalIgnoreCase))
+                    hasLatest = true;
             }
 
-            // Prefer the most specific match (longest spec)
+            // Prefer most specific match
             if (candidates.Count > 0)
             {
-                candidates.Sort((a, b) => b.Length.CompareTo(a.Length));
-                return candidates[0];
+                candidates.Sort((a, b) => a.priority != b.priority
+                    ? a.priority.CompareTo(b.priority)
+                    : b.spec.Length.CompareTo(a.spec.Length));
+                return candidates[0].spec;
             }
+
+            // Fallback: if "latest" is tracked, use it (covers versions installed via latest)
+            if (hasLatest)
+                return "latest";
         }
         catch { }
 
+        // Last resort: compute the feature band pattern from the version
+        return ComputeFeatureBand(version);
+    }
+
+    /// <summary>
+    /// Computes the feature band pattern from a version string.
+    /// E.g. "10.0.301" → "10.0.3xx", "9.0.315" → "9.0.3xx".
+    /// Returns the original version if it can't be parsed.
+    /// </summary>
+    private static string ComputeFeatureBand(string version)
+    {
+        var parts = version.Split('.');
+        if (parts.Length >= 3 && parts[2].Length >= 1 && char.IsDigit(parts[2][0]))
+            return $"{parts[0]}.{parts[1]}.{parts[2][0]}xx";
         return version;
     }
 
