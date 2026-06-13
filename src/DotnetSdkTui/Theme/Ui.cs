@@ -291,19 +291,15 @@ public static class Ui
         string version = Services.AppVersion.Current;
         string title = $"[{Red} bold].NET SDK Manager[/] [{DarkGray}]v{version}[/]  [{DarkGray}]Made with[/] [{Red}]{IconHeart}[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
 
-        var rows = new List<IRenderable> { new Markup(title) };
-
-        if (Services.AppVersion.UpdateAvailable)
-        {
-            rows.Add(new Markup(
-                $"[{Gold}]   \u2b06 v{Services.AppVersion.LatestAvailable} available (F11)[/]")
-                { Justification = Justify.Right });
-        }
-
-        return new Panel(new Rows(rows))
+        var panel = new Panel(new Markup(title))
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.HeaderBorderColor)
             .Expand();
+
+        if (Services.AppVersion.UpdateAvailable)
+            panel.Header($"[{Gold} bold] \u2b06 v{Services.AppVersion.LatestAvailable} available (F11) [/]", Justify.Right);
+
+        return panel;
     }
 
     /// <summary>

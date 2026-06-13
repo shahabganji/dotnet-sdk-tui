@@ -24,6 +24,7 @@ internal static class AppVersion
     /// <summary>True while the update check is still in flight.</summary>
     public static bool CheckInProgress { get; private set; }
 
+
     /// <summary>
     /// Checks GitHub for the latest release. Non-blocking, swallows errors silently.
     /// </summary>
