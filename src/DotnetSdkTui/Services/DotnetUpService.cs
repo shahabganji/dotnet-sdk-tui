@@ -77,9 +77,15 @@ public static class DotnetUpService
             "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"",
             null, null, null, ct);
 
-        // Auto-add dotnetup to PATH on macOS/Linux if not already there
+        // Auto-add dotnetup and dotnet to PATH on macOS/Linux
         if (result.ExitCode == 0)
+        {
             EnsureDotnetUpOnPath();
+            RefreshPath();
+            Console.WriteLine();
+            Console.WriteLine("\u2713 dotnetup and dotnet paths have been added to your shell profile automatically.");
+            Console.WriteLine("  No manual PATH setup needed — dsm handles it for you.");
+        }
 
         return result;
     }
@@ -89,32 +95,52 @@ public static class DotnetUpService
     /// </summary>
     private static void EnsureDotnetUpOnPath()
     {
-        string dotnetupDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnetup");
-        if (!Directory.Exists(dotnetupDir)) return;
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string dotnetupDir = Path.Combine(home, ".dotnetup");
+
+        // Collect directories to add
+        var dirsToAdd = new List<string>();
+        if (Directory.Exists(dotnetupDir)) dirsToAdd.Add(dotnetupDir);
+
+        // Also add dotnet managed installation path
+        if (!OperatingSystem.IsWindows())
+        {
+            string dotnetDir = Path.Combine(home, "Library", "Application Support", "dotnet");
+            if (Directory.Exists(dotnetDir)) dirsToAdd.Add(dotnetDir);
+            string linuxDotnet = Path.Combine(home, ".dotnet");
+            if (Directory.Exists(linuxDotnet)) dirsToAdd.Add(linuxDotnet);
+        }
+
+        if (dirsToAdd.Count == 0) return;
 
         // Add to current process PATH
         string currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-        if (!currentPath.Contains(dotnetupDir))
+        foreach (var dir in dirsToAdd)
         {
-            Environment.SetEnvironmentVariable("PATH", $"{dotnetupDir}:{currentPath}");
+            if (!currentPath.Contains(dir))
+                currentPath = $"{dir}:{currentPath}";
         }
+        Environment.SetEnvironmentVariable("PATH", currentPath);
 
         // Add to shell profile
         string shell = Path.GetFileName(Environment.GetEnvironmentVariable("SHELL") ?? "/bin/bash");
         string profile = shell switch
         {
-            "zsh" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".zshrc"),
-            "fish" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "fish", "config.fish"),
-            _ => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".bashrc")
+            "zsh" => Path.Combine(home, ".zshrc"),
+            "fish" => Path.Combine(home, ".config", "fish", "config.fish"),
+            _ => Path.Combine(home, ".bashrc")
         };
 
-        if (!File.Exists(profile) || !File.ReadAllText(profile).Contains(dotnetupDir))
+        string profileContent = File.Exists(profile) ? File.ReadAllText(profile) : "";
+        foreach (var dir in dirsToAdd)
         {
-            string line = shell == "fish"
-                ? $"fish_add_path \"{dotnetupDir}\""
-                : $"export PATH=\"{dotnetupDir}:$PATH\"";
-            File.AppendAllText(profile, $"\n{line}\n");
-            Console.WriteLine($"Added {dotnetupDir} to {profile}");
+            if (!profileContent.Contains(dir))
+            {
+                string line = shell == "fish"
+                    ? $"fish_add_path \"{dir}\""
+                    : $"export PATH=\"{dir}:$PATH\"";
+                File.AppendAllText(profile, $"\n{line}\n");
+            }
         }
     }
 
