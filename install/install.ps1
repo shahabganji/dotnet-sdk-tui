@@ -20,11 +20,15 @@ Write-Host '  Install or update' -ForegroundColor DarkGray
 Write-Host ''
 
 function Get-Rid {
-    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+    # Try .NET RuntimeInformation first (pwsh 7+), fall back to env var (Windows PowerShell 5.1)
+    $arch = $null
+    try { $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString() } catch {}
+    if (-not $arch) { $arch = $env:PROCESSOR_ARCHITECTURE }
+
     switch ($arch) {
-        'X64'   { return 'win-x64' }
-        'Arm64' { return 'win-arm64' }
-        default { throw "Unsupported architecture: $arch" }
+        { $_ -in 'X64', 'AMD64' }  { return 'win-x64' }
+        { $_ -in 'Arm64', 'ARM64' } { return 'win-arm64' }
+        default { throw "Unsupported architecture: $arch. Expected X64 or Arm64." }
     }
 }
 
