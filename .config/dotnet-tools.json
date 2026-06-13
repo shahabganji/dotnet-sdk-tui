@@ -3,10 +3,11 @@
   "isRoot": true,
   "tools": {
     "hex1b.tool": {
-      "version": "0.1.0",
+      "version": "0.164.1",
       "commands": [
         "hex1b"
-      ]
+      ],
+      "rollForward": false
     }
   }
 }
