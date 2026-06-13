@@ -259,6 +259,23 @@
     }
     th { color: var(--teal); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
 
+    /* ── Install cards ────────────────────────── */
+    .install-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+    .install-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+    .install-card pre { margin: 0 0 0.75rem; font-size: 0.8rem; }
+    @media (max-width: 768px) {
+      .install-grid { grid-template-columns: 1fr; }
+    }
+
     /* ── Platform cards ───────────────────────── */
     .platform-grid {
       display: grid;
@@ -336,7 +353,7 @@
       <a href="#build">Build</a>
       <a href="#contributing">Contribute</a>
       <a href="https://github.com/shahabganji/dotnet-sdk-tui" target="_blank">GitHub</a>
-      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">Dark / Light</button>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><i class="bi bi-moon-stars"></i> / <i class="bi bi-sun"></i></button>
     </div>
   </div>
 </nav>
@@ -395,21 +412,28 @@
   <div class="container">
     <div class="section-label">Get Started</div>
     <h2 class="section-title">Installation</h2>
-    <p class="section-desc">Install the pre-built NativeAOT binary with a single command. No .NET runtime required. Running the script again updates to the latest release.</p>
+    <p class="section-desc">One command to install. No .NET runtime needed — it's a self-contained native binary. Running the same command again updates to the latest version.</p>
 
-    <h3 style="margin-bottom: 0.5rem;">macOS / Linux</h3>
-    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></pre>
+    <div class="install-grid">
+      <div class="install-card">
+        <div class="card-header"><i class="bi bi-apple icon"></i><h3>macOS &amp; Linux</h3></div>
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Works on Bash, Zsh, and Fish. Installs to <code>~/.local/bin</code> and adds it to your PATH automatically.</p>
+        <p style="font-size: 0.8rem; color: var(--teal); margin-bottom: 0.3rem;">Install or update:</p>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></pre>
+        <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.3rem;">Uninstall:</p>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | <span class="cmd">bash</span></pre>
+      </div>
+      <div class="install-card">
+        <div class="card-header"><i class="bi bi-windows icon"></i><h3>Windows</h3></div>
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Run in PowerShell (5.1 or 7+). Installs to <code>%LOCALAPPDATA%\dsm</code> and adds it to your user PATH.</p>
+        <p style="font-size: 0.8rem; color: var(--teal); margin-bottom: 0.3rem;">Install or update:</p>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | <span class="cmd">iex</span></pre>
+        <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.3rem;">Uninstall:</p>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | <span class="cmd">iex</span></pre>
+      </div>
+    </div>
 
-    <h3 style="margin: 1.5rem 0 0.5rem;">Windows (PowerShell)</h3>
-    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | <span class="cmd">iex</span></pre>
-
-    <h3 style="margin: 1.5rem 0 0.5rem;">Uninstall — macOS / Linux</h3>
-    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | <span class="cmd">bash</span></pre>
-
-    <h3 style="margin: 1.5rem 0 0.5rem;">Uninstall — Windows (PowerShell)</h3>
-    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | <span class="cmd">iex</span></pre>
-
-    <p style="color: var(--text-muted); margin-top: 1rem;">After installation, run <code>dsm</code> from any terminal.</p>
+    <p style="color: var(--text-muted); margin-top: 1.5rem;">After installation, open a new terminal and run <code>dsm</code>. The app will notify you when updates are available — press <code>Ctrl+U</code> to self-update.</p>
 
     <h3 style="margin: 2rem 0 1rem;">Supported platforms</h3>
     <div class="platform-grid">
@@ -450,6 +474,7 @@
         <tr><td><code>r</code></td><td>Refresh data from the network</td></tr>
         <tr><td><code>F3</code></td><td>Open the search screen</td></tr>
         <tr><td><code>F6</code></td><td>Toggle dark / light theme</td></tr>
+        <tr><td><code>Ctrl+U</code></td><td>Self-update dsm to latest version</td></tr>
         <tr><td><code>q</code> or <code>Ctrl+C</code></td><td>Quit</td></tr>
       </tbody>
     </table>
