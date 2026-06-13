@@ -397,13 +397,22 @@
   <div class="container">
     <div class="section-label">Get Started</div>
     <h2 class="section-title">Installation</h2>
-    <p class="section-desc">Install the pre-built NativeAOT binary with a single command. No .NET runtime required.</p>
+    <p class="section-desc">Install the pre-built NativeAOT binary with a single command. No .NET runtime required. Running the script again updates to the latest release.</p>
 
     <h3 style="margin-bottom: 0.5rem;">macOS / Linux</h3>
     <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></pre>
 
     <h3 style="margin: 1.5rem 0 0.5rem;">Windows (PowerShell)</h3>
     <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | <span class="cmd">iex</span></pre>
+
+    <h3 style="margin: 1.5rem 0 0.5rem;">Uninstall</h3>
+    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># macOS / Linux</span>
+<span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | <span class="cmd">bash</span>
+
+<span class="comment"># Windows (PowerShell)</span>
+<span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | <span class="cmd">iex</span></pre>
+
+    <p style="color: var(--text-muted); margin-top: 1rem;">After installation, run <code>dsm</code> from any terminal.</p>
 
     <h3 style="margin: 2rem 0 1rem;">Supported platforms</h3>
     <div class="platform-grid">
@@ -458,10 +467,10 @@
 <span class="arg">/ Search: latest</span>        <span class="comment"># Shows latest versions across supported channels</span>
 <span class="arg">/ Search: lts</span>           <span class="comment"># Shows long-term support versions</span></pre>
 
-    <h3 style="margin: 2rem 0 0.5rem;">CLI flags</h3>
-    <pre><span class="cmd">dotnet-sdk-tui</span>                <span class="comment"># Launch with animated banner</span>
-<span class="cmd">dotnet-sdk-tui</span> <span class="flag">--no-splash</span>    <span class="comment"># Skip the banner animation</span>
-<span class="cmd">dotnet-sdk-tui</span> <span class="flag">--version</span>      <span class="comment"># Print version and exit</span></pre>
+    <h3 style="margin: 2rem 0 0.5rem;">CLI</h3>
+    <pre><span class="cmd">dsm</span>                <span class="comment"># Launch with animated banner</span>
+<span class="cmd">dsm</span> <span class="flag">--no-splash</span>    <span class="comment"># Skip the banner animation</span>
+<span class="cmd">dsm</span> <span class="flag">--version</span>      <span class="comment"># Print version and exit</span></pre>
   </div>
 </section>
 
@@ -496,18 +505,22 @@
 
     <div class="features-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
       <div class="feature-card">
+        <div class="icon">🍴</div>
         <h3>1. Fork &amp; Clone</h3>
         <p>Fork the <a href="https://github.com/shahabganji/dotnet-sdk-tui" style="color: var(--teal);">repository</a> and clone it locally.</p>
       </div>
       <div class="feature-card">
+        <div class="icon">🌿</div>
         <h3>2. Branch</h3>
         <p>Create a branch from <code>main</code> for your feature or fix.</p>
       </div>
       <div class="feature-card">
+        <div class="icon">🔨</div>
         <h3>3. Build &amp; Test</h3>
         <p>Run <code>dotnet test</code> to make sure everything passes.</p>
       </div>
       <div class="feature-card">
+        <div class="icon">🚀</div>
         <h3>4. Open a PR</h3>
         <p>Submit a pull request with a clear description of your changes.</p>
       </div>

@@ -1,76 +1,51 @@
 #!/usr/bin/env pwsh
+# install.ps1 — Install or update .NET SDK Manager (dsm) on Windows
+#
+# Usage:
+#   irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-# Installs the latest dotnet-sdk-tui release into the current user's local app folder.
-$BinaryBaseName = 'dotnet-sdk-tui'
+$BinaryBaseName = 'dsm'
+$ArchiveName = 'dotnet-sdk-tui'
 $RepoOwner = 'shahabganji'
 $RepoName = 'dotnet-sdk-tui'
 $InstallDir = Join-Path $env:LOCALAPPDATA $BinaryBaseName
 $StagingDir = Join-Path $InstallDir '.install-staging'
 
-function Write-Banner {
-    Write-Host '✦────────────────────────────────────────────✦'
-    Write-Host '★   dotnet-sdk-tui installer — Let''s-a go!   ★'
-    Write-Host '✦   Silent steps. Sharp tools. Clean setup.  ✦'
-    Write-Host '✦────────────────────────────────────────────✦'
-}
+Write-Host ''
+Write-Host '  .NET SDK Manager (dsm)' -ForegroundColor Green
+Write-Host '  Install or update' -ForegroundColor DarkGray
+Write-Host ''
 
-# Maps the current Windows architecture to the release RID.
 function Get-Rid {
-    $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-
-    switch ($architecture) {
-        'X64' { return 'win-x64' }
+    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+    switch ($arch) {
+        'X64'   { return 'win-x64' }
         'Arm64' { return 'win-arm64' }
-        default { throw "Unsupported Windows architecture: $architecture. Expected X64 or Arm64." }
+        default { throw "Unsupported architecture: $arch" }
     }
 }
 
-# Compares PATH entries case-insensitively while tolerating trailing backslashes.
 function Test-PathEntryPresent {
-    param(
-        [AllowEmptyString()]
-        [string]$PathValue = '',
-        [Parameter(Mandatory = $true)]
-        [string]$Entry
-    )
-
-    $normalizedEntry = $Entry.TrimEnd('\\')
+    param([string]$PathValue = '', [Parameter(Mandatory)]$Entry)
+    $norm = $Entry.TrimEnd('\\')
     foreach ($item in ($PathValue -split ';')) {
-        if ($item -and $item.TrimEnd('\\') -ieq $normalizedEntry) {
-            return $true
-        }
+        if ($item -and $item.TrimEnd('\\') -ieq $norm) { return $true }
     }
-
     return $false
 }
 
-# Finds the published executable regardless of whether the zip contains a root folder.
-function Get-BinaryPath {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Root
-    )
-
-    foreach ($candidate in @("$BinaryBaseName.exe", $BinaryBaseName)) {
-        $match = Get-ChildItem -Path $Root -Recurse -File -Filter $candidate | Select-Object -First 1
-        if ($match) {
-            return $match.FullName
-        }
-    }
-
-    throw "Could not find $BinaryBaseName in the downloaded archive."
-}
-
-Write-Banner
-
 $rid = Get-Rid
-$downloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/latest/download/$BinaryBaseName-$rid.zip"
-$archivePath = Join-Path $StagingDir "$BinaryBaseName-$rid.zip"
+$downloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/latest/download/$ArchiveName-$rid.zip"
+$archivePath = Join-Path $StagingDir "$ArchiveName-$rid.zip"
+$targetPath = Join-Path $InstallDir "$BinaryBaseName.exe"
 
-Write-Host "==> Detected runtime: $rid"
-Write-Host "==> Installing into $InstallDir"
+$action = if (Test-Path $targetPath) { 'Updating' } else { 'Installing' }
+
+Write-Host "==> $action dsm ($rid)"
+Write-Host "==> Target: $InstallDir"
 
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 if (Test-Path -LiteralPath $StagingDir) {
@@ -79,42 +54,39 @@ if (Test-Path -LiteralPath $StagingDir) {
 New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
 
 try {
-    Write-Host '==> Downloading release archive'
+    Write-Host '==> Downloading latest release'
     Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath
 
-    Write-Host '==> Extracting archive'
+    Write-Host '==> Extracting'
     Expand-Archive -LiteralPath $archivePath -DestinationPath $StagingDir -Force
 
-    $binaryPath = Get-BinaryPath -Root $StagingDir
-    $targetPath = Join-Path $InstallDir ([System.IO.Path]::GetFileName($binaryPath))
+    # Find the binary (could be dotnet-sdk-tui.exe in the archive)
+    $sourceBinary = Get-ChildItem -Path $StagingDir -Recurse -File -Filter "$ArchiveName.exe" | Select-Object -First 1
+    if (-not $sourceBinary) {
+        $sourceBinary = Get-ChildItem -Path $StagingDir -Recurse -File -Filter "$ArchiveName" | Select-Object -First 1
+    }
+    if (-not $sourceBinary) { throw "Binary not found in archive." }
 
-    Write-Host "==> Installing $([System.IO.Path]::GetFileName($binaryPath))"
-    Copy-Item -LiteralPath $binaryPath -Destination $targetPath -Force
+    # Install as dsm.exe
+    Copy-Item -LiteralPath $sourceBinary.FullName -Destination $targetPath -Force
 
+    # Ensure on PATH
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     if (-not (Test-PathEntryPresent -PathValue $userPath -Entry $InstallDir)) {
-        $updatedUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) {
-            $InstallDir
-        }
-        else {
-            "$userPath;$InstallDir"
-        }
-
-        [Environment]::SetEnvironmentVariable('Path', $updatedUserPath, 'User')
+        $updatedPath = if ([string]::IsNullOrWhiteSpace($userPath)) { $InstallDir } else { "$userPath;$InstallDir" }
+        [Environment]::SetEnvironmentVariable('Path', $updatedPath, 'User')
         if (-not (Test-PathEntryPresent -PathValue $env:Path -Entry $InstallDir)) {
             $env:Path = "$InstallDir;$env:Path"
         }
-        Write-Host "==> Added $InstallDir to your user PATH"
-    }
-    else {
-        Write-Host "==> $InstallDir is already on your user PATH"
+        Write-Host "==> Added $InstallDir to user PATH"
+    } else {
+        Write-Host "==> $InstallDir is already on PATH"
     }
 
     Write-Host ''
-    Write-Host "✦ Installation complete. $BinaryBaseName is ready at $targetPath"
-    Write-Host '★ Tip: open a new terminal if PATH changes are not visible yet.'
-}
-finally {
+    Write-Host "$action complete. Run 'dsm' to get started." -ForegroundColor Green
+    Write-Host 'Tip: open a new terminal if PATH changes are not visible yet.' -ForegroundColor DarkGray
+} finally {
     if (Test-Path -LiteralPath $StagingDir) {
         Remove-Item -LiteralPath $StagingDir -Recurse -Force
     }

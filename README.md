@@ -49,6 +49,26 @@ curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/ins
 irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex
 ```
 
+Running the install script again will update `dsm` to the latest release.
+
+### Uninstall
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | iex
+```
+
+### CLI
+
+```bash
+dsm                # Launch with animated banner
+dsm --no-splash    # Skip the banner animation
+dsm --version      # Print version and exit
+```
+
 ## Build from source
 
 Requires [.NET 10 SDK](https://dotnet.microsoft.com/download) or later.
