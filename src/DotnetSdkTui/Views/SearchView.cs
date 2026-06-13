@@ -277,9 +277,9 @@ public sealed class SearchView : IView
         }
 
         if (sdk.Component == "SDK")
-            PendingCommand = ("dotnetup", $"sdk install {sdk.ChannelVersion}");
+            PendingCommand = ("dotnetup", $"sdk install {sdk.Version}");
         else
-            PendingCommand = ("dotnetup", $"runtime install {sdk.ChannelVersion}");
+            PendingCommand = ("dotnetup", $"runtime install {sdk.Version}");
     }
 
     private static string FormatPhase(string phase) =>

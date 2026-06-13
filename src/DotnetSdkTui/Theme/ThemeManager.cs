@@ -5,11 +5,11 @@ namespace DotnetSdkTui.Theme;
 /// <summary>Defines the available visual themes for the application.</summary>
 public enum AppTheme
 {
-    /// <summary>Dark theme with vivid colors on dark backgrounds.</summary>
+    /// <summary>Dark theme — vivid colors on dark backgrounds.</summary>
     Dark,
 
-    /// <summary>Classic retro theme using ANSI colors — works on any terminal.</summary>
-    Classic
+    /// <summary>Light theme — muted colors on light backgrounds.</summary>
+    Light
 }
 
 /// <summary>
@@ -23,16 +23,38 @@ public static class ThemeManager
     /// <summary>Gets the currently active theme.</summary>
     public static AppTheme Current => _current;
 
-    /// <summary>Toggles between dark and classic themes.</summary>
+    /// <summary>Toggles between dark and light themes.</summary>
     public static void Toggle()
     {
-        _current = _current == AppTheme.Dark ? AppTheme.Classic : AppTheme.Dark;
+        _current = _current == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
+        ApplyBackground();
     }
 
     /// <summary>Sets the active theme explicitly.</summary>
-    public static void Set(AppTheme theme) => _current = theme;
+    public static void Set(AppTheme theme)
+    {
+        _current = theme;
+        ApplyBackground();
+    }
 
-    // Primary branding colors (always the same)
+    /// <summary>Sets the terminal default background color via OSC 11.</summary>
+    public static void ApplyBackground()
+    {
+        if (_current == AppTheme.Light)
+            Console.Write("\x1b]11;rgb:f0/ec/e3\x07");
+        else
+            Console.Write("\x1b]11;rgb:1a/1a/2e\x07");
+        Console.Out.Flush();
+    }
+
+    /// <summary>Resets the terminal background to its original color.</summary>
+    public static void ResetBackground()
+    {
+        Console.Write("\x1b]111\x07");
+        Console.Out.Flush();
+    }
+
+    // Fixed branding colors (always the same regardless of theme)
     public const string MarioRed = "#E52521";
     public const string MarioGreen = "#43B047";
     public const string MarioBlue = "#049CD8";
@@ -40,33 +62,35 @@ public static class ThemeManager
     public const string MarioGold = "#FFD700";
     public const string MarioBrown = "#C84C09";
 
-    // Theme-adaptive colors
-    // Classic theme uses ANSI named colors that terminals map to their own palette,
-    // making them work correctly on both dark and light terminal backgrounds.
-    public static string Foreground => _current == AppTheme.Dark ? "#E0E0E0" : "white";
-    public static string Background => _current == AppTheme.Dark ? "#1A1A2E" : "default";
-    public static string Muted => _current == AppTheme.Dark ? "#888888" : "grey";
-    public static string DimText => _current == AppTheme.Dark ? "#555555" : "grey";
-    public static string PanelBorder => _current == AppTheme.Dark ? "#43B047" : "cyan";
-    public static string TableBorder => _current == AppTheme.Dark ? "#C84C09" : "yellow";
-    public static string HeaderBorder => _current == AppTheme.Dark ? "#E52521" : "red";
-    public static string SelectedRow => _current == AppTheme.Dark ? "#FBD000" : "yellow";
-    public static string InstalledColor => _current == AppTheme.Dark ? "#43B047" : "green";
-    public static string AvailableColor => _current == AppTheme.Dark ? "#049CD8" : "cyan";
-    public static string ErrorColor => _current == AppTheme.Dark ? "#E52521" : "red";
-    public static string SuccessColor => _current == AppTheme.Dark ? "#43B047" : "green";
-    public static string InfoColor => _current == AppTheme.Dark ? "#049CD8" : "cyan";
-    public static string AccentColor => _current == AppTheme.Dark ? "#FFD700" : "yellow";
-    public static string SectionTitle => _current == AppTheme.Dark ? "#FBD000" : "yellow";
-    public static string InputBg => _current == AppTheme.Dark ? "#2A2A4E" : "default";
-    public static string OutputText => _current == AppTheme.Dark ? "#AAAAAA" : "grey";
-    public static string OutputError => _current == AppTheme.Dark ? "#FF6B6B" : "red";
+    // ── Theme-adaptive colors ──────────────────────────────────────────
+    //
+    //   Dark:  bright/vivid on dark terminal backgrounds
+    //   Light: deeper/muted so they stay readable on white/light backgrounds
 
-    public static Color ForegroundColor => _current == AppTheme.Dark ? ParseHex("#E0E0E0") : Color.White;
-    public static Color PanelBorderColor => _current == AppTheme.Dark ? ParseHex("#43B047") : Color.Cyan1;
-    public static Color TableBorderColor => _current == AppTheme.Dark ? ParseHex("#C84C09") : Color.Yellow;
-    public static Color HeaderBorderColor => _current == AppTheme.Dark ? ParseHex("#E52521") : Color.Red;
-    public static Color SelectedRowColor => _current == AppTheme.Dark ? ParseHex("#FBD000") : Color.Yellow;
+    public static string Foreground    => _current == AppTheme.Dark ? "#E0E0E0" : "#1E1E1E";
+    public static string Background    => _current == AppTheme.Dark ? "#1A1A2E" : "default";
+    public static string Muted         => _current == AppTheme.Dark ? "#888888" : "#6B7280";
+    public static string DimText       => _current == AppTheme.Dark ? "#555555" : "#9CA3AF";
+    public static string PanelBorder   => _current == AppTheme.Dark ? "#43B047" : "#15803D";
+    public static string TableBorder   => _current == AppTheme.Dark ? "#C84C09" : "#92400E";
+    public static string HeaderBorder  => _current == AppTheme.Dark ? "#E52521" : "#B91C1C";
+    public static string SelectedRow   => _current == AppTheme.Dark ? "#FBD000" : "#A16207";
+    public static string InstalledColor => _current == AppTheme.Dark ? "#43B047" : "#15803D";
+    public static string AvailableColor => _current == AppTheme.Dark ? "#049CD8" : "#0369A1";
+    public static string ErrorColor    => _current == AppTheme.Dark ? "#E52521" : "#B91C1C";
+    public static string SuccessColor  => _current == AppTheme.Dark ? "#43B047" : "#15803D";
+    public static string InfoColor     => _current == AppTheme.Dark ? "#049CD8" : "#0369A1";
+    public static string AccentColor   => _current == AppTheme.Dark ? "#FFD700" : "#B45309";
+    public static string SectionTitle  => _current == AppTheme.Dark ? "#FBD000" : "#9A3412";
+    public static string InputBg       => _current == AppTheme.Dark ? "#2A2A4E" : "default";
+    public static string OutputText    => _current == AppTheme.Dark ? "#AAAAAA" : "#4B5563";
+    public static string OutputError   => _current == AppTheme.Dark ? "#FF6B6B" : "#DC2626";
+
+    public static Color ForegroundColor   => _current == AppTheme.Dark ? ParseHex("#E0E0E0") : ParseHex("#1E1E1E");
+    public static Color PanelBorderColor  => _current == AppTheme.Dark ? ParseHex("#43B047") : ParseHex("#15803D");
+    public static Color TableBorderColor  => _current == AppTheme.Dark ? ParseHex("#C84C09") : ParseHex("#92400E");
+    public static Color HeaderBorderColor => _current == AppTheme.Dark ? ParseHex("#E52521") : ParseHex("#B91C1C");
+    public static Color SelectedRowColor  => _current == AppTheme.Dark ? ParseHex("#FBD000") : ParseHex("#A16207");
 
     internal static Color ParseHex(string hex)
     {

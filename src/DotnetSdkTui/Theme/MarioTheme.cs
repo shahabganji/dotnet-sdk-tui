@@ -412,6 +412,7 @@ public static class MarioTheme
     /// </summary>
     public static void RenderGoodbye()
     {
+        ThemeManager.ResetBackground();
         AnsiConsole.Clear();
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"  [{BannerPrimary}]Thanks for using[/] [{Red} bold].NET SDK Manager[/]");

@@ -44,6 +44,7 @@ public sealed class App
     public async Task RunAsync()
     {
         Console.CursorVisible = false;
+        ThemeManager.ApplyBackground();
 
         // Graceful Ctrl+C: stop the loop instead of killing the process
         Console.CancelKeyPress += (_, e) =>
@@ -131,9 +132,12 @@ public sealed class App
     {
         var root = new Layout("Root")
             .SplitRows(
+                new Layout("TopPad").Size(1),
                 new Layout("Top").Size(3),
                 new Layout("Body").MinimumSize(10),
-                new Layout("Footer").Size(1));
+                new Layout("Footer").Size(2));
+
+        root["TopPad"].Update(new Text(""));
 
         // Top row: Welcome info (left) + Setup panel (right, interactive)
         root["Top"].SplitColumns(
@@ -143,9 +147,9 @@ public sealed class App
         root["Top"]["Welcome"].Update(MarioTheme.WelcomePanel());
         root["Top"]["Setup"].Update(_setupView.Render(_mainFocus == FocusSetup));
 
-        // Footer
+        // Footer (with top padding line)
         IView focusedView = GetFocusedMainView();
-        root["Footer"].Update(MarioTheme.Footer(focusedView.GetStatusHints()));
+        root["Footer"].Update(new Rows(new Text(""), MarioTheme.Footer(focusedView.GetStatusHints())));
 
         // Body: SDKs and Runtimes
         root["Body"].SplitRows(
@@ -155,24 +159,26 @@ public sealed class App
         root["Body"]["SDKs"].Update(_sdksView.Render(_mainFocus == FocusSdks));
         root["Body"]["Runtimes"].Update(_runtimesView.Render(_mainFocus == FocusRuntimes));
 
-        AnsiConsole.Write(root);
+        AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }
 
     private void RenderSearchScreen()
     {
         var root = new Layout("Root")
             .SplitRows(
+                new Layout("TopPad").Size(1),
                 new Layout("Header").Size(3),
                 new Layout("SearchInput").Size(5),
                 new Layout("Results").MinimumSize(5),
-                new Layout("Footer").Size(1));
+                new Layout("Footer").Size(2));
 
+        root["TopPad"].Update(new Text(""));
         root["Header"].Update(MarioTheme.SearchHeader(_setupInfo));
         root["SearchInput"].Update(_searchView.RenderSearchInput());
         root["Results"].Update(_searchView.RenderResults());
-        root["Footer"].Update(MarioTheme.Footer(_searchView.GetStatusHints()));
+        root["Footer"].Update(new Rows(new Text(""), MarioTheme.Footer(_searchView.GetStatusHints())));
 
-        AnsiConsole.Write(root);
+        AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }
 
     private async Task HandleKeyAsync(ConsoleKeyInfo key)
@@ -273,7 +279,8 @@ public sealed class App
         if (pending is null)
             return false;
 
-        // Exit TUI, run command interactively
+        // Exit TUI, restore terminal to original settings for the external command
+        ThemeManager.ResetBackground();
         AnsiConsole.Clear();
         Console.CursorVisible = true;
 
@@ -290,6 +297,9 @@ public sealed class App
 
         Console.ReadKey(true);
         Console.CursorVisible = false;
+
+        // Re-apply theme background before returning to TUI
+        ThemeManager.ApplyBackground();
 
         // Refresh data after install/uninstall
         _sdksView.Refresh();
