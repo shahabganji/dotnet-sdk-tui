@@ -43,6 +43,9 @@ public sealed class App
 
     public async Task RunAsync()
     {
+        // Ensure dotnet and dotnetup are on PATH (covers dotnetup-managed installs)
+        DotnetUpService.RefreshPath();
+
         // Ensure UTF-8 output for box-drawing characters on Windows
         if (OperatingSystem.IsWindows())
         {
@@ -332,7 +335,8 @@ public sealed class App
         // Re-apply theme background before returning to TUI
         ThemeManager.ApplyBackground();
 
-        // Refresh data after install/uninstall
+        // Refresh PATH and data after install/uninstall
+        DotnetUpService.RefreshPath();
         _sdksView.Refresh();
         _runtimesView.Refresh();
         _setupView.Refresh();

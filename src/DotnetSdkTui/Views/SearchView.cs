@@ -126,7 +126,9 @@ public sealed class SearchView : IView
     {
         if (_searching) return "Searching...";
         if (_inputActive) return "Type to search  Tab:Results  Esc:Back";
-        return "up/down:Navigate  i:Install  Tab:Input  Esc:Back";
+        return DotnetUpService.IsInstalled()
+            ? "up/down:Navigate  i:Install  Tab:Input  Esc:Back"
+            : "up/down:Navigate  Tab:Input  Esc:Back";
     }
 
     public async Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)

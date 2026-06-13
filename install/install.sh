@@ -186,8 +186,9 @@ main() {
 
         # Also set for current session
         export PATH="$INSTALL_DIR:$PATH"
-        ok "Added ${INSTALL_DIR} to ${profile} and current session."
-        ok "Run 'dsm' to get started."
+        ok "Added ${INSTALL_DIR} to ${profile}."
+        ok "To use dsm now, run:  source ${profile}"
+        ok "Or open a new terminal and run 'dsm'."
     fi
     printf '\n'
 }

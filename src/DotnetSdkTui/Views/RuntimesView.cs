@@ -229,6 +229,8 @@ public sealed class RuntimesView : IView
 
     public string GetStatusHints()
     {
+        if (!DotnetUpService.IsInstalled())
+            return "up/down:Navigate  r:Refresh  (install dotnetup to manage runtimes)";
         return "up/down:Navigate  i:Install  u:Uninstall  r:Refresh";
     }
 
@@ -249,10 +251,12 @@ public sealed class RuntimesView : IView
                 return KeyResult.Handled;
 
             case ConsoleKey.I:
+                if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
                 RequestInstall();
                 return KeyResult.Handled;
 
             case ConsoleKey.U:
+                if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
                 await RequestUninstallAsync();
                 return KeyResult.Handled;
 

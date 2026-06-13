@@ -229,6 +229,8 @@ public sealed class SdksView : IView
 
     public string GetStatusHints()
     {
+        if (!DotnetUpService.IsInstalled())
+            return "up/down:Navigate  r:Refresh  (install dotnetup to manage SDKs)";
         return "up/down:Navigate  i:Install  u:Uninstall  p:Update  r:Refresh";
     }
 
@@ -249,14 +251,17 @@ public sealed class SdksView : IView
                 return KeyResult.Handled;
 
             case ConsoleKey.I:
+                if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
                 RequestInstall();
                 return KeyResult.Handled;
 
             case ConsoleKey.U:
+                if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
                 await RequestUninstallAsync();
                 return KeyResult.Handled;
 
             case ConsoleKey.P:
+                if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
                 RequestUpdate();
                 return KeyResult.Handled;
 

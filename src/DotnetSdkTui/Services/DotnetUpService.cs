@@ -119,6 +119,41 @@ public static class DotnetUpService
     }
 
     /// <summary>
+    /// Ensures common dotnet and dotnetup paths are on the current process PATH.
+    /// Call at startup and after installations so commands resolve immediately.
+    /// </summary>
+    public static void RefreshPath()
+    {
+        string currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var dirsToAdd = new List<string>();
+
+        // dotnetup tool
+        string dotnetupDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnetup");
+        if (Directory.Exists(dotnetupDir) && !currentPath.Contains(dotnetupDir))
+            dirsToAdd.Add(dotnetupDir);
+
+        // dotnet managed by dotnetup (macOS/Linux)
+        if (!OperatingSystem.IsWindows())
+        {
+            string dotnetDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Library", "Application Support", "dotnet");
+            if (Directory.Exists(dotnetDir) && !currentPath.Contains(dotnetDir))
+                dirsToAdd.Add(dotnetDir);
+
+            // Linux default
+            string linuxDotnet = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnet");
+            if (Directory.Exists(linuxDotnet) && !currentPath.Contains(linuxDotnet))
+                dirsToAdd.Add(linuxDotnet);
+        }
+
+        if (dirsToAdd.Count > 0)
+        {
+            string sep = OperatingSystem.IsWindows() ? ";" : ":";
+            Environment.SetEnvironmentVariable("PATH", string.Join(sep, dirsToAdd) + sep + currentPath);
+        }
+    }
+
+    /// <summary>
     /// Resolves an installed version to the dotnetup install spec (channel) that tracks it.
     /// Parses <c>dotnetup list --format Json</c> and finds the best matching spec.
     /// Tries: exact version → feature band pattern (xx) → major.minor → keywords (latest/lts).
