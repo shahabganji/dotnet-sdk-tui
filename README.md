@@ -44,9 +44,6 @@
 ```bash
 # macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | bash
-
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex
 ```
 
 Running the install script again will update `dsm` to the latest release.
@@ -54,22 +51,7 @@ Running the install script again will update `dsm` to the latest release.
 ### Uninstall
 
 ```bash
-# macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | bash
-
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | iex
-```
-
-### Windows: Defender false positive
-
-Windows Defender may block `dsm.exe` because the binary is unsigned. To allow it:
-
-```powershell
-# Option 1: Add exclusion (run as admin)
-Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\dsm"
-
-# Option 2: Windows Security → Virus & threat protection → Protection history → Allow on device
 ```
 
 ### CLI

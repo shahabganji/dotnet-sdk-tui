@@ -372,32 +372,16 @@
     <h2 class="section-title">Installation</h2>
     <p class="section-desc">One command to install. No .NET runtime needed — it's a self-contained native binary. Running the same command again updates to the latest version.</p>
 
-    <div class="install-grid">
-      <div class="install-card">
-        <div class="card-header"><i class="bi bi-apple icon" style="font-size:2.8rem;color:var(--icon)"></i><i class="bi bi-ubuntu icon" style="font-size:2.8rem;margin-left:0.5rem;color:var(--icon)"></i></div>
-        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Works on Bash, Zsh, and Fish. Installs to <code>~/.local/bin</code> and adds it to your PATH automatically.</p>
-        <p style="font-size: 0.8rem; color: var(--teal); margin-bottom: 0.3rem;">Install or update:</p>
-        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></pre>
-        <p style="font-size: 0.8rem; color: var(--icon); margin-bottom: 0.3rem;">Uninstall:</p>
-        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | <span class="cmd">bash</span></pre>
-      </div>
-      <div class="install-card">
-        <div class="card-header"><i class="bi bi-windows icon" style="font-size:2.8rem;color:var(--icon)"></i></div>
-        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Run in PowerShell (5.1 or 7+). Installs to <code>%LOCALAPPDATA%\dsm</code> and adds it to your user PATH.</p>
-        <p style="font-size: 0.8rem; color: var(--teal); margin-bottom: 0.3rem;">Install or update:</p>
-        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | <span class="cmd">iex</span></pre>
-        <p style="font-size: 0.8rem; color: var(--icon); margin-bottom: 0.3rem;">Uninstall:</p>
-        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | <span class="cmd">iex</span></pre>
-      </div>
+    <div class="install-card" style="max-width: 640px;">
+      <div class="card-header"><i class="bi bi-apple icon" style="font-size:2.8rem;color:var(--icon)"></i><i class="bi bi-ubuntu icon" style="font-size:2.8rem;margin-left:0.5rem;color:var(--icon)"></i></div>
+      <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Works on Bash, Zsh, and Fish. Installs to <code>~/.local/bin</code> and adds it to your PATH automatically.</p>
+      <p style="font-size: 0.8rem; color: var(--teal); margin-bottom: 0.3rem;">Install or update:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></pre>
+      <p style="font-size: 0.8rem; color: var(--icon); margin-bottom: 0.3rem;">Uninstall:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | <span class="cmd">bash</span></pre>
     </div>
 
     <p style="color: var(--text-muted); margin-top: 1.5rem;">After installation, open a new terminal and run <code>dsm</code>. The app will notify you when updates are available — press <code>Ctrl+U</code> to self-update.</p>
-
-    <h3 style="margin: 2rem 0 0.5rem;">Windows: Defender false positive</h3>
-    <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Windows Defender may block <code>dsm.exe</code> because the binary is unsigned. To allow it:</p>
-    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># Add exclusion (run PowerShell as admin)</span>
-<span class="cmd">Add-MpPreference</span> <span class="flag">-ExclusionPath</span> <span class="arg">"$env:LOCALAPPDATA\dsm"</span></pre>
-    <p style="color: var(--text-dim); font-size: 0.85rem;">Or: Windows Security → Virus &amp; threat protection → Protection history → Allow on device</p>
 
     <h3 style="margin: 2rem 0 0.5rem;">Prerequisites</h3>
     <div class="feature-card" style="margin-top: 0.5rem;">
