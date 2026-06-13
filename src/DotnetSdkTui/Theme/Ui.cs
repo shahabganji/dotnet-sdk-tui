@@ -288,9 +288,19 @@ public static class Ui
     /// </summary>
     public static IRenderable WelcomePanel()
     {
-        string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Made with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string version = Services.AppVersion.Current;
+        string title = $"[{Red} bold].NET SDK Manager[/] [{DarkGray}]v{version}[/]  [{DarkGray}]Made with[/] [{Red}]{IconHeart}[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
 
-        return new Panel(new Markup(title))
+        var rows = new List<IRenderable> { new Markup(title) };
+
+        if (Services.AppVersion.UpdateAvailable)
+        {
+            rows.Add(new Markup(
+                $"[{Gold}]   \u2b06 v{Services.AppVersion.LatestAvailable} available (F11)[/]")
+                { Justification = Justify.Right });
+        }
+
+        return new Panel(new Rows(rows))
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.HeaderBorderColor)
             .Expand();
@@ -301,7 +311,8 @@ public static class Ui
     /// </summary>
     public static IRenderable SearchHeader(string? setupInfo)
     {
-        string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Made with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string version = Services.AppVersion.Current;
+        string title = $"[{Red} bold].NET SDK Manager[/] [{DarkGray}]v{version}[/]  [{DarkGray}]Made with[/] [{Red}]{IconHeart}[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
         string setup = setupInfo is not null
             ? $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]"
             : $"[{Green}]dotnetup[/]";

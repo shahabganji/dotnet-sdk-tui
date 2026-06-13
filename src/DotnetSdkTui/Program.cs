@@ -1,3 +1,5 @@
+using DotnetSdkTui.Services;
+
 namespace DotnetSdkTui;
 
 /// <summary>
@@ -13,7 +15,7 @@ public static class Program
     {
         if (args.Length > 0 && args[0] is "--version" or "-v")
         {
-            Console.WriteLine("dotnet-sdk-tui 0.1.0");
+            Console.WriteLine($"dsm {AppVersion.Current}");
             return 0;
         }
 

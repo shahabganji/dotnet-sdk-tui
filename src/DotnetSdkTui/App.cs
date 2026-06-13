@@ -67,6 +67,7 @@ public sealed class App
 
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
         _ = LoadSetupInfoAsync();
+        _ = AppVersion.CheckForUpdateAsync();
 
         // Activate views
         await Task.WhenAll(
@@ -216,6 +217,21 @@ public sealed class App
         if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
         {
             ThemeManager.Toggle();
+            return;
+        }
+
+        // F11 self-update
+        if (key.Key == ConsoleKey.F11 && AppVersion.UpdateAvailable)
+        {
+            ThemeManager.ResetBackground();
+            AnsiConsole.Clear();
+            Console.CursorVisible = true;
+            Console.WriteLine($"Updating dsm from v{AppVersion.Current} to v{AppVersion.LatestAvailable}...");
+            Console.WriteLine(new string('-', 60));
+            await AppVersion.SelfUpdateAsync();
+            Console.WriteLine();
+            Console.WriteLine("Update complete. Please restart dsm.");
+            _running = false;
             return;
         }
 

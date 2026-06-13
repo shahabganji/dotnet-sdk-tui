@@ -7,6 +7,7 @@
     <OptimizationPreference>Size</OptimizationPreference>
     <RootNamespace>DotnetSdkTui</RootNamespace>
     <AssemblyName>dotnet-sdk-tui</AssemblyName>
+    <Version>0.1.0</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
