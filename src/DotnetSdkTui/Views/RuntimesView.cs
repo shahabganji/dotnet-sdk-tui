@@ -104,21 +104,22 @@ public sealed class RuntimesView : IView
                     $".NET {channel} {rt.DisplayComponent} - {supportPhase}"));
             }
 
-            // Show available runtime channels that are not installed
+            // Show latest available runtime for channels where it's not already installed
             foreach (var channel in channels)
             {
                 if (string.IsNullOrWhiteSpace(channel.LatestRuntime))
                     continue;
 
-                bool isEol = string.Equals(channel.SupportPhase, "eol", StringComparison.OrdinalIgnoreCase);
-                if (isEol)
+                // Only show latest available for active and preview channels, not maintenance/eol
+                string phase = channel.SupportPhase.ToLowerInvariant();
+                if (phase is "eol" or "maintenance")
                     continue;
 
-                bool hasInstalledRuntime = installed.Any(s =>
+                bool hasLatestInstalled = installed.Any(s =>
                     !string.Equals(s.Component, "SDK", StringComparison.OrdinalIgnoreCase)
-                    && s.Version.StartsWith(channel.ChannelVersion, StringComparison.OrdinalIgnoreCase));
+                    && string.Equals(s.Version, channel.LatestRuntime, StringComparison.OrdinalIgnoreCase));
 
-                if (!hasInstalledRuntime)
+                if (!hasLatestInstalled)
                 {
                     string lifecycleIcon = GetLifecycleIcon(channel.SupportPhase, channel.EolDate);
                     rows.Add(new RuntimeRow(

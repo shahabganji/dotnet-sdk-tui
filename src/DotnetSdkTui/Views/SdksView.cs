@@ -106,21 +106,22 @@ public sealed class SdksView : IView
                     description));
             }
 
-            // Show available channels that are not installed
+            // Show latest available version for channels where it's not already installed
             foreach (var channel in channels)
             {
                 if (string.IsNullOrWhiteSpace(channel.LatestSdk))
                     continue;
 
-                bool isEol = string.Equals(channel.SupportPhase, "eol", StringComparison.OrdinalIgnoreCase);
-                if (isEol)
+                // Only show latest available for active and preview channels, not maintenance/eol
+                string phase = channel.SupportPhase.ToLowerInvariant();
+                if (phase is "eol" or "maintenance")
                     continue;
 
-                bool hasInstalledVersion = installed.Any(s =>
+                bool hasLatestInstalled = installed.Any(s =>
                     string.Equals(s.Component, "SDK", StringComparison.OrdinalIgnoreCase)
-                    && s.Version.StartsWith(channel.ChannelVersion, StringComparison.OrdinalIgnoreCase));
+                    && string.Equals(s.Version, channel.LatestSdk, StringComparison.OrdinalIgnoreCase));
 
-                if (!hasInstalledVersion)
+                if (!hasLatestInstalled)
                 {
                     string lifecycleIcon = GetLifecycleIcon(channel.SupportPhase, channel.EolDate);
                     rows.Add(new SdkRow(
