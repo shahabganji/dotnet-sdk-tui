@@ -63,8 +63,11 @@ public static class DotnetUpService
         // Use RunInteractiveAsync on Windows (UseShellExecute=true avoids Access Denied)
         if (OperatingSystem.IsWindows())
         {
+            // dotnetup's install script requires pwsh (PowerShell 7+) — it uses
+            // RuntimeInformation.OSArchitecture which doesn't exist in Windows PowerShell 5.1
+            string shell = ProcessRunner.IsCommandAvailable("pwsh") ? "pwsh" : "powershell.exe";
             int exitCode = await ProcessRunner.RunInteractiveAsync(
-                "powershell.exe",
+                shell,
                 "-ExecutionPolicy Bypass -Command \"iwr -UseBasicParsing https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
             return new ProcessResult(exitCode, "", "", TimeSpan.Zero);
         }
