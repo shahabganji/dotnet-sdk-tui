@@ -166,7 +166,9 @@ public sealed class SdksView : IView
         var parts = new List<IRenderable>();
 
         // Calculate visible window — each row is ~2 lines with padding
-        int availableHeight = Math.Max(3, Console.WindowHeight / 4);
+        int windowHeight;
+        try { windowHeight = Console.WindowHeight; } catch { windowHeight = 40; }
+        int availableHeight = Math.Max(3, windowHeight / 4);
         int visibleCount = Math.Min(_rows.Count, availableHeight);
 
         // Keep selected row in view

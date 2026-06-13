@@ -43,7 +43,16 @@ public sealed class App
 
     public async Task RunAsync()
     {
-        Console.CursorVisible = false;
+        try { Console.CursorVisible = false; } catch (IOException) { }
+
+        // Ensure Spectre.Console has valid dimensions (Layout crashes with 0 height in redirected terminals)
+        try { _ = Console.WindowHeight; }
+        catch
+        {
+            AnsiConsole.Profile.Width = 120;
+            AnsiConsole.Profile.Height = 40;
+        }
+
         ThemeManager.ApplyBackground();
 
         // Graceful Ctrl+C: stop the loop instead of killing the process
@@ -69,7 +78,7 @@ public sealed class App
 
         while (_running)
         {
-            Console.SetCursorPosition(0, 0);
+            try { Console.SetCursorPosition(0, 0); } catch (IOException) { }
             RenderScreen();
 
             // Check for pending interactive commands from views
@@ -113,7 +122,7 @@ public sealed class App
             }
         }
 
-        Console.CursorVisible = true;
+        try { Console.CursorVisible = true; } catch (IOException) { }
         MarioTheme.RenderGoodbye();
     }
 
@@ -295,8 +304,8 @@ public sealed class App
             ? "Completed successfully. Press any key to continue..."
             : $"Failed (exit code {exitCode}). Press any key to continue...");
 
-        Console.ReadKey(true);
-        Console.CursorVisible = false;
+        try { Console.ReadKey(true); } catch (InvalidOperationException) { }
+        try { Console.CursorVisible = false; } catch (IOException) { }
 
         // Re-apply theme background before returning to TUI
         ThemeManager.ApplyBackground();
