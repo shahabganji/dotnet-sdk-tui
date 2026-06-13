@@ -160,7 +160,8 @@ public static class MarioTheme
     /// </summary>
     public static IRenderable Footer(string hints)
     {
-        string global = $"[{DarkGray}]F1:SDKs  F2:Runtimes  F3:Setup  /:Search  F5:Theme  q:Quit[/]";
+        string searchKey = OperatingSystem.IsMacOS() ? "Cmd+/" : "Ctrl+/";
+        string global = $"[{DarkGray}]F1:SDKs  F2:Runtimes  F3:Setup  {searchKey}:Search  F5:Theme  q:Quit[/]";
         string hintMarkup = $"[{Gold}]{hints}[/]";
         return new Markup($" {hintMarkup}  {global}");
     }

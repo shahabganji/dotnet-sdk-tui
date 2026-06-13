@@ -321,19 +321,19 @@ public sealed class SdksView : IView
         string phase = supportPhase.ToLowerInvariant();
 
         if (phase is "eol")
-            return $"[{MarioTheme.Red}]x[/]";
+            return $"[{MarioTheme.Red} bold]●[/]";
 
         if (phase is "preview" or "go-live" or "rc")
-            return $"[{MarioTheme.Blue}]*[/]";
+            return $"[{MarioTheme.Blue} bold]●[/]";
 
         if (!string.IsNullOrWhiteSpace(eolDate)
             && DateTime.TryParse(eolDate, out DateTime eol)
             && eol < DateTime.UtcNow.AddMonths(6))
         {
-            return $"[{MarioTheme.Yellow}]![/]";
+            return $"[{MarioTheme.Yellow} bold]●[/]";
         }
 
-        return $"[{MarioTheme.Green}]o[/]";
+        return $"[{MarioTheme.Green} bold]●[/]";
     }
 
     private static string FormatSupportPhase(string phase) =>

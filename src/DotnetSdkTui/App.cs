@@ -55,18 +55,25 @@ public sealed class App
             _runtimesView.ActivateAsync(),
             _setupView.ActivateAsync());
 
+        AnsiConsole.Clear();
+
         while (_running)
         {
-            AnsiConsole.Clear();
+            Console.SetCursorPosition(0, 0);
             RenderScreen();
 
             // Check for pending interactive commands from views
             if (await CheckPendingCommandsAsync())
-                continue;
-
-            if (IsLiveUpdateNeeded())
             {
-                var deadline = DateTime.UtcNow.AddMilliseconds(150);
+                AnsiConsole.Clear();
+                continue;
+            }
+
+            // In search mode or during live updates, use non-blocking polling
+            // so async results can trigger re-renders
+            if (_screen == Screen.Search || IsLiveUpdateNeeded())
+            {
+                var deadline = DateTime.UtcNow.AddMilliseconds(200);
                 while (DateTime.UtcNow < deadline && _running)
                 {
                     try
@@ -79,7 +86,7 @@ public sealed class App
                         }
                     }
                     catch (InvalidOperationException) { break; }
-                    await Task.Delay(50);
+                    await Task.Delay(30);
                 }
             }
             else
@@ -126,9 +133,9 @@ public sealed class App
         IView focusedView = GetFocusedMainView();
         root["Footer"].Update(MarioTheme.Footer(focusedView.GetStatusHints()));
 
-        // Body: Setup at top (small), SDKs and Runtimes below
+        // Body: Setup (compact one-liner), SDKs and Runtimes below
         root["Body"].SplitRows(
-            new Layout("Setup").Size(DotnetUpService.IsInstalled() ? 8 : 5),
+            new Layout("Setup").Size(3),
             new Layout("SDKs").MinimumSize(8),
             new Layout("Runtimes").MinimumSize(5));
 
@@ -169,10 +176,14 @@ public sealed class App
 
     private async Task HandleMainKeyAsync(ConsoleKeyInfo key)
     {
-        // "/" opens search (when not in text input)
-        if (key.KeyChar == '/' && !GetFocusedMainView().IsTextInputActive)
+        // Cmd+/ on Mac (sends 0x1F), Ctrl+/ on Linux/Windows, or bare "/" as fallback
+        bool isSearchShortcut = key.KeyChar == '\x1f'
+            || (key.Key == ConsoleKey.Oem2 && (key.Modifiers & ConsoleModifiers.Control) != 0)
+            || key.KeyChar == '/';
+        if (isSearchShortcut && !GetFocusedMainView().IsTextInputActive)
         {
             _screen = Screen.Search;
+            AnsiConsole.Clear();
             await _searchView.ActivateAsync();
             return;
         }
@@ -235,6 +246,7 @@ public sealed class App
         if (result == KeyResult.Quit)
         {
             _screen = Screen.Main;
+            AnsiConsole.Clear();
         }
     }
 
@@ -255,6 +267,16 @@ public sealed class App
         {
             pending = _searchView.PendingCommand;
             _searchView.ClearPendingCommand();
+        }
+        else if (_runtimesView.PendingCommand is not null)
+        {
+            pending = _runtimesView.PendingCommand;
+            _runtimesView.ClearPendingCommand();
+        }
+        else if (_setupView.PendingCommand is not null)
+        {
+            pending = _setupView.PendingCommand;
+            _setupView.ClearPendingCommand();
         }
 
         if (pending is null)
@@ -281,6 +303,7 @@ public sealed class App
         // Refresh data after install/uninstall
         _sdksView.Refresh();
         _runtimesView.Refresh();
+        _setupView.Refresh();
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
 
         return true;
