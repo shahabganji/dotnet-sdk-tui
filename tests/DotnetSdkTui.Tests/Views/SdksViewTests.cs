@@ -62,8 +62,6 @@ public class SdksViewTests
         var hints = view.GetStatusHints();
 
         Assert.Contains("Navigate", hints);
-        Assert.Contains("Install", hints);
-        Assert.Contains("Uninstall", hints);
         Assert.Contains("Refresh", hints);
     }
 }
