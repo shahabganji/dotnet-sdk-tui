@@ -58,17 +58,18 @@ public static class DotnetUpService
     /// <summary>
     /// Installs the dotnetup tool itself using the platform-specific bootstrap script.
     /// </summary>
-    public static Task<ProcessResult> InstallDotnetUpAsync(CancellationToken ct = default)
+    public static async Task<ProcessResult> InstallDotnetUpAsync(CancellationToken ct = default)
     {
+        // Use RunInteractiveAsync on Windows (UseShellExecute=true avoids Access Denied)
         if (OperatingSystem.IsWindows())
         {
-            return ProcessRunner.RunWithCallbackAsync(
+            int exitCode = await ProcessRunner.RunInteractiveAsync(
                 "powershell.exe",
-                "-ExecutionPolicy Bypass -Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"",
-                null, null, null, ct);
+                "-ExecutionPolicy Bypass -Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
+            return new ProcessResult(exitCode, "", "", TimeSpan.Zero);
         }
 
-        return ProcessRunner.RunWithCallbackAsync(
+        return await ProcessRunner.RunWithCallbackAsync(
             "bash",
             "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"",
             null, null, null, ct);
