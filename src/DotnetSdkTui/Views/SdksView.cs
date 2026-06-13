@@ -312,7 +312,7 @@ public sealed class SdksView : IView
         }
 
         string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, "SDK");
-        PendingCommand = ("dotnetup", $"sdk uninstall {spec}");
+        PendingCommand = ("dotnetup", $"sdk uninstall {spec} --source all");
     }
 
     private void RequestUpdate()

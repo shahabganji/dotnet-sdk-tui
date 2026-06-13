@@ -301,7 +301,7 @@ public sealed class RuntimesView : IView
             return;
         }
         string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, row.Component);
-        PendingCommand = ("dotnetup", $"runtime uninstall {spec}");
+        PendingCommand = ("dotnetup", $"runtime uninstall {spec} --source all");
     }
 
     private static IRenderable RenderPanel(bool focused, IRenderable content)
