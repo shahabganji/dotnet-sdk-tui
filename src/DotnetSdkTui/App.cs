@@ -335,8 +335,9 @@ public sealed class App
         // Re-apply theme background before returning to TUI
         ThemeManager.ApplyBackground();
 
-        // Refresh PATH and data after install/uninstall
+        // Refresh PATH (add dotnetup + dotnet to process PATH and shell profile)
         DotnetUpService.RefreshPath();
+        DotnetUpService.EnsurePathInShellProfile();
         _sdksView.Refresh();
         _runtimesView.Refresh();
         _setupView.Refresh();

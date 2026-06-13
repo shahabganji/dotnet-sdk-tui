@@ -80,7 +80,7 @@ public static class DotnetUpService
         // Auto-add dotnetup and dotnet to PATH on macOS/Linux
         if (result.ExitCode == 0)
         {
-            EnsureDotnetUpOnPath();
+            EnsurePathInShellProfile();
             RefreshPath();
             Console.WriteLine();
             Console.WriteLine("\u2713 dotnetup and dotnet paths have been added to your shell profile automatically.");
@@ -93,7 +93,11 @@ public static class DotnetUpService
     /// <summary>
     /// Adds ~/.dotnetup to the shell profile and current process PATH if not already present.
     /// </summary>
-    private static void EnsureDotnetUpOnPath()
+    /// <summary>
+    /// Ensures dotnetup and dotnet paths are in the shell profile (.zshrc/.bashrc/fish).
+    /// Call after any install that may have added dotnetup or dotnet.
+    /// </summary>
+    public static void EnsurePathInShellProfile()
     {
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string dotnetupDir = Path.Combine(home, ".dotnetup");

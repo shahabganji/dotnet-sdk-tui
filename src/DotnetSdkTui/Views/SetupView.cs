@@ -57,13 +57,18 @@ public sealed class SetupView : IView
             _isInstalled = DotnetUpService.IsInstalled();
             if (_isInstalled)
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                _info = await DotnetUpService.GetInfoAsync(cts.Token);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try
+                {
+                    _info = await DotnetUpService.GetInfoAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    // dotnetup --info timed out (likely first-run downloading dotnet)
+                    // Show as installed without detailed info
+                    _info = null;
+                }
             }
-        }
-        catch (OperationCanceledException)
-        {
-            _error = "dotnetup --info timed out";
         }
         catch (Exception ex)
         {
