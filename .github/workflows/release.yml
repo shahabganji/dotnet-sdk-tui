@@ -45,10 +45,21 @@ jobs:
         if: matrix.cross
         run: |
           sudo dpkg --add-architecture arm64
-          # Add arm64 package sources
-          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list.d/*.list || true
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs) main restricted universe" | sudo tee /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs)-updates main restricted universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+          # Configure arm64 sources alongside amd64 (Ubuntu 24.04 DEB822 format)
+          cat <<'SOURCES' | sudo tee /etc/apt/sources.list.d/arm64-ports.sources
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports/
+          Suites: noble noble-updates
+          Components: main restricted universe
+          Architectures: arm64
+          SOURCES
+          # Restrict existing sources to amd64 only
+          for f in /etc/apt/sources.list.d/*.sources; do
+            [ "$f" = "/etc/apt/sources.list.d/arm64-ports.sources" ] && continue
+            if ! grep -q 'Architectures:' "$f" 2>/dev/null; then
+              sudo sed -i '/^Types:/a Architectures: amd64' "$f" || true
+            fi
+          done
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu zlib1g-dev:arm64
 
