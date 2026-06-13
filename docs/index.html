@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>.NET SDK Manager — Terminal UI for .NET SDKs</title>
   <meta name="description" content="A cross-platform terminal UI for managing .NET SDKs and Runtimes. Install, update, and remove .NET versions from a single keyboard-driven interface.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root {
       --bg: #1A1A2E;
@@ -178,8 +179,9 @@
       transition: border-color 0.2s;
     }
     .feature-card:hover { border-color: var(--teal); }
-    .feature-card .icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
-    .feature-card h3 { font-size: 1rem; margin-bottom: 0.4rem; }
+    .feature-card .icon { font-size: 1.6rem; color: var(--teal); }
+    .feature-card .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+    .feature-card h3 { font-size: 1rem; }
     .feature-card p { font-size: 0.9rem; color: var(--text-muted); }
 
     /* ── Headings ────────────────────────────── */
@@ -359,33 +361,27 @@
 
     <div class="features-grid">
       <div class="feature-card">
-        <div class="icon">📦</div>
-        <h3>SDK Management</h3>
+        <div class="card-header"><i class="bi bi-box-seam icon"></i><h3>SDK Management</h3></div>
         <p>View installed SDKs alongside the latest available versions. Install, uninstall, and update with a single keystroke.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">⚙</div>
-        <h3>Runtime Management</h3>
+        <div class="card-header"><i class="bi bi-gear icon"></i><h3>Runtime Management</h3></div>
         <p>Full visibility into .NET and ASP.NET Core runtimes. Same install/uninstall/update workflow as SDKs.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">🔍</div>
-        <h3>Live Search</h3>
+        <div class="card-header"><i class="bi bi-search icon"></i><h3>Live Search</h3></div>
         <p>Non-blocking search with debounce. Type to search, results update as you go. Previous requests are automatically cancelled.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">🎨</div>
-        <h3>Dark &amp; Light Themes</h3>
+        <div class="card-header"><i class="bi bi-palette icon"></i><h3>Dark &amp; Light Themes</h3></div>
         <p>Press <code>F6</code> to toggle. The terminal background adapts automatically for a native look in both modes.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">🧠</div>
-        <h3>Smart Uninstall</h3>
+        <div class="card-header"><i class="bi bi-cpu icon"></i><h3>Smart Uninstall</h3></div>
         <p>Automatically resolves dotnetup install specs — feature bands, channels, and <code>latest</code> — so uninstall just works.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">🚀</div>
-        <h3>NativeAOT</h3>
+        <div class="card-header"><i class="bi bi-rocket-takeoff icon"></i><h3>NativeAOT</h3></div>
         <p>Compiled ahead-of-time for instant startup. Small binary, no runtime dependency required on the target machine.</p>
       </div>
     </div>
@@ -505,23 +501,19 @@
 
     <div class="features-grid" style="grid-template-columns: repeat(2, 1fr);">
       <div class="feature-card">
-        <div class="icon">🍴</div>
-        <h3>Fork &amp; Clone</h3>
+        <div class="card-header"><i class="bi bi-git icon"></i><h3>Fork &amp; Clone</h3></div>
         <p>Fork the <a href="https://github.com/shahabganji/dotnet-sdk-tui" style="color: var(--teal);">repository</a> and clone it locally.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">🌿</div>
-        <h3>Branch</h3>
+        <div class="card-header"><i class="bi bi-diagram-2 icon"></i><h3>Branch</h3></div>
         <p>Create a branch from <code>main</code> for your feature or fix.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">🔨</div>
-        <h3>Build &amp; Test</h3>
+        <div class="card-header"><i class="bi bi-hammer icon"></i><h3>Build &amp; Test</h3></div>
         <p>Run <code>dotnet test</code> to make sure everything passes.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">🚀</div>
-        <h3>Open a PR</h3>
+        <div class="card-header"><i class="bi bi-arrow-up-circle icon"></i><h3>Open a PR</h3></div>
         <p>Submit a pull request with a clear description of your changes.</p>
       </div>
     </div>
