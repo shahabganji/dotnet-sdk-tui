@@ -43,6 +43,12 @@ public sealed class App
 
     public async Task RunAsync()
     {
+        // Ensure UTF-8 output for box-drawing characters on Windows
+        if (OperatingSystem.IsWindows())
+        {
+            try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }
+        }
+
         try { Console.CursorVisible = false; } catch (IOException) { }
 
         // Ensure Spectre.Console has valid dimensions (Layout crashes with 0 height in redirected terminals)

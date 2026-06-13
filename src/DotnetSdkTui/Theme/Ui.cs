@@ -10,23 +10,8 @@ namespace DotnetSdkTui.Theme;
 /// </summary>
 public static class Ui
 {
-    /// <summary>Whether the terminal supports emoji rendering.</summary>
-    private static readonly bool SupportsEmoji = DetectEmojiSupport();
-
-    private static bool DetectEmojiSupport()
-    {
-        // macOS and Linux terminals generally support emoji
-        if (!OperatingSystem.IsWindows()) return true;
-
-        // Windows Terminal sets WT_SESSION
-        if (Environment.GetEnvironmentVariable("WT_SESSION") is not null) return true;
-
-        // VS Code terminal
-        if (Environment.GetEnvironmentVariable("TERM_PROGRAM") is "vscode") return true;
-
-        // Default: Windows conhost does NOT support emoji
-        return false;
-    }
+    /// <summary>Whether the terminal supports emoji rendering (never on Windows due to font issues).</summary>
+    private static readonly bool SupportsEmoji = !OperatingSystem.IsWindows();
 
     // Convenience accessors that delegate to ThemeManager
     /// <summary>Red accent color.</summary>
@@ -62,11 +47,11 @@ public static class Ui
     public static string IconSetup    => SupportsEmoji ? "🔧" : "#";
     public static string IconSearch   => SupportsEmoji ? "🔍" : "/";
     public static string IconResults  => SupportsEmoji ? "📋" : "=";
-    public static string IconHeart    => SupportsEmoji ? "\u2764" : "<3";
-    public static string IconActive   => SupportsEmoji ? "🍀" : $"[{Green} bold]●[/]";
-    public static string IconPreview  => SupportsEmoji ? "🏭" : $"[{Blue} bold]●[/]";
-    public static string IconMaint    => SupportsEmoji ? "🚧" : $"[{Yellow} bold]●[/]";
-    public static string IconEol      => SupportsEmoji ? "👿" : $"[{Red} bold]●[/]";
+    public static string IconHeart    => SupportsEmoji ? "\u2764" : "*";
+    public static string IconActive   => SupportsEmoji ? "🍀" : $"[{Green}]+[/]";
+    public static string IconPreview  => SupportsEmoji ? "🏭" : $"[{Blue}]~[/]";
+    public static string IconMaint    => SupportsEmoji ? "🚧" : $"[{Yellow}]![/]";
+    public static string IconEol      => SupportsEmoji ? "👿" : $"[{Red}]x[/]";
 
     // Teal-to-lime gradient inspired by shahab-the-guy.dev banner
     private const string BannerPrimary = "#1DB9A0";   // Full blocks █ (teal)
