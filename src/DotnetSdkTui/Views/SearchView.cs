@@ -53,7 +53,7 @@ public sealed class SearchView : IView
             $"[{MarioTheme.Yellow} bold] {searchIcon} Search: [/][{MarioTheme.White}]{Markup.Escape(inputDisplay)}{cursor}[/]");
 
         return new Panel(inputMarkup)
-            .Header($"[{MarioTheme.Yellow} bold] Search .NET SDKs & Runtimes [/]")
+            .Header($"[{MarioTheme.Yellow} bold] 🔍 Search .NET SDKs & Runtimes [/]")
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.PanelBorderColor)
             .Expand();
@@ -114,7 +114,7 @@ public sealed class SearchView : IView
         resultParts.Add(new Markup($"\n {hint}"));
 
         return new Panel(new Rows(resultParts))
-            .Header($"[{MarioTheme.Yellow} bold] Results [/]")
+            .Header($"[{MarioTheme.Yellow} bold] 📋 Results [/]")
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.TableBorderColor)
             .Expand();

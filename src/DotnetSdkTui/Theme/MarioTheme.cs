@@ -38,99 +38,233 @@ public static class MarioTheme
     /// <summary>Dim text color for tertiary content.</summary>
     public static string DarkGray => ThemeManager.DimText;
 
-    // .NET brand purple — two shades for Aspire-style 3D pixel effect
-    private const string BannerPrimary = "#512BD4";
-    private const string BannerHighlight = "#9B8ADE";
+    // .NET brand purple — three shades for Aspire-style 3D pixel effect
+    private const string BannerPrimary = "#512BD4";   // Full blocks █
+    private const string BannerDark = "#7455DD";       // Half blocks ▀ (depth/shadow)
+    private const string BannerShine = "#CBBFF2";      // Shine sweep highlight
+    private const int BannerRowCount = 6;
 
-    // Block letter definitions: each letter is 5 rows, 7 chars wide.
-    // Two words rendered as two lines: ".NET SDK" and "MANAGER".
+    // Block letter definitions: each letter is 6 rows with ▀ shadow for 3D depth.
     private static readonly Dictionary<char, string[]> BannerFont = new()
     {
-        ['.'] = ["       ", "       ", "       ", "  ██   ", "  ██   "],
-        ['N'] = ["██   ██", "███  ██", "██ █ ██", "██  ███", "██   ██"],
-        ['E'] = ["███████", "██     ", "█████  ", "██     ", "███████"],
-        ['T'] = ["███████", "  ███  ", "  ███  ", "  ███  ", "  ███  "],
-        ['S'] = [" █████ ", "██     ", " █████ ", "     ██", " █████ "],
-        ['D'] = ["██████ ", "██   ██", "██   ██", "██   ██", "██████ "],
-        ['K'] = ["██  ██ ", "██ ██  ", "████   ", "██ ██  ", "██  ██ "],
-        ['M'] = ["██   ██", "███ ███", "██ █ ██", "██   ██", "██   ██"],
-        ['A'] = [" █████ ", "██   ██", "███████", "██   ██", "██   ██"],
-        ['G'] = [" █████ ", "██     ", "██ ████", "██   ██", " █████ "],
-        ['R'] = ["██████ ", "██   ██", "██████ ", "██  ██ ", "██   ██"],
+        ['.'] = ["  ", "  ", "  ", "  ", "██", "▀▀"],
+        ['N'] = ["██   ██", "███  ██", "████ ██", "██ ████", "██  ███", "▀▀   ▀▀"],
+        ['E'] = ["███████", "██▀▀▀▀▀", "█████  ", "██▀▀▀  ", "███████", "▀▀▀▀▀▀▀"],
+        ['T'] = ["███████", "▀▀███▀▀", "  ███  ", "  ███  ", "  ███  ", "  ▀▀▀  "],
+        ['S'] = ["███████", "██▀▀▀▀▀", "███████", "▀▀▀▀▀██", "███████", "▀▀▀▀▀▀▀"],
+        ['D'] = ["██████ ", "██▀▀▀██", "██   ██", "██   ██", "██████ ", "▀▀▀▀▀▀ "],
+        ['K'] = ["██  ██ ", "██ ██  ", "████   ", "██▀██  ", "██  ██ ", "▀▀  ▀▀ "],
     };
 
-    private static readonly string[][] BannerWords = [
-        [".","N","E","T"," ","S","D","K"],
-        ["M","A","N","A","G","E","R"],
-    ];
+    private static readonly char[] BannerLetters = ['.', 'N', 'E', 'T', ' ', 'S', 'D', 'K'];
+    private static readonly string[] BannerLines = ComposeBannerLines();
+    private static readonly int[] LetterPositions = ComputeLetterPositions();
 
     /// <summary>
-    /// Renders the startup splash animation with an Aspire-style block letter banner.
-    /// Uses filled █ characters with two shades of .NET purple for a 3D pixel-art effect.
-    /// Spells ".NET SDK" on line 1, "MANAGER" on line 2, animated row by row.
+    /// Renders the startup splash with an Aspire-style animated banner using Live display.
+    /// 5-phase animation: empty panel → typewriter welcome → letter reveal → version slide → shine sweep.
     /// </summary>
     public static async Task RenderSplashAsync()
     {
         AnsiConsole.Clear();
         Console.CursorVisible = false;
 
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"  [{BannerHighlight}]Welcome to the[/]");
-        AnsiConsole.WriteLine();
+        const string welcomeText = "Welcome to the";
+        const string versionText = "Manager";
+        var bannerWidth = BannerLines[0].TrimEnd().Length;
+        var versionPadding = Math.Max(0, bannerWidth - versionText.Length);
 
-        // Render each word line
-        foreach (var wordLetters in BannerWords)
-        {
-            for (int row = 0; row < 5; row++)
+        await AnsiConsole.Live(CreateBannerPanel(CreateEmptyFrame()))
+            .AutoClear(false)
+            .StartAsync(async ctx =>
             {
-                var line = new StringBuilder("  ");
-                for (int i = 0; i < wordLetters.Length; i++)
+                // Phase 1: Empty panel
+                ctx.UpdateTarget(CreateBannerPanel(CreateEmptyFrame()));
+                await BannerDelayAsync(80);
+
+                // Phase 2: Welcome text typewriter
+                for (int i = 1; i <= welcomeText.Length; i += 3)
                 {
-                    char ch = wordLetters[i][0];
-                    if (ch == ' ')
-                    {
-                        line.Append("   "); // word gap
-                    }
-                    else
-                    {
-                        line.Append(BannerFont[ch][row]);
-                        if (i < wordLetters.Length - 1 && wordLetters[i + 1][0] != ' ')
-                            line.Append("  ");
-                    }
+                    var partial = welcomeText[..Math.Min(i, welcomeText.Length)];
+                    ctx.UpdateTarget(CreateBannerPanel(CreateWelcomeFrame(partial)));
+                    await BannerDelayAsync(40);
                 }
 
-                RenderBannerLine(line.ToString());
-                await Task.Delay(60);
-            }
+                // Phase 3: Letter reveal one by one
+                for (int letterIdx = 0; letterIdx <= LetterPositions.Length; letterIdx++)
+                {
+                    int visibleCols = letterIdx < LetterPositions.Length
+                        ? LetterPositions[letterIdx]
+                        : BannerLines[0].Length;
+                    ctx.UpdateTarget(CreateBannerPanel(CreateLetterRevealFrame(welcomeText, visibleCols)));
+                    await BannerDelayAsync(70);
+                }
 
-            AnsiConsole.WriteLine();
-        }
+                // Phase 4: Version text slides in from right
+                for (int i = 1; i <= 8; i++)
+                {
+                    int visibleChars = (int)Math.Ceiling((double)versionText.Length * i / 8);
+                    var partialVer = versionText[(versionText.Length - visibleChars)..];
+                    var verPad = Math.Max(0, bannerWidth - partialVer.Length);
+                    ctx.UpdateTarget(CreateBannerPanel(CreateFullFrame(welcomeText, partialVer, verPad, -1)));
+                    await BannerDelayAsync(50);
+                }
 
-        await Task.Delay(1200);
+                // Phase 5: Shine sweep across block letters
+                for (int shineCol = 0; shineCol <= bannerWidth; shineCol += 3)
+                {
+                    ctx.UpdateTarget(CreateBannerPanel(CreateFullFrame(welcomeText, versionText, versionPadding, shineCol)));
+                    await BannerDelayAsync(35);
+                }
+
+                // Final frame (no shine) — hold briefly
+                ctx.UpdateTarget(CreateBannerPanel(CreateFullFrame(welcomeText, versionText, versionPadding, -1)));
+                await BannerDelayAsync(800);
+            });
+
+        AnsiConsole.Clear();
     }
 
-    private static void RenderBannerLine(string line)
+    private static async Task BannerDelayAsync(int ms)
+    {
+        try { await Task.Delay(ms); }
+        catch (TaskCanceledException) { }
+    }
+
+    private static Panel CreateBannerPanel(IRenderable content)
+    {
+        return new Panel(content)
+            .Border(BoxBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .Padding(2, 1);
+    }
+
+    private static Rows CreateEmptyFrame()
+    {
+        var elements = new List<IRenderable> { new Text("") };
+        for (int i = 0; i < BannerRowCount; i++)
+            elements.Add(new Text(""));
+        elements.Add(new Text(""));
+        return new Rows(elements);
+    }
+
+    private static Rows CreateWelcomeFrame(string partialWelcome)
+    {
+        var elements = new List<IRenderable>
+        {
+            new Markup($"[white]{Markup.Escape(partialWelcome)}[/]")
+        };
+        for (int i = 0; i < BannerRowCount; i++)
+            elements.Add(new Text(""));
+        elements.Add(new Text(""));
+        return new Rows(elements);
+    }
+
+    private static Rows CreateLetterRevealFrame(string welcomeText, int visibleCols)
+    {
+        var elements = new List<IRenderable>
+        {
+            new Markup($"[white]{Markup.Escape(welcomeText)}[/]")
+        };
+        foreach (var line in BannerLines)
+        {
+            var partial = visibleCols >= line.Length
+                ? line
+                : line[..visibleCols].PadRight(line.Length);
+            elements.Add(new Markup(BuildLineMarkup(partial, -1)));
+        }
+        elements.Add(new Text(""));
+        return new Rows(elements);
+    }
+
+    private static Rows CreateFullFrame(string welcomeText, string versionText, int versionPadding, int shineCol)
+    {
+        var elements = new List<IRenderable>
+        {
+            new Markup($"[white]{Markup.Escape(welcomeText)}[/]")
+        };
+        foreach (var line in BannerLines)
+        {
+            elements.Add(new Markup(BuildLineMarkup(line, shineCol)));
+        }
+        elements.Add(new Markup($"[white]{new string(' ', versionPadding)}{Markup.Escape(versionText)}[/]"));
+        return new Rows(elements);
+    }
+
+    private static string BuildLineMarkup(string line, int shineCol)
     {
         var sb = new StringBuilder();
-        int blockRun = 0;
-
-        foreach (char c in line)
+        for (int col = 0; col < line.Length; col++)
         {
-            if (c == '█')
+            char c = line[col];
+            if (c == ' ')
             {
-                // Alternate colors every 2 consecutive blocks for pixel-art depth
-                string color = (blockRun / 2) % 2 == 0 ? BannerPrimary : BannerHighlight;
-                sb.Append($"[{color}]█[/]");
-                blockRun++;
+                sb.Append(' ');
+                continue;
             }
-            else
-            {
-                sb.Append(c);
-                blockRun = 0;
-            }
-        }
 
-        AnsiConsole.MarkupLine(sb.ToString());
+            string color;
+            if (shineCol >= 0 && col >= shineCol && col < shineCol + 3)
+                color = BannerShine;
+            else if (c == '▀')
+                color = BannerDark;
+            else
+                color = BannerPrimary;
+
+            string charStr = c switch
+            {
+                '[' => "[[",
+                ']' => "]]",
+                _ => c.ToString()
+            };
+            sb.Append($"[{color}]{charStr}[/]");
+        }
+        return sb.ToString();
+    }
+
+    private static string[] ComposeBannerLines()
+    {
+        var lines = new string[BannerRowCount];
+        for (int row = 0; row < BannerRowCount; row++)
+        {
+            var sb = new StringBuilder();
+            for (int i = 0; i < BannerLetters.Length; i++)
+            {
+                char ch = BannerLetters[i];
+                if (ch == ' ')
+                {
+                    sb.Append("   ");
+                }
+                else
+                {
+                    sb.Append(BannerFont[ch][row]);
+                    if (i < BannerLetters.Length - 1 && BannerLetters[i + 1] != ' ')
+                        sb.Append(' ');
+                }
+            }
+            lines[row] = sb.ToString();
+        }
+        return lines;
+    }
+
+    private static int[] ComputeLetterPositions()
+    {
+        var positions = new List<int>();
+        int col = 0;
+        for (int i = 0; i < BannerLetters.Length; i++)
+        {
+            char ch = BannerLetters[i];
+            if (ch == ' ')
+            {
+                col += 3;
+                continue;
+            }
+            positions.Add(col);
+            col += BannerFont[ch][0].Length;
+            if (i < BannerLetters.Length - 1 && BannerLetters[i + 1] != ' ')
+                col += 1;
+        }
+        return positions.ToArray();
     }
 
     /// <summary>

@@ -286,7 +286,7 @@ public sealed class RuntimesView : IView
     {
         string focusIndicator = focused ? $"[{MarioTheme.Green} bold]●[/] " : $"[{MarioTheme.Gray}]○[/] ";
         return new Panel(content)
-            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]Runtimes[/]")
+            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]⚙ Runtimes[/]")
             .Border(BoxBorder.Rounded)
             .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
             .Expand();
@@ -300,19 +300,22 @@ public sealed class RuntimesView : IView
         string phase = supportPhase.ToLowerInvariant();
 
         if (phase is "eol")
-            return $"[{MarioTheme.Red} bold]●[/]";
+            return "👿";
 
         if (phase is "preview" or "go-live" or "rc")
-            return $"[{MarioTheme.Blue} bold]●[/]";
+            return "🏭";
+
+        if (phase is "maintenance")
+            return "🚧";
 
         if (!string.IsNullOrWhiteSpace(eolDate)
             && DateTime.TryParse(eolDate, out DateTime eol)
             && eol < DateTime.UtcNow.AddMonths(6))
         {
-            return $"[{MarioTheme.Yellow} bold]●[/]";
+            return "🚧";
         }
 
-        return $"[{MarioTheme.Green} bold]●[/]";
+        return "🍀";
     }
 
     private static string FormatSupportPhase(string phase) =>

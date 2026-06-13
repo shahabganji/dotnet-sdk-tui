@@ -74,7 +74,7 @@ public sealed class SetupView : IView
         if (_loading)
         {
             return new Panel(MarioTheme.Info("Checking dotnetup..."))
-                .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]Setup[/]")
+                .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]🔧 Setup[/]")
                 .Border(BoxBorder.Rounded)
                 .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
                 .Expand();
@@ -109,7 +109,7 @@ public sealed class SetupView : IView
         }
 
         return new Panel(content)
-            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]Setup[/]")
+            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]🔧 Setup[/]")
             .Border(BoxBorder.Rounded)
             .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
             .Expand();
