@@ -89,7 +89,7 @@ public sealed class RuntimesView : IView
                 string supportPhase = channelInfo is not null
                     ? FormatSupportPhase(channelInfo.SupportPhase)
                     : "Installed";
-                string eolDate = MarioTheme.FormatDate(channelInfo?.EolDate);
+                string eolDate = Ui.FormatDate(channelInfo?.EolDate);
                 string lifecycleIcon = GetLifecycleIcon(channelInfo?.SupportPhase, channelInfo?.EolDate);
 
                 rows.Add(new RuntimeRow(
@@ -127,7 +127,7 @@ public sealed class RuntimesView : IView
                         channel.LatestRuntime,
                         channel.ChannelVersion,
                         FormatSupportPhase(channel.SupportPhase),
-                        MarioTheme.FormatDate(channel.EolDate),
+                        Ui.FormatDate(channel.EolDate),
                         false,
                         "-",
                         lifecycleIcon,
@@ -154,13 +154,13 @@ public sealed class RuntimesView : IView
     public IRenderable Render(bool focused)
     {
         if (_loading)
-            return RenderPanel(focused, MarioTheme.Info("Loading runtimes..."));
+            return RenderPanel(focused, Ui.Info("Loading runtimes..."));
 
         if (_error is not null)
-            return RenderPanel(focused, MarioTheme.Error(_error));
+            return RenderPanel(focused, Ui.Error(_error));
 
         if (_rows.Count == 0)
-            return RenderPanel(focused, MarioTheme.Muted("No runtimes found."));
+            return RenderPanel(focused, Ui.Muted("No runtimes found."));
 
         var parts = new List<IRenderable>();
 
@@ -179,25 +179,25 @@ public sealed class RuntimesView : IView
 
         int endIndex = Math.Min(_scrollOffset + visibleCount, _rows.Count);
 
-        var table = MarioTheme.StyledTable("", "", "Component", "Version", "Channel", "Status", "Arch", "Support", "EOL");
+        var table = Ui.StyledTable("", "", "Component", "Version", "Channel", "Status", "Arch", "Support", "EOL");
 
         for (int i = _scrollOffset; i < endIndex; i++)
         {
             var row = _rows[i];
             bool selected = focused && i == _selectedIndex;
             string pointer = selected ? ">" : " ";
-            string style = selected ? $"{MarioTheme.Yellow} bold" : MarioTheme.White;
+            string style = selected ? $"{Ui.Yellow} bold" : Ui.White;
 
             string statusText;
             string statusColor;
             if (row.IsInstalled)
             {
-                statusColor = MarioTheme.Green;
+                statusColor = Ui.Green;
                 statusText = "Installed";
             }
             else
             {
-                statusColor = MarioTheme.Blue;
+                statusColor = Ui.Blue;
                 statusText = "Available";
             }
 
@@ -218,11 +218,11 @@ public sealed class RuntimesView : IView
         if (focused && _selectedIndex < _rows.Count)
         {
             var selectedRow = _rows[_selectedIndex];
-            parts.Add(new Markup($"\n[{MarioTheme.Gray}]{Markup.Escape(selectedRow.Description)}[/]"));
+            parts.Add(new Markup($"\n[{Ui.Gray}]{Markup.Escape(selectedRow.Description)}[/]"));
         }
 
         if (_statusMessage is not null)
-            parts.Add(new Markup($"\n[{MarioTheme.Gold}]{Markup.Escape(_statusMessage)}[/]"));
+            parts.Add(new Markup($"\n[{Ui.Gold}]{Markup.Escape(_statusMessage)}[/]"));
 
         return RenderPanel(focused, new Rows(parts));
     }
@@ -302,9 +302,9 @@ public sealed class RuntimesView : IView
 
     private static IRenderable RenderPanel(bool focused, IRenderable content)
     {
-        string focusIndicator = focused ? $"[{MarioTheme.Green} bold]●[/] " : $"[{MarioTheme.Gray}]○[/] ";
+        string focusIndicator = focused ? $"[{Ui.Green} bold]●[/] " : $"[{Ui.Gray}]○[/] ";
         return new Panel(content)
-            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]⚙ Runtimes[/]")
+            .Header($"{focusIndicator}[{Ui.Yellow} bold]{Ui.IconRuntimes} Runtimes[/]")
             .Border(BoxBorder.Rounded)
             .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
             .Expand();
@@ -318,22 +318,22 @@ public sealed class RuntimesView : IView
         string phase = supportPhase.ToLowerInvariant();
 
         if (phase is "eol")
-            return "👿";
+            return Ui.IconEol;
 
         if (phase is "preview" or "go-live" or "rc")
-            return "🏭";
+            return Ui.IconPreview;
 
         if (phase is "maintenance")
-            return "🚧";
+            return Ui.IconMaint;
 
         if (!string.IsNullOrWhiteSpace(eolDate)
             && DateTime.TryParse(eolDate, out DateTime eol)
             && eol < DateTime.UtcNow.AddMonths(6))
         {
-            return "🚧";
+            return Ui.IconMaint;
         }
 
-        return "🍀";
+        return Ui.IconActive;
     }
 
     private static string FormatSupportPhase(string phase) =>

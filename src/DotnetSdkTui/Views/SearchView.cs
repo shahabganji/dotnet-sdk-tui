@@ -52,10 +52,10 @@ public sealed class SearchView : IView
 
         string searchIcon = _searching ? "*" : "/";
         var inputMarkup = new Markup(
-            $"[{MarioTheme.Yellow} bold] {searchIcon} Search: [/][{MarioTheme.White}]{Markup.Escape(inputDisplay)}{cursor}[/]");
+            $"[{Ui.Yellow} bold] {searchIcon} Search: [/][{Ui.White}]{Markup.Escape(inputDisplay)}{cursor}[/]");
 
         return new Panel(inputMarkup)
-            .Header($"[{MarioTheme.Yellow} bold] 🔍 Search .NET SDKs & Runtimes [/]")
+            .Header($"[{Ui.Yellow} bold] {Ui.IconSearch} Search .NET SDKs & Runtimes [/]")
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.PanelBorderColor)
             .Expand();
@@ -68,15 +68,15 @@ public sealed class SearchView : IView
 
         if (_searching)
         {
-            resultParts.Add(MarioTheme.Info("Searching..."));
+            resultParts.Add(Ui.Info("Searching..."));
         }
         else if (_error is not null)
         {
-            resultParts.Add(MarioTheme.Error(_error));
+            resultParts.Add(Ui.Error(_error));
         }
         else if (_results.Count > 0)
         {
-            var table = MarioTheme.StyledTable("", "Component", "Version", "Channel", "Support", "Latest");
+            var table = Ui.StyledTable("", "Component", "Version", "Channel", "Support", "Latest");
 
             int maxRows = Math.Min(_results.Count, 20);
             for (int i = 0; i < maxRows; i++)
@@ -84,9 +84,9 @@ public sealed class SearchView : IView
                 var sdk = _results[i];
                 bool selected = !_inputActive && i == _selectedIndex;
                 string pointer = selected ? ">" : " ";
-                string style = selected ? $"{MarioTheme.Yellow} bold" : MarioTheme.White;
+                string style = selected ? $"{Ui.Yellow} bold" : Ui.White;
                 string latest = sdk.IsLatest ? "*" : "";
-                string componentColor = sdk.Component == "SDK" ? MarioTheme.Green : MarioTheme.Blue;
+                string componentColor = sdk.Component == "SDK" ? Ui.Green : Ui.Blue;
 
                 table.AddRow(
                     new Markup($"[{style}]{pointer}[/]"),
@@ -94,29 +94,29 @@ public sealed class SearchView : IView
                     new Markup($"[{style}]{Markup.Escape(sdk.Version)}[/]"),
                     new Markup($"[{style}]{Markup.Escape(sdk.ChannelVersion)}[/]"),
                     new Markup($"[{style}]{Markup.Escape(FormatPhase(sdk.SupportPhase))}[/]"),
-                    new Markup($"[{MarioTheme.Gold}]{latest}[/]"));
+                    new Markup($"[{Ui.Gold}]{latest}[/]"));
             }
 
             resultParts.Add(table);
             if (_results.Count > maxRows)
-                resultParts.Add(MarioTheme.Muted($"Showing {maxRows} of {_results.Count} results"));
+                resultParts.Add(Ui.Muted($"Showing {maxRows} of {_results.Count} results"));
         }
         else if (_searchQuery.Length > 0)
         {
-            resultParts.Add(MarioTheme.Muted("No results found."));
+            resultParts.Add(Ui.Muted("No results found."));
         }
         else
         {
-            resultParts.Add(MarioTheme.Muted("Type a version number, channel (e.g. 10.0), or keyword (latest, lts, preview, runtime)."));
+            resultParts.Add(Ui.Muted("Type a version number, channel (e.g. 10.0), or keyword (latest, lts, preview, runtime)."));
         }
 
         string hint = _inputActive
-            ? $"[{MarioTheme.Gray}]Tab/Down:Results  Esc:Back[/]"
-            : $"[{MarioTheme.Gray}]up/down:Navigate  i:Install  Tab:Input  Esc:Back[/]";
+            ? $"[{Ui.Gray}]Tab/Down:Results  Esc:Back[/]"
+            : $"[{Ui.Gray}]up/down:Navigate  i:Install  Tab:Input  Esc:Back[/]";
         resultParts.Add(new Markup($"\n {hint}"));
 
         return new Panel(new Rows(resultParts))
-            .Header($"[{MarioTheme.Yellow} bold] 📋 Results [/]")
+            .Header($"[{Ui.Yellow} bold] {Ui.IconResults} Results [/]")
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.TableBorderColor)
             .Expand();

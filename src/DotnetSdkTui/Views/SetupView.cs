@@ -69,12 +69,12 @@ public sealed class SetupView : IView
 
     public IRenderable Render(bool focused)
     {
-        string focusIndicator = focused ? $"[{MarioTheme.Green} bold]●[/] " : $"[{MarioTheme.Gray}]○[/] ";
+        string focusIndicator = focused ? $"[{Ui.Green} bold]●[/] " : $"[{Ui.Gray}]○[/] ";
 
         if (_loading)
         {
-            return new Panel(MarioTheme.Info("Checking dotnetup..."))
-                .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]🔧 Setup[/]")
+            return new Panel(Ui.Info("Checking dotnetup..."))
+                .Header($"{focusIndicator}[{Ui.Yellow} bold]{Ui.IconSetup} Setup[/]")
                 .Border(BoxBorder.Rounded)
                 .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
                 .Expand();
@@ -84,13 +84,13 @@ public sealed class SetupView : IView
 
         if (_isInstalled && _info is not null)
         {
-            string line = $"[{MarioTheme.Green} bold]dotnetup[/] [{MarioTheme.White}]v{Markup.Escape(_info.Version)}[/]" +
-                          $"  [{MarioTheme.Gray}]{Markup.Escape(_info.Architecture)}[/]" +
-                          $"  [{MarioTheme.Gray}]{Markup.Escape(_info.Rid)}[/]" +
-                          $"  [{MarioTheme.Gray}]{Markup.Escape(_info.Commit[..Math.Min(7, _info.Commit.Length)])}[/]";
+            string line = $"[{Ui.Green} bold]dotnetup[/] [{Ui.White}]v{Markup.Escape(_info.Version)}[/]" +
+                          $"  [{Ui.Gray}]{Markup.Escape(_info.Architecture)}[/]" +
+                          $"  [{Ui.Gray}]{Markup.Escape(_info.Rid)}[/]" +
+                          $"  [{Ui.Gray}]{Markup.Escape(_info.Commit[..Math.Min(7, _info.Commit.Length)])}[/]";
 
             if (_statusMessage is not null)
-                line += $"  [{MarioTheme.Gold}]{Markup.Escape(_statusMessage)}[/]";
+                line += $"  [{Ui.Gold}]{Markup.Escape(_statusMessage)}[/]";
             if (_error is not null)
                 line += $"  [{ThemeManager.ErrorColor}]{Markup.Escape(_error)}[/]";
 
@@ -98,18 +98,18 @@ public sealed class SetupView : IView
         }
         else if (_isInstalled)
         {
-            content = new Markup($"[{MarioTheme.Green}]dotnetup installed[/]");
+            content = new Markup($"[{Ui.Green}]dotnetup installed[/]");
         }
         else
         {
-            string msg = $"[{ThemeManager.ErrorColor}]dotnetup not found[/]  [{MarioTheme.Gray}]Press 'i' to install[/]";
+            string msg = $"[{ThemeManager.ErrorColor}]dotnetup not found[/]  [{Ui.Gray}]Press 'i' to install[/]";
             if (_error is not null)
                 msg += $"  [{ThemeManager.ErrorColor}]{Markup.Escape(_error)}[/]";
             content = new Markup(msg);
         }
 
         return new Panel(content)
-            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]🔧 Setup[/]")
+            .Header($"{focusIndicator}[{Ui.Yellow} bold]{Ui.IconSetup} Setup[/]")
             .Border(BoxBorder.Rounded)
             .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
             .Expand();

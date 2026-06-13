@@ -62,8 +62,10 @@ public static class DotnetUpService
     {
         if (OperatingSystem.IsWindows())
         {
+            // Prefer pwsh (PowerShell 7+), fall back to powershell.exe (Windows PowerShell 5.1)
+            string shell = ProcessRunner.IsCommandAvailable("pwsh") ? "pwsh" : "powershell.exe";
             return ProcessRunner.RunWithCallbackAsync(
-                "powershell",
+                shell,
                 "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"",
                 null, null, null, ct);
         }

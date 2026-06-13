@@ -63,7 +63,7 @@ public sealed class App
         };
 
         if (!_skipSplash)
-            await MarioTheme.RenderSplashAsync();
+            await Ui.RenderSplashAsync();
 
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
         _ = LoadSetupInfoAsync();
@@ -123,7 +123,7 @@ public sealed class App
         }
 
         try { Console.CursorVisible = true; } catch (IOException) { }
-        MarioTheme.RenderGoodbye();
+        Ui.RenderGoodbye();
     }
 
     private void RenderScreen()
@@ -153,12 +153,12 @@ public sealed class App
             new Layout("Welcome"),
             new Layout("Setup"));
 
-        root["Top"]["Welcome"].Update(MarioTheme.WelcomePanel());
+        root["Top"]["Welcome"].Update(Ui.WelcomePanel());
         root["Top"]["Setup"].Update(_setupView.Render(_mainFocus == FocusSetup));
 
         // Footer (with top padding line)
         IView focusedView = GetFocusedMainView();
-        root["Footer"].Update(new Rows(new Text(""), MarioTheme.Footer(focusedView.GetStatusHints())));
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(focusedView.GetStatusHints())));
 
         // Body: SDKs and Runtimes
         root["Body"].SplitRows(
@@ -182,10 +182,10 @@ public sealed class App
                 new Layout("Footer").Size(2));
 
         root["TopPad"].Update(new Text(""));
-        root["Header"].Update(MarioTheme.SearchHeader(_setupInfo));
+        root["Header"].Update(Ui.SearchHeader(_setupInfo));
         root["SearchInput"].Update(_searchView.RenderSearchInput());
         root["Results"].Update(_searchView.RenderResults());
-        root["Footer"].Update(new Rows(new Text(""), MarioTheme.Footer(_searchView.GetStatusHints())));
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_searchView.GetStatusHints())));
 
         AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }

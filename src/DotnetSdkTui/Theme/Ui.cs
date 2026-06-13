@@ -8,8 +8,12 @@ namespace DotnetSdkTui.Theme;
 /// Provides Super Mario-themed UI components for the terminal interface,
 /// adapting colors to the active light/dark theme.
 /// </summary>
-public static class MarioTheme
+public static class Ui
 {
+    /// <summary>Whether the terminal supports emoji rendering (Windows Terminal, macOS, Linux).</summary>
+    private static readonly bool SupportsEmoji = !OperatingSystem.IsWindows()
+        || Environment.GetEnvironmentVariable("WT_SESSION") is not null;
+
     // Convenience accessors that delegate to ThemeManager
     /// <summary>Red accent color.</summary>
     public static string Red => ThemeManager.MarioRed;
@@ -37,6 +41,18 @@ public static class MarioTheme
 
     /// <summary>Dim text color for tertiary content.</summary>
     public static string DarkGray => ThemeManager.DimText;
+
+    // ── Icons with Windows conhost fallbacks ──────────────────────────
+    public static string IconSdks     => SupportsEmoji ? "📦" : ">";
+    public static string IconRuntimes => SupportsEmoji ? "⚙"  : "*";
+    public static string IconSetup    => SupportsEmoji ? "🔧" : "#";
+    public static string IconSearch   => SupportsEmoji ? "🔍" : "/";
+    public static string IconResults  => SupportsEmoji ? "📋" : "=";
+    public static string IconHeart    => SupportsEmoji ? "\u2764" : "<3";
+    public static string IconActive   => SupportsEmoji ? "🍀" : $"[{Green} bold]●[/]";
+    public static string IconPreview  => SupportsEmoji ? "🏭" : $"[{Blue} bold]●[/]";
+    public static string IconMaint    => SupportsEmoji ? "🚧" : $"[{Yellow} bold]●[/]";
+    public static string IconEol      => SupportsEmoji ? "👿" : $"[{Red} bold]●[/]";
 
     // Teal-to-lime gradient inspired by shahab-the-guy.dev banner
     private const string BannerPrimary = "#1DB9A0";   // Full blocks █ (teal)
