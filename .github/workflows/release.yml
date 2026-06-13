@@ -76,12 +76,25 @@ jobs:
           --output publish/${{ matrix.rid }}
           /p:Version=${{ steps.version.outputs.version }}
           ${{ matrix.cross && '/p:ObjCopyName=aarch64-linux-gnu-objcopy' || '' }}
+      - name: Sign binary (macOS)
+        if: runner.os == 'macOS'
+        run: codesign --force --sign - publish/${{ matrix.rid }}/dotnet-sdk-tui
+
       - name: Package (Unix)
         if: runner.os != 'Windows'
         run: |
           cd publish/${{ matrix.rid }}
           chmod +x dotnet-sdk-tui
           tar -czf ../../${{ matrix.artifact }} dotnet-sdk-tui
+
+      - name: Sign binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Create a self-signed code signing certificate
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=dsm" -CertStoreLocation Cert:\CurrentUser\My
+          # Sign the binary
+          Set-AuthenticodeSignature -FilePath publish/${{ matrix.rid }}/dotnet-sdk-tui.exe -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
 
       - name: Package (Windows)
         if: runner.os == 'Windows'

@@ -393,6 +393,12 @@
 
     <p style="color: var(--text-muted); margin-top: 1.5rem;">After installation, open a new terminal and run <code>dsm</code>. The app will notify you when updates are available — press <code>Ctrl+U</code> to self-update.</p>
 
+    <h3 style="margin: 2rem 0 0.5rem;">Windows: Defender false positive</h3>
+    <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Windows Defender may block <code>dsm.exe</code> because the binary is unsigned. To allow it:</p>
+    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># Add exclusion (run PowerShell as admin)</span>
+<span class="cmd">Add-MpPreference</span> <span class="flag">-ExclusionPath</span> <span class="arg">"$env:LOCALAPPDATA\dsm"</span></pre>
+    <p style="color: var(--text-dim); font-size: 0.85rem;">Or: Windows Security → Virus &amp; threat protection → Protection history → Allow on device</p>
+
     <h3 style="margin: 2rem 0 0.5rem;">Prerequisites</h3>
     <div class="feature-card" style="margin-top: 0.5rem;">
       <div class="card-header"><i class="bi bi-box-arrow-up-right icon"></i><h3>dotnetup</h3></div>

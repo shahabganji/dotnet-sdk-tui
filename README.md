@@ -61,6 +61,17 @@ curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/ins
 irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | iex
 ```
 
+### Windows: Defender false positive
+
+Windows Defender may block `dsm.exe` because the binary is unsigned. To allow it:
+
+```powershell
+# Option 1: Add exclusion (run as admin)
+Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\dsm"
+
+# Option 2: Windows Security → Virus & threat protection → Protection history → Allow on device
+```
+
 ### CLI
 
 ```bash
