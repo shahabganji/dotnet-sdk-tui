@@ -348,7 +348,8 @@ public sealed class App
     {
         return _sdksView.NeedsLiveUpdate
             || _runtimesView.NeedsLiveUpdate
-            || _searchView.NeedsLiveUpdate;
+            || _searchView.NeedsLiveUpdate
+            || AppVersion.CheckInProgress;
     }
 
     private async Task LoadSetupInfoAsync()

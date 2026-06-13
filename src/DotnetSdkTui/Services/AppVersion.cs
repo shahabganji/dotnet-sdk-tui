@@ -21,11 +21,15 @@ internal static class AppVersion
     public static bool UpdateAvailable => LatestAvailable is not null
         && !string.Equals(LatestAvailable, Current, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>True while the update check is still in flight.</summary>
+    public static bool CheckInProgress { get; private set; }
+
     /// <summary>
     /// Checks GitHub for the latest release. Non-blocking, swallows errors silently.
     /// </summary>
     public static async Task CheckForUpdateAsync()
     {
+        CheckInProgress = true;
         try
         {
             Http.DefaultRequestHeaders.UserAgent.TryParseAdd("dsm");
@@ -41,6 +45,7 @@ internal static class AppVersion
                 LatestAvailable = remoteVersion;
         }
         catch { /* Network errors, rate limits — silently ignore */ }
+        finally { CheckInProgress = false; }
     }
 
     /// <summary>
