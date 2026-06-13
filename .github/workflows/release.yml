@@ -69,7 +69,7 @@ jobs:
           --configuration Release
           --runtime ${{ matrix.rid }}
           --output publish/${{ matrix.rid }}
-          ${{ matrix.cross && '/p:CppCompilerAndLinker=aarch64-linux-gnu-gcc /p:ObjCopyName=aarch64-linux-gnu-objcopy' || '' }}
+          ${{ matrix.cross && '/p:ObjCopyName=aarch64-linux-gnu-objcopy' || '' }}
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
