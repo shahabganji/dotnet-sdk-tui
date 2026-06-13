@@ -272,7 +272,7 @@ public static class MarioTheme
     /// </summary>
     public static IRenderable WelcomePanel()
     {
-        string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Made with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
 
         return new Panel(new Markup(title))
             .Border(BoxBorder.Rounded)
@@ -285,7 +285,7 @@ public static class MarioTheme
     /// </summary>
     public static IRenderable SearchHeader(string? setupInfo)
     {
-        string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Made with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
         string setup = setupInfo is not null
             ? $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]"
             : $"[{Green}]dotnetup[/]";
@@ -416,7 +416,7 @@ public static class MarioTheme
         AnsiConsole.Clear();
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"  [{BannerPrimary}]Thanks for using[/] [{Red} bold].NET SDK Manager[/]");
-        AnsiConsole.MarkupLine($"  [{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]");
+        AnsiConsole.MarkupLine($"  [{DarkGray}]Made with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]");
         AnsiConsole.WriteLine();
     }
 }
