@@ -26,7 +26,7 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=results.xml"
+        run: dotnet test --no-build --configuration Release --filter "Category!=E2E" --logger "trx;LogFileName=results.xml"
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

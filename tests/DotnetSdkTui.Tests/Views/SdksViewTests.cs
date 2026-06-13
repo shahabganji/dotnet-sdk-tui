@@ -15,7 +15,7 @@ public class SdksViewTests
         await Task.Delay(500);
 
         Assert.Equal("SDKs", view.Name);
-        Assert.Equal("🍄", view.Icon);
+        Assert.Equal(">", view.Icon);
     }
 
     [Fact]

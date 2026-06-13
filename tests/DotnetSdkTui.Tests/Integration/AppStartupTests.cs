@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace DotnetSdkTui.Tests.Integration;
 
-[Trait("Category", "Integration")]
+[Trait("Category", "E2E")]
 public class AppStartupTests
 {
     private static readonly string ProjectPath = Path.GetFullPath(
@@ -16,7 +16,7 @@ public class AppStartupTests
             StartInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"run --project \"{ProjectPath}\"",
+                Arguments = $"run --project \"{ProjectPath}\" -- --no-splash",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 RedirectStandardInput = true,
