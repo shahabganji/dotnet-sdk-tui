@@ -124,7 +124,7 @@ public sealed class App
     {
         var root = new Layout("Root")
             .SplitRows(
-                new Layout("Top").Size(4),
+                new Layout("Top").Size(3),
                 new Layout("Body").MinimumSize(10),
                 new Layout("Footer").Size(1));
 
@@ -155,7 +155,7 @@ public sealed class App
     {
         var root = new Layout("Root")
             .SplitRows(
-                new Layout("Header").Size(4),
+                new Layout("Header").Size(3),
                 new Layout("SearchInput").Size(5),
                 new Layout("Results").MinimumSize(5),
                 new Layout("Footer").Size(1));

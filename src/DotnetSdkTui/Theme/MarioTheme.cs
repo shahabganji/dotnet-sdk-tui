@@ -138,11 +138,9 @@ public static class MarioTheme
     /// </summary>
     public static IRenderable WelcomePanel()
     {
-        string cwd = Directory.GetCurrentDirectory();
         string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
-        string path = $"[{Blue}]{Markup.Escape(TruncatePath(cwd, 60))}[/]";
 
-        return new Panel(new Rows(new Markup(title), new Markup(path)))
+        return new Panel(new Markup(title))
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.HeaderBorderColor)
             .Expand();
@@ -153,14 +151,12 @@ public static class MarioTheme
     /// </summary>
     public static IRenderable SearchHeader(string? setupInfo)
     {
-        string cwd = Directory.GetCurrentDirectory();
         string title = $"[{Red} bold].NET SDK Manager[/]  [{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
-        string credits = $"[{Blue}]{Markup.Escape(TruncatePath(cwd, 60))}[/]";
         string setup = setupInfo is not null
             ? $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]"
             : $"[{Green}]dotnetup[/]";
 
-        var left = new Panel(new Rows(new Markup(title), new Markup(credits)))
+        var left = new Panel(new Markup(title))
             .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.HeaderBorderColor)
             .Expand();
