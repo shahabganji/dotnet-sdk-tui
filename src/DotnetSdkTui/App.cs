@@ -220,8 +220,8 @@ public sealed class App
             return;
         }
 
-        // F11 self-update
-        if (key.Key == ConsoleKey.F11 && AppVersion.UpdateAvailable)
+        // Ctrl+U self-update
+        if (key.Key == ConsoleKey.U && key.Modifiers.HasFlag(ConsoleModifiers.Control) && AppVersion.UpdateAvailable)
         {
             ThemeManager.ResetBackground();
             AnsiConsole.Clear();

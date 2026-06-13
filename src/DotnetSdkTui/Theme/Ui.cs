@@ -297,7 +297,7 @@ public static class Ui
             .Expand();
 
         if (Services.AppVersion.UpdateAvailable)
-            panel.Header($"[{Gold} bold] \u2b06 v{Services.AppVersion.LatestAvailable} available (F11) [/]", Justify.Right);
+            panel.Header($"[{Gold} bold] \u2b06 v{Services.AppVersion.LatestAvailable} available (Ctrl+U) [/]", Justify.Right);
 
         return panel;
     }
