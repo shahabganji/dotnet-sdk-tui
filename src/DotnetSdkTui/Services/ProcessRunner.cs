@@ -6,10 +6,23 @@ using Spectre.Console;
 
 namespace DotnetSdkTui.Services;
 
+/// <summary>
+/// Encapsulates the result of a completed process execution.
+/// </summary>
+/// <param name="ExitCode">Process exit code (0 = success).</param>
+/// <param name="Output">Captured standard output.</param>
+/// <param name="Error">Captured standard error.</param>
+/// <param name="Duration">Wall-clock duration of the process.</param>
 public record ProcessResult(int ExitCode, string Output, string Error, TimeSpan Duration);
 
+/// <summary>
+/// Provides methods for running external processes with buffered, live, or callback-based output capture.
+/// </summary>
 public static class ProcessRunner
 {
+    /// <summary>
+    /// Runs a process and captures all output in memory (buffered).
+    /// </summary>
     public static async Task<ProcessResult> RunAsync(string command, string arguments, string? workingDirectory = null, CancellationToken ct = default)
     {
         using var process = new Process { StartInfo = CreateStartInfo(command, arguments, workingDirectory) };
@@ -44,6 +57,10 @@ public static class ProcessRunner
         }
     }
 
+    /// <summary>
+    /// Runs a process and streams output directly to <see cref="AnsiConsole"/>.
+    /// Useful for operations where output should appear in the terminal immediately.
+    /// </summary>
     public static async Task<ProcessResult> RunWithLiveOutputAsync(string command, string arguments, string? workingDirectory = null, CancellationToken ct = default)
     {
         using var process = new Process { StartInfo = CreateStartInfo(command, arguments, workingDirectory) };
@@ -107,9 +124,13 @@ public static class ProcessRunner
         }
     }
 
+    /// <summary>
+    /// Runs a process and invokes callbacks for each line of stdout and stderr.
+    /// Used by the TUI to capture output into in-app panels.
+    /// </summary>
     public static async Task<ProcessResult> RunWithCallbackAsync(
         string command, string arguments,
-        Action<string> onOutput, Action<string>? onError = null,
+        Action<string>? onOutput, Action<string>? onError = null,
         string? workingDirectory = null, CancellationToken ct = default)
     {
         using var process = new Process { StartInfo = CreateStartInfo(command, arguments, workingDirectory) };
@@ -128,7 +149,7 @@ public static class ProcessRunner
             }
 
             output.AppendLine(e.Data);
-            onOutput(e.Data);
+            onOutput?.Invoke(e.Data);
         };
 
         process.ErrorDataReceived += (_, e) =>
@@ -173,6 +194,10 @@ public static class ProcessRunner
         }
     }
 
+    /// <summary>
+    /// Runs a process, captures its output, and deserializes it as JSON.
+    /// Returns <c>default</c> on non-zero exit code or deserialization failure.
+    /// </summary>
     public static async Task<T?> RunJsonAsync<T>(string command, string arguments, JsonTypeInfo<T> jsonTypeInfo, string? workingDirectory = null, CancellationToken ct = default)
     {
         ProcessResult result = await RunAsync(command, arguments, workingDirectory, ct);
@@ -195,6 +220,10 @@ public static class ProcessRunner
         }
     }
 
+    /// <summary>
+    /// Checks whether a command is available on the system PATH.
+    /// Uses <c>where</c> on Windows or <c>which</c> on Unix.
+    /// </summary>
     public static bool IsCommandAvailable(string command)
     {
         string lookupCommand = OperatingSystem.IsWindows() ? "where" : "which";

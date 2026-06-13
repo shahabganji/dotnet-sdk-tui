@@ -2,20 +2,31 @@ using DotnetSdkTui.Models;
 
 namespace DotnetSdkTui.Services;
 
+/// <summary>
+/// Service for interacting with the dotnetup CLI tool and falling back to the dotnet CLI.
+/// </summary>
 public static class DotnetUpService
 {
+    /// <summary>Checks whether the dotnetup command is available on the system PATH.</summary>
     public static bool IsInstalled() => ProcessRunner.IsCommandAvailable("dotnetup");
 
+    /// <summary>
+    /// Retrieves dotnetup version and configuration info via <c>dotnetup --info --format json</c>.
+    /// </summary>
     public static Task<DotnetUpInfo?> GetInfoAsync(CancellationToken ct = default) =>
-        ProcessRunner.RunJsonAsync("dotnetup", "--info --json", AppJsonContext.Default.DotnetUpInfo, ct: ct);
+        ProcessRunner.RunJsonAsync("dotnetup", "--info --format json", AppJsonContext.Default.DotnetUpInfo, ct: ct);
 
+    /// <summary>
+    /// Lists all installed .NET SDKs. Uses dotnetup if available, otherwise falls back to <c>dotnet --list-sdks</c>.
+    /// Returns every individual SDK version (not grouped by channel).
+    /// </summary>
     public static async Task<List<SdkInfo>> ListInstalledAsync(CancellationToken ct = default)
     {
         if (IsInstalled())
         {
             SdkListResponse? response = await ProcessRunner.RunJsonAsync(
                 "dotnetup",
-                "list --json",
+                "list --format json",
                 AppJsonContext.Default.SdkListResponse,
                 ct: ct);
 
@@ -31,44 +42,46 @@ public static class DotnetUpService
         return ParseDotnetSdkList(result.Output);
     }
 
+    /// <summary>Installs an SDK channel via <c>dotnetup sdk install</c>.</summary>
     public static Task<ProcessResult> InstallSdkAsync(string channel, CancellationToken ct = default) =>
-        ProcessRunner.RunWithLiveOutputAsync("dotnetup", $"sdk install {channel}", ct: ct);
+        ProcessRunner.RunWithCallbackAsync("dotnetup", $"sdk install {channel}", null, null, null, ct);
 
+    /// <summary>Uninstalls an SDK channel via <c>dotnetup sdk uninstall</c>.</summary>
     public static Task<ProcessResult> UninstallSdkAsync(string channel, CancellationToken ct = default) =>
-        ProcessRunner.RunWithLiveOutputAsync("dotnetup", $"sdk uninstall {channel}", ct: ct);
+        ProcessRunner.RunWithCallbackAsync("dotnetup", $"sdk uninstall {channel}", null, null, null, ct);
 
+    /// <summary>Updates all tracked installations to their latest versions.</summary>
     public static Task<ProcessResult> UpdateAllAsync(CancellationToken ct = default) =>
-        ProcessRunner.RunWithLiveOutputAsync("dotnetup", "update", ct: ct);
+        ProcessRunner.RunWithCallbackAsync("dotnetup", "update", null, null, null, ct);
 
+    /// <summary>Updates tracked SDK installations to their latest versions.</summary>
     public static Task<ProcessResult> UpdateSdksAsync(CancellationToken ct = default) =>
-        ProcessRunner.RunWithLiveOutputAsync("dotnetup", "sdk update", ct: ct);
+        ProcessRunner.RunWithCallbackAsync("dotnetup", "sdk update", null, null, null, ct);
 
+    /// <summary>
+    /// Installs the dotnetup tool itself using the platform-specific bootstrap script.
+    /// </summary>
     public static Task<ProcessResult> InstallDotnetUpAsync(CancellationToken ct = default)
     {
         if (OperatingSystem.IsWindows())
         {
-            return ProcessRunner.RunWithLiveOutputAsync(
+            return ProcessRunner.RunWithCallbackAsync(
                 "powershell",
                 "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"",
-                ct: ct);
+                null, null, null, ct);
         }
 
-        return ProcessRunner.RunWithLiveOutputAsync(
+        return ProcessRunner.RunWithCallbackAsync(
             "bash",
             "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"",
-            ct: ct);
+            null, null, null, ct);
     }
 
-    public static Task<ProcessResult> RunDotnetCommandAsync(string command, string? projectPath = null, CancellationToken ct = default)
-    {
-        string? workingDirectory = ResolveWorkingDirectory(projectPath);
-
-        return IsInstalled()
-            ? ProcessRunner.RunWithLiveOutputAsync("dotnetup", $"dotnet {command}", workingDirectory, ct)
-            : ProcessRunner.RunWithLiveOutputAsync("dotnet", command, workingDirectory, ct);
-    }
-
-    private static List<SdkInfo> ParseDotnetSdkList(string output)
+    /// <summary>
+    /// Parses the text output of <c>dotnet --list-sdks</c> into a list of <see cref="SdkInfo"/>.
+    /// Each line has the format: <c>VERSION [INSTALL_PATH]</c>.
+    /// </summary>
+    internal static List<SdkInfo> ParseDotnetSdkList(string output)
     {
         var installations = new List<SdkInfo>();
 
@@ -91,24 +104,9 @@ public static class DotnetUpService
                 continue;
             }
 
-            installations.Add(new SdkInfo("sdk", version, installRoot, string.Empty));
+            installations.Add(new SdkInfo("SDK", version, installRoot, string.Empty));
         }
 
         return installations;
-    }
-
-    private static string? ResolveWorkingDirectory(string? projectPath)
-    {
-        if (string.IsNullOrWhiteSpace(projectPath))
-        {
-            return null;
-        }
-
-        if (Directory.Exists(projectPath))
-        {
-            return projectPath;
-        }
-
-        return Path.GetDirectoryName(projectPath);
     }
 }

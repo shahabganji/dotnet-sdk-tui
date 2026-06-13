@@ -4,13 +4,26 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace DotnetSdkTui.Services;
 
+/// <summary>
+/// Represents an available SDK version discovered from the .NET release metadata.
+/// </summary>
+/// <param name="Version">The SDK version string (e.g. "10.0.300").</param>
+/// <param name="ChannelVersion">The channel this SDK belongs to (e.g. "10.0").</param>
+/// <param name="SupportPhase">The lifecycle support phase (active, maintenance, preview, eol).</param>
+/// <param name="IsLatest">Whether this is the latest SDK in its channel.</param>
 public sealed record AvailableSdk(string Version, string ChannelVersion, string SupportPhase, bool IsLatest);
 
+/// <summary>
+/// Fetches .NET release metadata from Microsoft's CDN and searches available SDK versions.
+/// </summary>
 internal static class SdkSearchService
 {
     private const string ReleasesIndexUrl = "https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/releases-index.json";
     private static readonly HttpClient HttpClient = new();
 
+    /// <summary>
+    /// Retrieves the list of all .NET release channels from the releases index.
+    /// </summary>
     internal static async Task<List<ChannelInfo>> GetChannelsAsync(CancellationToken ct = default)
     {
         string json = await HttpClient.GetStringAsync(ReleasesIndexUrl, ct);
@@ -18,6 +31,11 @@ internal static class SdkSearchService
         return releaseIndex?.ReleasesIndex ?? [];
     }
 
+    /// <summary>
+    /// Searches for available SDK versions matching the given query.
+    /// Supports exact channel match (e.g. "10.0"), keywords ("latest", "lts", "preview"),
+    /// and version prefix matching (e.g. "9").
+    /// </summary>
     public static async Task<List<AvailableSdk>> SearchAvailableSdksAsync(string query, CancellationToken ct = default)
     {
         List<ChannelInfo> channels = await GetChannelsAsync(ct);
@@ -29,6 +47,32 @@ internal static class SdkSearchService
         }
 
         string search = normalizedQuery.ToLowerInvariant();
+
+        // Keyword matching — also match partial keywords for live search
+        if ("latest".StartsWith(search, StringComparison.OrdinalIgnoreCase) && search.Length >= 2)
+        {
+            var supportedChannels = channels.Where(static channel => IsSupportedChannel(channel.SupportPhase));
+            return SortResults(CreateLatestSdkResults(supportedChannels));
+        }
+
+        if ("lts".StartsWith(search, StringComparison.OrdinalIgnoreCase) && search.Length >= 2)
+        {
+            var ltsChannels = channels
+                .Where(static channel => IsSupportedChannel(channel.SupportPhase))
+                .Where(static channel => IsLtsChannel(channel.ChannelVersion));
+            return SortResults(CreateLatestSdkResults(ltsChannels));
+        }
+
+        if ("preview".StartsWith(search, StringComparison.OrdinalIgnoreCase) && search.Length >= 2)
+        {
+            var previewChannels = channels
+                .Where(channel => string.Equals(channel.SupportPhase, "preview", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(channel.SupportPhase, "go-live", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(channel.SupportPhase, "rc", StringComparison.OrdinalIgnoreCase));
+            return SortResults(CreateLatestSdkResults(previewChannels));
+        }
+
+        // Exact channel match (e.g. "10.0")
         List<ChannelInfo> channelMatches = channels
             .Where(channel => string.Equals(channel.ChannelVersion, normalizedQuery, StringComparison.OrdinalIgnoreCase))
             .ToList();
@@ -44,19 +88,10 @@ internal static class SdkSearchService
             return SortResults(results);
         }
 
-        if (search is "latest" or "lts")
-        {
-            IEnumerable<ChannelInfo> filteredChannels = channels.Where(static channel => IsSupportedChannel(channel.SupportPhase));
-            if (search == "lts")
-            {
-                filteredChannels = filteredChannels.Where(static channel => IsLtsChannel(channel.ChannelVersion));
-            }
-
-            return SortResults(CreateLatestSdkResults(filteredChannels));
-        }
-
+        // Prefix matching on version or channel (e.g. "9", "10")
         List<AvailableSdk> prefixMatches = CreateLatestSdkResults(channels)
-            .Where(sdk => sdk.Version.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase))
+            .Where(sdk => sdk.Version.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase)
+                || sdk.ChannelVersion.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         return SortResults(prefixMatches);

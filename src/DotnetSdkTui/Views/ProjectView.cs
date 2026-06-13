@@ -6,9 +6,16 @@ using DotnetSdkTui.Theme;
 
 namespace DotnetSdkTui.Views;
 
+/// <summary>
+/// Runs project commands (restore, build, test, run, publish) with live streaming output
+/// displayed inside the app panel.
+/// </summary>
 public sealed class ProjectView : IView
 {
+    /// <inheritdoc />
     public string Name => "Project";
+
+    /// <inheritdoc />
     public string Icon => "🔥";
 
     private List<ProjectInfo> _projects = [];

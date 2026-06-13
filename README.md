@@ -38,7 +38,7 @@
  F2: Search    — type to search (live), ↑↓ results, i:Install
  F3: Project   — r:Restore, b:Build, t:Test, n:Run, p:Publish, c:Clear
  F4: Setup     — i:Install dotnetup, u:Update dotnetup, r:Refresh
- Global: F1-F4 focus, Tab/Shift+Tab cycle, T:Theme, q:Quit
+ Global: F1-F4 focus, Tab/Shift+Tab cycle, F5:Theme, q:Quit
 ```
 
 ## Installation

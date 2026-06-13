@@ -5,6 +5,10 @@ using DotnetSdkTui.Services;
 
 namespace DotnetSdkTui;
 
+/// <summary>
+/// Main application class that renders all sections on a single unified screen
+/// and handles keyboard navigation between focused sections.
+/// </summary>
 public sealed class App
 {
     private readonly IView[] _views;
@@ -13,6 +17,10 @@ public sealed class App
     private string _dotnetUpStatus = "checking...";
     private readonly bool _skipSplash;
 
+    /// <summary>
+    /// Initializes the application with all four view sections.
+    /// </summary>
+    /// <param name="skipSplash">When true, skips the startup splash animation.</param>
     public App(bool skipSplash = false)
     {
         _skipSplash = skipSplash;
@@ -25,6 +33,9 @@ public sealed class App
         ];
     }
 
+    /// <summary>
+    /// Runs the main application loop: renders the screen, handles input, and polls for live updates.
+    /// </summary>
     public async Task RunAsync()
     {
         Console.CursorVisible = false;
@@ -83,6 +94,10 @@ public sealed class App
         AnsiConsole.Clear();
     }
 
+    /// <summary>
+    /// Renders the full unified screen: header, 2x2 section grid, and footer.
+    /// Uses Spectre.Console Layout for proper full-screen rendering.
+    /// </summary>
     private void RenderScreen()
     {
         string cwd = Directory.GetCurrentDirectory();
@@ -90,60 +105,70 @@ public sealed class App
         string? projectName = projects.Count > 0 ? projects[0].FileName : null;
         string themeName = ThemeManager.Current == AppTheme.Dark ? "🌙 Dark" : "☀️ Light";
 
-        // Header
-        AnsiConsole.Write(MarioTheme.Header(_dotnetUpStatus, cwd, projectName, themeName));
+        // Use Layout for proper full-screen sizing
+        var root = new Layout("Root")
+            .SplitRows(
+                new Layout("Header").Size(3),
+                new Layout("Body").MinimumSize(10),
+                new Layout("Footer").Size(1));
 
-        // All sections rendered in a 2-column grid layout
-        var topGrid = new Grid().AddColumn().AddColumn();
-        topGrid.AddRow(
-            _views[0].Render(_focusedSection == 0),  // SDKs
-            _views[1].Render(_focusedSection == 1));  // Search
+        var body = root["Body"]
+            .SplitRows(
+                new Layout("TopRow"),
+                new Layout("BottomRow"));
 
-        var bottomGrid = new Grid().AddColumn().AddColumn();
-        bottomGrid.AddRow(
-            _views[2].Render(_focusedSection == 2),  // Project
-            _views[3].Render(_focusedSection == 3));  // Setup
+        body["TopRow"].SplitColumns(
+            new Layout("SDKs"),
+            new Layout("Search"));
 
-        AnsiConsole.Write(topGrid);
-        AnsiConsole.Write(bottomGrid);
+        body["BottomRow"].SplitColumns(
+            new Layout("Project"),
+            new Layout("Setup"));
 
-        // Footer with focused section hints
-        AnsiConsole.Write(MarioTheme.Footer(_views[_focusedSection].GetStatusHints()));
+        root["Header"].Update(MarioTheme.Header(_dotnetUpStatus, cwd, projectName, themeName));
+        root["Footer"].Update(MarioTheme.Footer(_views[_focusedSection].GetStatusHints()));
+
+        body["TopRow"]["SDKs"].Update(_views[0].Render(_focusedSection == 0));
+        body["TopRow"]["Search"].Update(_views[1].Render(_focusedSection == 1));
+        body["BottomRow"]["Project"].Update(_views[2].Render(_focusedSection == 2));
+        body["BottomRow"]["Setup"].Update(_views[3].Render(_focusedSection == 3));
+
+        AnsiConsole.Write(root);
     }
 
+    /// <summary>
+    /// Handles a key press: global shortcuts first, then delegates to the focused section.
+    /// </summary>
     private async Task HandleKeyAsync(ConsoleKeyInfo key)
     {
-        // Quit (only when not in text input)
-        if (key.Key == ConsoleKey.Q && !_views[_focusedSection].IsTextInputActive)
+        // F1-F4 ALWAYS switch section focus (even during text input)
+        int sectionIndex = key.Key switch
         {
-            _running = false;
+            ConsoleKey.F1 => 0,
+            ConsoleKey.F2 => 1,
+            ConsoleKey.F3 => 2,
+            ConsoleKey.F4 => 3,
+            _ => -1
+        };
+
+        if (sectionIndex >= 0 && sectionIndex < _views.Length)
+        {
+            _focusedSection = sectionIndex;
             return;
         }
 
-        // Theme toggle
-        if (key.Key == ConsoleKey.T && !_views[_focusedSection].IsTextInputActive)
+        // F5 toggles theme (never conflicts with view keys)
+        if (key.Key == ConsoleKey.F5)
         {
             ThemeManager.Toggle();
             return;
         }
 
-        // Section focus switching with F1-F4
-        if (!_views[_focusedSection].IsTextInputActive)
+        // Quit (only when not in text input)
+        if (key.Key == ConsoleKey.Q && !_views[_focusedSection].IsTextInputActive)
         {
-            int sectionIndex = key.Key switch
-            {
-                ConsoleKey.F1 => 0,
-                ConsoleKey.F2 => 1,
-                ConsoleKey.F3 => 2,
-                ConsoleKey.F4 => 3,
-                _ => -1
-            };
-
-            if (sectionIndex >= 0 && sectionIndex < _views.Length && sectionIndex != _focusedSection)
-            {
-                _focusedSection = sectionIndex;
-                return;
-            }
+            _running = false;
+            return;
         }
 
         // Tab cycling between sections (only when focused view is not capturing text)

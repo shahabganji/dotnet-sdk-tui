@@ -1,7 +1,14 @@
 namespace DotnetSdkTui;
 
+/// <summary>
+/// Entry point for the .NET SDK Manager TUI application.
+/// </summary>
 public static class Program
 {
+    /// <summary>
+    /// Parses command-line arguments and starts the TUI application.
+    /// Supports <c>--version</c>/<c>-v</c> and <c>--no-splash</c> flags.
+    /// </summary>
     public static async Task<int> Main(string[] args)
     {
         if (args.Length > 0 && args[0] is "--version" or "-v")

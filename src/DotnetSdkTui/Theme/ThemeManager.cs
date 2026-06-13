@@ -2,23 +2,34 @@ using Spectre.Console;
 
 namespace DotnetSdkTui.Theme;
 
+/// <summary>Defines the available visual themes for the application.</summary>
 public enum AppTheme
 {
+    /// <summary>Dark theme with light text on dark backgrounds.</summary>
     Dark,
+
+    /// <summary>Light theme with dark text on light backgrounds.</summary>
     Light
 }
 
+/// <summary>
+/// Manages the active theme and provides theme-adaptive color values.
+/// All color properties update automatically when the theme changes.
+/// </summary>
 public static class ThemeManager
 {
     private static AppTheme _current = AppTheme.Dark;
 
+    /// <summary>Gets the currently active theme.</summary>
     public static AppTheme Current => _current;
 
+    /// <summary>Toggles between dark and light themes.</summary>
     public static void Toggle()
     {
         _current = _current == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
     }
 
+    /// <summary>Sets the active theme explicitly.</summary>
     public static void Set(AppTheme theme) => _current = theme;
 
     // Primary branding colors (always the same)

@@ -5,9 +5,16 @@ using DotnetSdkTui.Theme;
 
 namespace DotnetSdkTui.Views;
 
+/// <summary>
+/// Provides a live-search interface for discovering available .NET SDK versions.
+/// Search results update automatically as the user types (with 300ms debounce).
+/// </summary>
 public sealed class SearchView : IView
 {
+    /// <inheritdoc />
     public string Name => "Search";
+
+    /// <inheritdoc />
     public string Icon => "★";
 
     private string _searchQuery = "";
@@ -19,9 +26,13 @@ public sealed class SearchView : IView
     private CancellationTokenSource? _debounceCts;
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(300);
 
+    /// <inheritdoc />
     public bool NeedsLiveUpdate => _searching;
+
+    /// <inheritdoc />
     public bool IsTextInputActive => _inputActive;
 
+    /// <inheritdoc />
     public Task ActivateAsync()
     {
         _inputActive = true;

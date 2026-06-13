@@ -6,19 +6,26 @@ using DotnetSdkTui.Theme;
 
 namespace DotnetSdkTui.Views;
 
+/// <summary>
+/// Displays installed .NET SDKs and available channels with install/uninstall/update actions.
+/// Shows each individual SDK version, lifecycle status, and support phase.
+/// </summary>
 public sealed class SdksView : IView
 {
     private sealed record SdkRow(
+        string Version,
         string Channel,
-        string LatestVersion,
         string SupportPhase,
         string EolDate,
         bool IsInstalled,
-        string InstalledVersion,
         string Architecture,
+        string LifecycleIcon,
         string Description);
 
+    /// <inheritdoc />
     public string Name => "SDKs";
+
+    /// <inheritdoc />
     public string Icon => "🍄";
 
     private List<SdkRow> _rows = [];
@@ -29,9 +36,13 @@ public sealed class SdksView : IView
     private bool _actionRunning;
     private readonly List<string> _outputLines = [];
 
+    /// <inheritdoc />
     public bool NeedsLiveUpdate => _loading || _actionRunning;
+
+    /// <inheritdoc />
     public bool IsTextInputActive => false;
 
+    /// <inheritdoc />
     public Task ActivateAsync()
     {
         if (_rows.Count == 0)
@@ -57,52 +68,64 @@ public sealed class SdksView : IView
             var channels = channelsTask.Result;
 
             var rows = new List<SdkRow>();
+            var listedVersions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            // Show each installed SDK version individually
+            foreach (var sdk in installed)
+            {
+                if (!string.Equals(sdk.Component, "SDK", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string channel = GuessChannel(sdk.Version);
+                var channelInfo = channels.FirstOrDefault(c =>
+                    sdk.Version.StartsWith(c.ChannelVersion, StringComparison.OrdinalIgnoreCase));
+
+                string supportPhase = channelInfo is not null
+                    ? FormatSupportPhase(channelInfo.SupportPhase)
+                    : "Installed";
+                string eolDate = channelInfo?.EolDate ?? "-";
+                string lifecycleIcon = GetLifecycleIcon(channelInfo?.SupportPhase, channelInfo?.EolDate);
+                string description = GetChannelDescription(channel, channelInfo?.SupportPhase ?? "unknown");
+
+                rows.Add(new SdkRow(
+                    sdk.Version,
+                    channel,
+                    supportPhase,
+                    eolDate,
+                    true,
+                    sdk.Architecture.Length > 0 ? sdk.Architecture : System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant(),
+                    lifecycleIcon,
+                    description));
+
+                listedVersions.Add(sdk.Version);
+            }
+
+            // Show available channels that are not installed (latest version only)
             foreach (var channel in channels)
             {
                 if (string.IsNullOrWhiteSpace(channel.LatestSdk))
                     continue;
 
-                var matchingInstalled = installed.FirstOrDefault(s =>
-                    s.Version.StartsWith(channel.ChannelVersion, StringComparison.OrdinalIgnoreCase));
-
                 bool isEol = string.Equals(channel.SupportPhase, "eol", StringComparison.OrdinalIgnoreCase);
-                string eolDate = channel.EolDate ?? "-";
-                string description = GetChannelDescription(channel.ChannelVersion, channel.SupportPhase);
+                if (isEol)
+                    continue;
 
-                // Show non-EOL channels, or EOL channels that are installed
-                if (!isEol || matchingInstalled is not null)
+                bool hasInstalledVersion = installed.Any(s =>
+                    string.Equals(s.Component, "SDK", StringComparison.OrdinalIgnoreCase)
+                    && s.Version.StartsWith(channel.ChannelVersion, StringComparison.OrdinalIgnoreCase));
+
+                if (!hasInstalledVersion)
                 {
+                    string lifecycleIcon = GetLifecycleIcon(channel.SupportPhase, channel.EolDate);
                     rows.Add(new SdkRow(
-                        channel.ChannelVersion,
                         channel.LatestSdk,
+                        channel.ChannelVersion,
                         FormatSupportPhase(channel.SupportPhase),
-                        eolDate,
-                        matchingInstalled is not null,
-                        matchingInstalled?.Version ?? "-",
-                        matchingInstalled?.Architecture ?? "-",
-                        description));
-                }
-            }
-
-            // Add installed SDKs not matched to any known channel
-            foreach (var sdk in installed)
-            {
-                bool alreadyListed = rows.Any(r =>
-                    sdk.Version.StartsWith(r.Channel, StringComparison.OrdinalIgnoreCase));
-
-                if (!alreadyListed)
-                {
-                    string channelGuess = GuessChannel(sdk.Version);
-                    rows.Add(new SdkRow(
-                        channelGuess,
-                        sdk.Version,
-                        "Installed",
+                        channel.EolDate ?? "-",
+                        false,
                         "-",
-                        true,
-                        sdk.Version,
-                        sdk.Architecture,
-                        $".NET {channelGuess} SDK (locally installed)"));
+                        lifecycleIcon,
+                        GetChannelDescription(channel.ChannelVersion, channel.SupportPhase)));
                 }
             }
 
@@ -119,20 +142,21 @@ public sealed class SdksView : IView
         }
     }
 
+    /// <inheritdoc />
     public IRenderable Render(bool focused)
     {
         if (_loading)
-            return MarioTheme.SectionPanel("🍄 SDKs", MarioTheme.Info("Loading SDKs..."));
+            return RenderPanel(focused, MarioTheme.Info("Loading SDKs..."));
 
         if (_error is not null)
-            return MarioTheme.SectionPanel("🍄 SDKs", MarioTheme.Error(_error));
+            return RenderPanel(focused, MarioTheme.Error(_error));
 
         if (_rows.Count == 0)
-            return MarioTheme.SectionPanel("🍄 SDKs", MarioTheme.Coin("No SDK channels found."));
+            return RenderPanel(focused, MarioTheme.Coin("No SDKs found."));
 
         var parts = new List<IRenderable>();
 
-        var table = MarioTheme.StyledTable("", "Channel", "Latest", "Status", "Installed", "Support", "EOL");
+        var table = MarioTheme.StyledTable("", "", "Version", "Channel", "Status", "Arch", "Support", "EOL");
 
         for (int i = 0; i < _rows.Count; i++)
         {
@@ -141,39 +165,26 @@ public sealed class SdksView : IView
             string pointer = selected ? "►" : " ";
             string style = selected ? $"{MarioTheme.Yellow} bold" : MarioTheme.White;
 
-            string statusIcon;
-            string statusColor;
             string statusText;
+            string statusColor;
             if (row.IsInstalled)
             {
-                bool hasUpdate = !string.Equals(row.InstalledVersion, row.LatestVersion, StringComparison.OrdinalIgnoreCase)
-                    && row.InstalledVersion != "-";
-                if (hasUpdate)
-                {
-                    statusIcon = "⬆";
-                    statusColor = ThemeManager.MarioYellow;
-                    statusText = "Update";
-                }
-                else
-                {
-                    statusIcon = "✓";
-                    statusColor = MarioTheme.Green;
-                    statusText = "Installed";
-                }
+                statusColor = MarioTheme.Green;
+                statusText = "✓ Installed";
             }
             else
             {
-                statusIcon = "✗";
                 statusColor = MarioTheme.Blue;
-                statusText = "Available";
+                statusText = "⬇ Available";
             }
 
             table.AddRow(
                 new Markup($"[{style}]{pointer}[/]"),
+                new Markup($"{row.LifecycleIcon}"),
+                new Markup($"[{style}]{Markup.Escape(row.Version)}[/]"),
                 new Markup($"[{style}]{Markup.Escape(row.Channel)}[/]"),
-                new Markup($"[{style}]{Markup.Escape(row.LatestVersion)}[/]"),
-                new Markup($"[{statusColor} bold]{statusIcon} {statusText}[/]"),
-                new Markup($"[{style}]{Markup.Escape(row.InstalledVersion)}[/]"),
+                new Markup($"[{statusColor} bold]{statusText}[/]"),
+                new Markup($"[{style}]{Markup.Escape(row.Architecture)}[/]"),
                 new Markup($"[{style}]{Markup.Escape(row.SupportPhase)}[/]"),
                 new Markup($"[{style}]{Markup.Escape(row.EolDate)}[/]"));
         }
@@ -209,22 +220,17 @@ public sealed class SdksView : IView
         if (_statusMessage is not null)
             parts.Add(new Markup($"\n[{MarioTheme.Gold}]{Markup.Escape(_statusMessage)}[/]"));
 
-        string focusIndicator = focused ? $"[{MarioTheme.Green} bold]●[/] " : $"[{MarioTheme.Gray}]○[/] ";
-        var panel = new Panel(new Rows(parts))
-            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]🍄 SDKs[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
-            .Expand();
-
-        return panel;
+        return RenderPanel(focused, new Rows(parts));
     }
 
+    /// <inheritdoc />
     public string GetStatusHints()
     {
         if (_actionRunning) return "Running...";
         return "↑↓:Navigate  i:Install  u:Uninstall  p:Update  r:Refresh";
     }
 
+    /// <inheritdoc />
     public async Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)
     {
         if (_actionRunning || _loading) return KeyResult.NotHandled;
@@ -269,7 +275,7 @@ public sealed class SdksView : IView
         var row = _rows[_selectedIndex];
         if (row.IsInstalled)
         {
-            _statusMessage = $"Channel {row.Channel} is already installed.";
+            _statusMessage = $"{row.Version} is already installed.";
             return;
         }
 
@@ -281,7 +287,7 @@ public sealed class SdksView : IView
 
         _actionRunning = true;
         _outputLines.Clear();
-        _statusMessage = $"Installing SDK channel {row.Channel}...";
+        _statusMessage = $"Installing SDK {row.Channel}...";
 
         try
         {
@@ -301,6 +307,7 @@ public sealed class SdksView : IView
         finally
         {
             _actionRunning = false;
+            _loading = true;
             _ = LoadAsync();
         }
     }
@@ -312,7 +319,7 @@ public sealed class SdksView : IView
         var row = _rows[_selectedIndex];
         if (!row.IsInstalled)
         {
-            _statusMessage = $"Channel {row.Channel} is not installed.";
+            _statusMessage = $"{row.Version} is not installed.";
             return;
         }
 
@@ -344,6 +351,7 @@ public sealed class SdksView : IView
         finally
         {
             _actionRunning = false;
+            _loading = true;
             _ = LoadAsync();
         }
     }
@@ -355,7 +363,7 @@ public sealed class SdksView : IView
         var row = _rows[_selectedIndex];
         if (!row.IsInstalled)
         {
-            _statusMessage = $"Channel {row.Channel} is not installed. Use 'i' to install.";
+            _statusMessage = $"{row.Version} is not installed. Use 'i' to install.";
             return;
         }
 
@@ -387,6 +395,7 @@ public sealed class SdksView : IView
         finally
         {
             _actionRunning = false;
+            _loading = true;
             _ = LoadAsync();
         }
     }
@@ -399,6 +408,44 @@ public sealed class SdksView : IView
         _error = null;
         _ = LoadAsync();
         return Task.CompletedTask;
+    }
+
+    private static IRenderable RenderPanel(bool focused, IRenderable content)
+    {
+        string focusIndicator = focused ? $"[{MarioTheme.Green} bold]●[/] " : $"[{MarioTheme.Gray}]○[/] ";
+        return new Panel(content)
+            .Header($"{focusIndicator}[{MarioTheme.Yellow} bold]🍄 SDKs[/]")
+            .Border(BoxBorder.Rounded)
+            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
+            .Expand();
+    }
+
+    /// <summary>
+    /// Returns a lifecycle icon based on support phase and EOL date:
+    /// ✅ active/stable, ⚠️ EOL within 6 months, 🛑 end of life, 🔬 preview/RC.
+    /// </summary>
+    private static string GetLifecycleIcon(string? supportPhase, string? eolDate)
+    {
+        if (string.IsNullOrEmpty(supportPhase))
+            return "  ";
+
+        string phase = supportPhase.ToLowerInvariant();
+
+        if (phase is "eol")
+            return "🛑";
+
+        if (phase is "preview" or "go-live" or "rc")
+            return "🔬";
+
+        // Check if EOL is within 6 months
+        if (!string.IsNullOrWhiteSpace(eolDate)
+            && DateTime.TryParse(eolDate, out DateTime eol)
+            && eol < DateTime.UtcNow.AddMonths(6))
+        {
+            return "⚠️";
+        }
+
+        return "✅";
     }
 
     private static string FormatSupportPhase(string phase) =>
@@ -429,6 +476,7 @@ public sealed class SdksView : IView
             "go-live" => "Go-Live — production supported preview.",
             "rc" => "Release Candidate — final preview before GA.",
             "eol" => "End of Life — no longer supported.",
+            "unknown" => "",
             _ => ""
         };
 

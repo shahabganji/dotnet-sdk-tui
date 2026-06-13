@@ -2,8 +2,15 @@ using DotnetSdkTui.Models;
 
 namespace DotnetSdkTui.Services;
 
+/// <summary>
+/// Detects .sln, .slnx, and .csproj project files in a given directory.
+/// </summary>
 public static class ProjectDetector
 {
+    /// <summary>
+    /// Scans the specified (or current) directory for project files, returning them
+    /// ordered by priority: .sln &gt; .slnx &gt; .csproj.
+    /// </summary>
     public static List<ProjectInfo> Detect(string? directory = null)
     {
         var targetDirectory = directory ?? Directory.GetCurrentDirectory();
@@ -22,11 +29,16 @@ public static class ProjectDetector
             .ToList();
     }
 
+    /// <summary>Returns whether any project file exists in the given directory.</summary>
     public static bool HasProject(string? directory = null)
     {
         return Detect(directory).Count > 0;
     }
 
+    /// <summary>
+    /// Returns the appropriate <c>dotnet</c> CLI argument for the given project
+    /// (e.g. <c>--project path</c> for .csproj, or the path directly for .sln/.slnx).
+    /// </summary>
     public static string GetDotnetArgument(ProjectInfo project)
     {
         return project.ProjectType == ProjectType.CSharpProject

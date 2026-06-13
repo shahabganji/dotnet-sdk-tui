@@ -6,9 +6,16 @@ using DotnetSdkTui.Theme;
 
 namespace DotnetSdkTui.Views;
 
+/// <summary>
+/// Manages dotnetup tool installation and self-update.
+/// The 'u' key updates dotnetup itself (not SDKs). Output is shown inside the app.
+/// </summary>
 public sealed class SetupView : IView
 {
+    /// <inheritdoc />
     public string Name => "Setup";
+
+    /// <inheritdoc />
     public string Icon => "●";
 
     private bool _loading;
