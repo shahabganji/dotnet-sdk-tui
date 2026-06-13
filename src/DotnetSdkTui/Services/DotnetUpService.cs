@@ -17,22 +17,11 @@ public static class DotnetUpService
         ProcessRunner.RunJsonAsync("dotnetup", "--info --format json", AppJsonContext.Default.DotnetUpInfo, ct: ct);
 
     /// <summary>
-    /// Lists all installed .NET SDKs. Uses dotnetup if available, otherwise falls back to <c>dotnet --list-sdks</c>.
-    /// Returns every individual SDK version (not grouped by channel).
+    /// Lists all installed .NET SDKs and runtimes using dotnet CLI.
+    /// Always uses <c>dotnet --list-sdks</c> and <c>dotnet --list-runtimes</c> for accurate data.
     /// </summary>
     public static async Task<List<SdkInfo>> ListInstalledAsync(CancellationToken ct = default)
     {
-        if (IsInstalled())
-        {
-            SdkListResponse? response = await ProcessRunner.RunJsonAsync(
-                "dotnetup",
-                "list --format json",
-                AppJsonContext.Default.SdkListResponse,
-                ct: ct);
-
-            return response?.Installations ?? [];
-        }
-
         var installations = new List<SdkInfo>();
 
         ProcessResult sdkResult = await ProcessRunner.RunAsync("dotnet", "--list-sdks", ct: ct);

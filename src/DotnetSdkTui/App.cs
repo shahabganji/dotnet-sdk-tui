@@ -174,29 +174,12 @@ public sealed class App
 
     private async Task HandleMainKeyAsync(ConsoleKeyInfo key)
     {
-        // Cmd+/ on Mac (sends 0x1F), Ctrl+/ on Linux/Windows, or bare "/" as fallback
-        bool isSearchShortcut = key.KeyChar == '\x1f'
-            || (key.Key == ConsoleKey.Oem2 && (key.Modifiers & ConsoleModifiers.Control) != 0)
-            || key.KeyChar == '/';
-        if (isSearchShortcut && !GetFocusedMainView().IsTextInputActive)
+        // F3 opens search
+        if (key.Key == ConsoleKey.F3 && !GetFocusedMainView().IsTextInputActive)
         {
             _screen = Screen.Search;
             AnsiConsole.Clear();
             await _searchView.ActivateAsync();
-            return;
-        }
-
-        // F1/F2 switch focus
-        int sectionIndex = key.Key switch
-        {
-            ConsoleKey.F1 => FocusSdks,
-            ConsoleKey.F2 => FocusRuntimes,
-            _ => -1
-        };
-
-        if (sectionIndex >= 0)
-        {
-            _mainFocus = sectionIndex;
             return;
         }
 

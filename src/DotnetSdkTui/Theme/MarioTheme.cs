@@ -134,39 +134,35 @@ public static class MarioTheme
     }
 
     /// <summary>
-    /// Renders the combined header with app info (left) and setup/dotnetup info (right).
+    /// Renders the header as two side-by-side panels: app info (left) and setup info (right).
     /// </summary>
     public static IRenderable Header(string dotnetUpStatus, string? setupInfo = null)
     {
         string cwd = Directory.GetCurrentDirectory();
 
-        // Left side: app info + credits
-        string title = $"[{Red} bold].NET SDK Manager[/]";
-        string dir = $"[{Blue}]{Markup.Escape(TruncatePath(cwd, 40))}[/]";
-        string credits = $"[{DarkGray}]Created with [{Red}]<3[/] by[/] [{Blue} link=https://shahab-the-guy.dev]Shahab the Guy[/]";
+        // Left panel: welcome info
+        string title = $"[{Red} bold].NET SDK Manager[/]  [{Blue}]{Markup.Escape(TruncatePath(cwd, 40))}[/]";
+        string credits = $"[{DarkGray}]Created with[/] [{Red}]\u2764[/] [{DarkGray}]by[/] [{Blue} link=https://shahab-the-guy.dev]Shahab the Guy[/]";
 
-        // Right side: dotnetup setup info
-        string setup;
-        if (setupInfo is not null)
-            setup = $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]";
-        else
-            setup = $"[{Green}]dotnetup: {Markup.Escape(dotnetUpStatus)}[/]";
-
-        var grid = new Grid()
-            .AddColumn(new GridColumn().NoWrap())
-            .AddColumn(new GridColumn().NoWrap());
-
-        grid.AddRow(
-            $"{title}  {dir}",
-            setup);
-        grid.AddRow(
-            credits,
-            "");
-
-        return new Panel(grid)
-            .Border(BoxBorder.Heavy)
+        var leftPanel = new Panel(new Rows(new Markup(title), new Markup(credits)))
+            .Border(BoxBorder.Rounded)
             .BorderColor(ThemeManager.HeaderBorderColor)
-            .Padding(0, 0);
+            .Expand();
+
+        // Right panel: setup/dotnetup info
+        string setupLine;
+        if (setupInfo is not null)
+            setupLine = $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]";
+        else
+            setupLine = $"[{Green}]dotnetup:[/] [{White}]{Markup.Escape(dotnetUpStatus)}[/]";
+
+        var rightPanel = new Panel(new Markup(setupLine))
+            .Header($"[{Yellow} bold]Setup[/]")
+            .Border(BoxBorder.Rounded)
+            .BorderColor(ThemeManager.TableBorderColor)
+            .Expand();
+
+        return new Columns(leftPanel, rightPanel);
     }
 
     /// <summary>
@@ -174,7 +170,7 @@ public static class MarioTheme
     /// </summary>
     public static IRenderable Footer(string hints)
     {
-        string global = $"[{DarkGray}]F1:SDKs  F2:Runtimes  /:Search  F5:Theme  q:Quit  Tab:Switch[/]";
+        string global = $"[{DarkGray}]Tab:Switch  F3:Search  F5:Theme  q:Quit[/]";
         string hintMarkup = $"[{Gold}]{hints}[/]";
         return new Markup($" {hintMarkup}  {global}");
     }
