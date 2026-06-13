@@ -42,16 +42,16 @@ public static class Ui
     public static string DarkGray => ThemeManager.DimText;
 
     // ── Icons with Windows conhost fallbacks ──────────────────────────
-    public static string IconSdks     => SupportsEmoji ? "📦" : ">";
-    public static string IconRuntimes => SupportsEmoji ? "⚙"  : "*";
-    public static string IconSetup    => SupportsEmoji ? "🔧" : "#";
-    public static string IconSearch   => SupportsEmoji ? "🔍" : "/";
-    public static string IconResults  => SupportsEmoji ? "📋" : "=";
-    public static string IconHeart    => SupportsEmoji ? "\u2764" : "*";
-    public static string IconActive   => SupportsEmoji ? "🍀" : $"[{Green}]+[/]";
-    public static string IconPreview  => SupportsEmoji ? "🏭" : $"[{Blue}]~[/]";
-    public static string IconMaint    => SupportsEmoji ? "🚧" : $"[{Yellow}]![/]";
-    public static string IconEol      => SupportsEmoji ? "👿" : $"[{Red}]x[/]";
+    public static string IconSdks     => SupportsEmoji ? "📦" : "\u25c6";
+    public static string IconRuntimes => SupportsEmoji ? "⚙"  : "\u25cb";
+    public static string IconSetup    => SupportsEmoji ? "🔧" : "\u2666";
+    public static string IconSearch   => SupportsEmoji ? "🔍" : "\u25b7";
+    public static string IconResults  => SupportsEmoji ? "📋" : "\u2261";
+    public static string IconHeart    => "\u2764";
+    public static string IconActive   => SupportsEmoji ? "🍀" : $"[{Green}]\u2713[/]";
+    public static string IconPreview  => SupportsEmoji ? "🏭" : $"[{Blue}]\u25cb[/]";
+    public static string IconMaint    => SupportsEmoji ? "🚧" : $"[{Yellow}]\u25b3[/]";
+    public static string IconEol      => SupportsEmoji ? "👿" : $"[{Red}]\u2717[/]";
 
     // Teal-to-lime gradient inspired by shahab-the-guy.dev banner
     private const string BannerPrimary = "#1DB9A0";   // Full blocks █ (teal)
