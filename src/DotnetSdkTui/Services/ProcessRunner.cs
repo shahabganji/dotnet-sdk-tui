@@ -257,13 +257,21 @@ public static class ProcessRunner
     /// </summary>
     public static async Task<int> RunInteractiveAsync(string command, string arguments, string? workingDirectory = null)
     {
+        // On Windows, resolve full path to avoid "Access is denied" from NativeAOT Zone.Identifier restrictions
+        string resolvedCommand = command;
+        if (OperatingSystem.IsWindows())
+        {
+            if (command.Equals("powershell.exe", StringComparison.OrdinalIgnoreCase))
+                resolvedCommand = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
+            else if (command.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase))
+                resolvedCommand = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+        }
+
         var psi = new ProcessStartInfo
         {
-            FileName = command,
+            FileName = resolvedCommand,
             Arguments = arguments,
-            // UseShellExecute = true on Windows to avoid "Access is denied" from
-            // NativeAOT binaries marked as downloaded-from-internet (Zone.Identifier)
-            UseShellExecute = OperatingSystem.IsWindows()
+            UseShellExecute = false
         };
 
         if (!string.IsNullOrWhiteSpace(workingDirectory))
@@ -279,9 +287,19 @@ public static class ProcessRunner
 
     private static ProcessStartInfo CreateStartInfo(string command, string arguments, string? workingDirectory)
     {
+        // On Windows, resolve full path to avoid "Access is denied" from NativeAOT Zone.Identifier restrictions
+        string resolvedCommand = command;
+        if (OperatingSystem.IsWindows())
+        {
+            if (command.Equals("powershell.exe", StringComparison.OrdinalIgnoreCase))
+                resolvedCommand = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
+            else if (command.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase))
+                resolvedCommand = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+        }
+
         var startInfo = new ProcessStartInfo
         {
-            FileName = command,
+            FileName = resolvedCommand,
             Arguments = arguments,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
