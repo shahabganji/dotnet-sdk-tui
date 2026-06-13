@@ -101,7 +101,7 @@ dotnet publish src/DotnetSdkTui -c Release -r osx-arm64
 dotnet test
 ```
 
-Tests use [hex1b](https://github.com/nickvdyck/hex1b) for TUI screenshot assertions in a headless virtual terminal.
+Tests use [hex1b](https://hex1b.dev/guide/cli) for TUI screenshot assertions in a headless virtual terminal.
 
 ## Tech stack
 

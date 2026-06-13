@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
         --install-dir) INSTALL_DIR="$2"; shift 2 ;;
         --help|-h)
             echo "Usage: $(basename "$0") [--install-dir DIR]"
-            echo "Remove .NET SDK Manager (dsm) from the specified directory."
+            echo "Remove .NET SDK Manager (dsm) from the specified directory and clean up PATH."
             exit 0
             ;;
         *) shift ;;
@@ -30,11 +30,38 @@ done
 
 target="${INSTALL_DIR}/${BINARY_NAME}"
 
-if [ -f "$target" ]; then
-    rm -f "$target"
-    printf "${GREEN}Removed ${target}${NC}\n"
-    printf "${YELLOW}Note: PATH entry in your shell profile was not removed. Edit it manually if needed.${NC}\n"
-else
+if [ ! -f "$target" ]; then
     printf "${RED}dsm not found at ${target}${NC}\n"
     exit 1
 fi
+
+rm -f "$target"
+printf "${GREEN}Removed ${target}${NC}\n"
+
+# Remove PATH entry from shell profile
+shell_name=$(basename "${SHELL:-/bin/bash}")
+case "$shell_name" in
+    zsh)   profile="$HOME/.zshrc" ;;
+    fish)  profile="$HOME/.config/fish/config.fish" ;;
+    *)     profile="$HOME/.bashrc" ;;
+esac
+
+if [ -f "$profile" ]; then
+    # Remove the PATH export line added by the installer
+    if grep -qF "$INSTALL_DIR" "$profile" 2>/dev/null; then
+        if [ "$shell_name" = "fish" ]; then
+            sed -i.bak "/fish_add_path.*$(echo "$INSTALL_DIR" | sed 's/[\/&]/\\&/g')/d" "$profile"
+        else
+            sed -i.bak "/export PATH=.*$(echo "$INSTALL_DIR" | sed 's/[\/&]/\\&/g')/d" "$profile"
+        fi
+        rm -f "${profile}.bak"
+        printf "${GREEN}Removed PATH entry from ${profile}${NC}\n"
+    fi
+fi
+
+# Remove install dir if empty
+if [ -d "$INSTALL_DIR" ] && [ -z "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
+    rmdir "$INSTALL_DIR" 2>/dev/null || true
+fi
+
+printf "${GREEN}dsm has been uninstalled.${NC}\n"
