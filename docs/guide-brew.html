@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Homebrew Guide — .NET SDK Manager</title>
+  <meta name="description" content="A visual, step-by-step walkthrough of the Homebrew workspace in dsm: browsing installed formulae with installed and available versions, searching the catalog, installing, upgrading, and uninstalling packages on macOS.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    :root {
+      --bg: #1A1A2E;
+      --bg-surface: #22223a;
+      --bg-card: #2a2a4e;
+      --text: #E0E0E0;
+      --text-muted: #888;
+      --text-dim: #555;
+      --teal: #1DB9A0;
+      --teal-dark: #148F7B;
+      --lime: #C8E64D;
+      --red: #E52521;
+      --green: #43B047;
+      --blue: #049CD8;
+      --gold: #FFD700;
+      --icon: #E8C700;
+      --border: #333;
+      --code-bg: #16162a;
+      --nav-bg: rgba(26, 26, 46, 0.95);
+    }
+
+    [data-theme="light"] {
+      --bg: #F0ECE3;
+      --bg-surface: #E8E4DB;
+      --bg-card: #DEDACE;
+      --text: #1E1E1E;
+      --text-muted: #6B7280;
+      --text-dim: #9CA3AF;
+      --teal: #0E8C76;
+      --teal-dark: #0A6B5A;
+      --lime: #6B8E23;
+      --red: #B91C1C;
+      --green: #15803D;
+      --blue: #0369A1;
+      --gold: #B45309;
+      --icon: #8C7500;
+      --border: #C8C4BB;
+      --code-bg: #D6D2C8;
+      --nav-bg: rgba(240, 236, 227, 0.95);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    /* ── Navigation ─────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: var(--nav-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 2rem;
+    }
+    nav .nav-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    nav .logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--teal);
+      text-decoration: none;
+    }
+    nav .logo span { color: var(--text); font-weight: 400; }
+    nav .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    nav .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+    nav .nav-links a:hover, nav .nav-links a.active { color: var(--teal); }
+    .theme-toggle {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.3rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .theme-toggle:hover { border-color: var(--teal); }
+
+    /* ── Layout ──────────────────────────────── */
+    .container { max-width: 960px; margin: 0 auto; padding: 0 2rem; }
+
+    /* ── Hero ────────────────────────────────── */
+    .guide-hero {
+      padding-top: 9rem;
+      padding-bottom: 2.5rem;
+      text-align: center;
+    }
+    .breadcrumb {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .breadcrumb a { color: var(--teal); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .guide-hero h1 {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.8rem;
+    }
+    .guide-hero h1 .accent { color: var(--teal); }
+    .guide-hero p {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--teal);
+      margin-bottom: 0.5rem;
+    }
+
+    /* ── Two-column layout: sticky sidebar + content ── */
+    .guide-layout {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 3rem;
+      /* NOTE: do NOT set align-items:start here — the sidebar cell must
+         stretch to the full row height so the sticky nav has room to travel. */
+    }
+    .guide-main { min-width: 0; }
+
+    /* ── Sticky side navigation (table of contents) ── */
+    .side-toc {
+      position: sticky;
+      top: 84px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.3rem 1.3rem 1rem;
+    }
+    .side-toc h2 {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--teal); margin-bottom: 1rem;
+    }
+    .side-toc ol { list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 0.25rem; }
+    .side-toc li { counter-increment: step; }
+    .side-toc a {
+      display: flex; align-items: center; gap: 0.7rem;
+      color: var(--text-muted); text-decoration: none;
+      padding: 0.45rem 0.6rem; border-radius: 8px;
+      font-size: 0.9rem; line-height: 1.3;
+      transition: background 0.2s, color 0.2s;
+    }
+    .side-toc a::before {
+      content: counter(step);
+      flex: 0 0 auto;
+      width: 1.5rem; height: 1.5rem;
+      display: grid; place-items: center;
+      background: var(--bg-card); color: var(--text-muted);
+      border-radius: 50%; font-size: 0.75rem; font-weight: 700;
+      transition: background 0.2s, color 0.2s;
+    }
+    .side-toc a:hover { color: var(--teal); background: var(--bg-card); }
+    .side-toc a.active { color: var(--teal); background: var(--bg-card); font-weight: 600; }
+    .side-toc a.active::before { background: var(--teal); color: #fff; }
+
+    /* Collapse to a stacked card on narrow screens */
+    @media (max-width: 900px) {
+      .guide-layout { grid-template-columns: 1fr; gap: 0; }
+      .guide-sidebar { margin-bottom: 2.5rem; }
+      .side-toc { position: static; top: auto; }
+      .side-toc ol { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.3rem 1rem; }
+    }
+    @media (max-width: 520px) {
+      .side-toc ol { grid-template-columns: 1fr; }
+    }
+
+    /* ── Icon legend ─────────────────────────── */
+    .legend {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem 1.8rem;
+      margin: 0 0 3rem;
+    }
+    .legend h2 { font-size: 1rem; margin-bottom: 1rem; color: var(--teal); text-transform: uppercase; letter-spacing: 0.05em; }
+    .legend-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem 1.5rem; }
+    .legend-item { display: flex; align-items: center; gap: 0.8rem; font-size: 0.92rem; }
+    .legend-item .emoji { font-size: 1.4rem; line-height: 1; flex: 0 0 auto; }
+    .legend-item .label { color: var(--text); font-weight: 600; }
+    .legend-item .desc { color: var(--text-muted); }
+    .legend .note { color: var(--text-muted); font-size: 0.82rem; margin-top: 1rem; }
+    @media (max-width: 640px) { .legend-grid { grid-template-columns: 1fr; } }
+
+    /* ── Steps ───────────────────────────────── */
+    .step {
+      padding: 2.5rem 0;
+      border-top: 1px solid var(--border);
+    }
+    .step-header { display: flex; align-items: baseline; gap: 0.9rem; margin-bottom: 0.6rem; }
+    .step-num {
+      flex: 0 0 auto;
+      width: 2.2rem; height: 2.2rem;
+      display: grid; place-items: center;
+      background: var(--teal); color: #fff;
+      border-radius: 50%; font-weight: 800; font-size: 1rem;
+      align-self: center;
+    }
+    .step h2 { font-size: 1.5rem; font-weight: 700; }
+    .step .lead { color: var(--text-muted); margin-bottom: 1.2rem; }
+    .step p { margin-bottom: 1rem; }
+    .step ul { color: var(--text-muted); padding-left: 1.3rem; margin-bottom: 1rem; line-height: 1.9; }
+    .step ul strong { color: var(--text); }
+
+    /* ── Keyboard badges ─────────────────────── */
+    kbd {
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      padding: 0.1rem 0.45rem;
+      font-size: 0.82em;
+      color: var(--lime);
+      white-space: nowrap;
+    }
+
+    /* ── Screenshots ─────────────────────────── */
+    figure {
+      margin: 1.5rem 0;
+    }
+    figure img {
+      width: 100%;
+      display: block;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #1d1d1d;
+    }
+    figure.banner img { max-width: 520px; }
+    figcaption {
+      color: var(--text-dim);
+      font-size: 0.82rem;
+      text-align: center;
+      margin-top: 0.6rem;
+    }
+
+    /* ── Callout ─────────────────────────────── */
+    .callout {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--teal);
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin: 1.2rem 0;
+      font-size: 0.92rem;
+    }
+    .callout .ctitle { color: var(--teal); font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+    .callout.warn { border-left-color: var(--gold); }
+    .callout.warn .ctitle { color: var(--gold); }
+    .callout p { margin: 0; color: var(--text-muted); }
+    .callout code, .step code {
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      background: var(--bg-card);
+      padding: 0.12rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+
+    /* ── Back-to-top / footer nav ────────────── */
+    .guide-end {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 0 0;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.92rem;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--teal); color: var(--teal); }
+
+    /* ── Footer ──────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 3rem 0;
+      margin-top: 3rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--teal); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      .guide-hero h1 { font-size: 1.9rem; }
+      nav .nav-links a.hide-mobile { display: none; }
+    }
+
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+  </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <div class="nav-inner">
+    <a href="index.html" class="logo">.NET SDK <span>Manager</span></a>
+    <div class="nav-links">
+      <a href="index.html#features" class="hide-mobile">Features</a>
+      <a href="index.html#install">Install</a>
+      <a href="guide.html">.NET Guide</a>
+      <a href="guide-brew.html" class="active">Homebrew Guide</a>
+      <a href="https://github.com/shahabganji/dotnet-sdk-tui" target="_blank">GitHub</a>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><i class="bi bi-moon-stars"></i> / <i class="bi bi-sun"></i></button>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="guide-hero">
+  <div class="container">
+    <div class="breadcrumb"><a href="index.html">Home</a> &nbsp;/&nbsp; Homebrew Guide</div>
+    <div class="section-label">Walkthrough &middot; macOS</div>
+    <h1>Manage <span class="accent">Homebrew packages</span></h1>
+    <p>A visual tour of the <strong>Homebrew workspace</strong> in <strong>dsm</strong> — browse what's installed, see which formulae are outdated, and search, install, upgrade, and remove packages without leaving the terminal UI.</p>
+  </div>
+</section>
+
+<div class="guide-layout">
+
+  <!-- Sticky side navigation -->
+  <aside class="guide-sidebar">
+    <nav class="side-toc">
+      <h2>What you'll do</h2>
+      <ol>
+        <li><a href="#open">Open the Homebrew workspace</a></li>
+        <li><a href="#search">Search &amp; install a formula</a></li>
+        <li><a href="#manage">Upgrade &amp; uninstall</a></li>
+      </ol>
+    </nav>
+  </aside>
+
+  <div class="guide-main">
+
+  <!-- Legend -->
+  <div class="legend">
+    <h2>Reading the list</h2>
+    <div class="legend-grid">
+      <div class="legend-item"><span class="emoji">📦</span><span><span class="label">Installed</span> &mdash; <span class="desc">the version currently on your machine</span></span></div>
+      <div class="legend-item"><span class="emoji">⬆</span><span><span class="label">Available ⬆</span> &mdash; <span class="desc">a newer version exists (gold), ready to upgrade</span></span></div>
+    </div>
+    <p class="note">Homebrew is macOS-only, so the Homebrew workspace and its <kbd>F2</kbd> shortcut only appear on macOS.</p>
+  </div>
+
+  <!-- Step 1 -->
+  <section class="step" id="open">
+    <div class="step-header"><span class="step-num">1</span><h2>Open the Homebrew workspace</h2></div>
+    <p class="lead">From the main screen, press <kbd>F2</kbd> to switch to the Homebrew workspace. Press <kbd>F1</kbd> at any time to return to the .NET workspace.</p>
+    <p>dsm lists your installed formulae with two version columns — <strong>Installed</strong> and <strong>Available</strong>. When a newer version exists, the Available column is highlighted in gold with a <kbd>⬆</kbd> (resolved via <code>brew outdated</code>); up-to-date formulae show the same version, muted. The list loads on entry — press <kbd>r</kbd> to refresh it.</p>
+    <figure>
+      <img src="images/13-brew-list.png" alt="Homebrew workspace listing installed formulae with installed and available versions">
+      <figcaption>The Homebrew workspace — installed formulae with their <strong>Installed</strong> and <strong>Available</strong> versions; outdated ones are flagged with a gold <kbd>⬆</kbd>.</figcaption>
+    </figure>
+    <ul>
+      <li><kbd>F2</kbd> &mdash; <strong>open</strong> the Homebrew workspace (from the main screen)</li>
+      <li><kbd>↑</kbd> <kbd>↓</kbd> or <kbd>j</kbd> <kbd>k</kbd> &mdash; <strong>move</strong> the selection</li>
+      <li><kbd>r</kbd> &mdash; <strong>refresh</strong> the installed list &nbsp;&middot;&nbsp; <kbd>F1</kbd> &mdash; back to .NET</li>
+    </ul>
+    <div class="callout">
+      <div class="ctitle"><i class="bi bi-apple"></i> macOS only</div>
+      <p>Homebrew runs on macOS, so the workspace is only available there. If Homebrew isn't installed, the workspace shows a link to install it from <a href="https://brew.sh" style="color:var(--teal)">brew.sh</a>.</p>
+    </div>
+  </section>
+
+  <!-- Step 2 -->
+  <section class="step" id="search">
+    <div class="step-header"><span class="step-num">2</span><h2>Search &amp; install a formula</h2></div>
+    <p class="lead">Press <kbd>F3</kbd> (or <kbd>/</kbd>) to search Homebrew's catalog — the same search key as the .NET workspace.</p>
+    <p>Just start typing. Results stream in with debounce (the UI never freezes), restricted to formulae and enriched with each package's version, description, and install status. Use <kbd>↑</kbd> <kbd>↓</kbd> to highlight a result and press <kbd>Enter</kbd> to install it — dsm runs <code>brew install &lt;name&gt;</code>, streams the live output, then returns and refreshes.</p>
+    <figure>
+      <img src="images/14-brew-search.png" alt="Searching the Homebrew catalog for jq with live results">
+      <figcaption>Searching <code>jq</code> — formulae appear with their version and a one-line description; <kbd>Enter</kbd> installs the highlighted one.</figcaption>
+    </figure>
+    <ul>
+      <li><kbd>F3</kbd> or <kbd>/</kbd> &mdash; open <strong>search</strong></li>
+      <li><kbd>↑</kbd> <kbd>↓</kbd> &mdash; move through results &nbsp;&middot;&nbsp; keep typing to <strong>refine</strong></li>
+      <li><kbd>Enter</kbd> &mdash; <strong>install</strong> the highlighted formula &nbsp;&middot;&nbsp; <kbd>Esc</kbd> &mdash; cancel search</li>
+    </ul>
+  </section>
+
+  <!-- Step 3 -->
+  <section class="step" id="manage">
+    <div class="step-header"><span class="step-num">3</span><h2>Upgrade &amp; uninstall</h2></div>
+    <p class="lead">Back in the list, manage what's already installed.</p>
+    <p>Highlight a formula and press <kbd>p</kbd> to <strong>upgrade</strong> it (<code>brew upgrade &lt;name&gt;</code>) — the same key as the .NET workspace. If the formula is already current, dsm tells you instead of running anything. Press <kbd>u</kbd> to <strong>uninstall</strong> it (<code>brew uninstall &lt;name&gt;</code>). Both drop out to the terminal to show real <code>brew</code> output, then return and refresh.</p>
+    <div class="callout">
+      <div class="ctitle"><i class="bi bi-lightning-charge"></i> No confirmation prompts</div>
+      <p>Choosing to install or upgrade is already an explicit action, so dsm runs brew with <code>HOMEBREW_NO_ASK=1</code> — Homebrew's "Ask mode" won't interrupt with <em>"Do you want to proceed? [y/n]"</em>; the action proceeds directly.</p>
+    </div>
+  </section>
+
+  <!-- End nav -->
+  <div class="guide-end">
+    <a href="guide.html" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> .NET Guide</a>
+    <a href="#open" class="btn btn-secondary">Back to top <i class="bi bi-arrow-up"></i></a>
+  </div>
+
+  </div><!-- /guide-main -->
+</div><!-- /guide-layout -->
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <p style="margin-bottom: 0.5rem;">
+      Made with ❤ by <a href="https://shahab-the-guy.dev">Shahab the Guy</a>
+    </p>
+    <p>
+      <a href="https://github.com/shahabganji/dotnet-sdk-tui">GitHub</a>
+      &nbsp;&middot;&nbsp;
+      <a href="index.html">Home</a>
+      &nbsp;&middot;&nbsp;
+      MIT License
+    </p>
+  </div>
+</footer>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    html.setAttribute('data-theme', current === 'light' ? 'dark' : 'light');
+    localStorage.setItem('theme', html.getAttribute('data-theme'));
+  }
+  const saved = localStorage.getItem('theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+
+  // Scrollspy: highlight the current step in the side nav
+  (function () {
+    const links = Array.from(document.querySelectorAll('.side-toc a'));
+    const byId = {};
+    links.forEach(a => { byId[a.getAttribute('href').slice(1)] = a; });
+    const steps = document.querySelectorAll('.step[id]');
+    let current = null;
+    function setActive(id) {
+      if (id === current) return;
+      current = id;
+      links.forEach(l => l.classList.remove('active'));
+      if (byId[id]) byId[id].classList.add('active');
+    }
+    const observer = new IntersectionObserver((entries) => {
+      // Pick the visible step closest to the top of the viewport
+      const visible = entries.filter(e => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible.length) setActive(visible[0].target.id);
+    }, { rootMargin: '-20% 0px -65% 0px', threshold: 0 });
+    steps.forEach(s => observer.observe(s));
+    // Activate first step on load
+    if (steps.length) setActive(steps[0].id);
+  })();
+</script>
+
+</body>
+</html>
