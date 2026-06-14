@@ -308,7 +308,7 @@
       <a href="#features" class="hide-mobile">Features</a>
       <a href="#install">Install</a>
       <a href="guide.html">.NET Guide</a>
-      <a href="guide-brew.html">Homebrew Guide</a>
+      <a href="guide-brew.html" class="mac-only" style="display:none">Homebrew Guide</a>
       <a href="#usage" class="hide-mobile">Usage</a>
       <a href="#build" class="hide-mobile">Build</a>
       <a href="#contributing" class="hide-mobile">Contribute</a>
@@ -550,6 +550,14 @@
       if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
+
+  // Homebrew is macOS-only — reveal its menu links only on macOS.
+  (function () {
+    const ua = navigator.userAgent || '';
+    const plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    const isMac = /Mac/i.test(plat + ' ' + ua) && !/iPhone|iPad|iPod/i.test(ua);
+    if (isMac) document.querySelectorAll('.mac-only').forEach(el => { el.style.display = ''; });
+  })();
 </script>
 
 </body>

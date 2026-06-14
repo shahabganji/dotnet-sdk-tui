@@ -366,7 +366,7 @@
       <a href="index.html#features" class="hide-mobile">Features</a>
       <a href="index.html#install">Install</a>
       <a href="guide.html" class="active">.NET Guide</a>
-      <a href="guide-brew.html">Homebrew Guide</a>
+      <a href="guide-brew.html" class="mac-only" style="display:none">Homebrew Guide</a>
       <a href="https://github.com/shahabganji/dotnet-sdk-tui" target="_blank">GitHub</a>
       <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><i class="bi bi-moon-stars"></i> / <i class="bi bi-sun"></i></button>
     </div>
@@ -582,7 +582,7 @@
   <!-- End nav -->
   <div class="guide-end">
     <a href="index.html" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Back to Home</a>
-    <a href="guide-brew.html" class="btn btn-secondary">Homebrew Guide <i class="bi bi-arrow-right"></i></a>
+    <a href="guide-brew.html" class="btn btn-secondary mac-only" style="display:none">Homebrew Guide <i class="bi bi-arrow-right"></i></a>
     <a href="#launch" class="btn btn-secondary">Back to top <i class="bi bi-arrow-up"></i></a>
   </div>
 
@@ -637,6 +637,14 @@
     steps.forEach(s => observer.observe(s));
     // Activate first step on load
     if (steps.length) setActive(steps[0].id);
+  })();
+
+  // Homebrew is macOS-only — reveal its menu links only on macOS.
+  (function () {
+    var ua = navigator.userAgent || '';
+    var plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    var isMac = /Mac/i.test(plat + ' ' + ua) && !/iPhone|iPad|iPod/i.test(ua);
+    if (isMac) document.querySelectorAll('.mac-only').forEach(function (el) { el.style.display = ''; });
   })();
 </script>
 
