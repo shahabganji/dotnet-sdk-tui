@@ -423,7 +423,10 @@ public sealed class App
         Console.WriteLine($"Running: {cmd} {args}");
         Console.WriteLine(new string('-', 60));
 
-        int exitCode = await ProcessRunner.RunInteractiveAsync(cmd, args);
+        // Brew commands run non-interactively (skip the "Ask mode" y/n prompt).
+        IReadOnlyDictionary<string, string>? environment =
+            cmd == "brew" ? BrewService.NonInteractiveEnv : null;
+        int exitCode = await ProcessRunner.RunInteractiveAsync(cmd, args, environment: environment);
 
         Console.WriteLine();
         Console.WriteLine(new string('-', 60));

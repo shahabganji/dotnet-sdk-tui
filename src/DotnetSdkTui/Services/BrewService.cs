@@ -12,6 +12,13 @@ public static class BrewService
     /// <summary>Max search results to enrich + display (brew's catalog is huge).</summary>
     public const int MaxSearchResults = 25;
 
+    /// <summary>
+    /// Environment for non-interactive brew runs: disables "Ask mode" so install/upgrade
+    /// don't prompt "Do you want to proceed? [y/n]" — the user already chose the action.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> NonInteractiveEnv =
+        new Dictionary<string, string> { ["HOMEBREW_NO_ASK"] = "1" };
+
     /// <summary>Whether Homebrew is supported on this platform (macOS only).</summary>
     public static bool IsSupported() => OperatingSystem.IsMacOS();
 

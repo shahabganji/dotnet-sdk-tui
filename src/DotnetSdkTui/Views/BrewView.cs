@@ -408,7 +408,8 @@ public sealed class BrewView : IView
             return;
         }
 
-        PendingCommand = BrewService.UpgradeCommand(pkg.Name);
+        var (command, args) = BrewService.UpgradeCommand(pkg.Name);
+        PendingCommand = (command, args, null);
     }
 
     private static IRenderable RenderPanel(bool focused, IRenderable content)
