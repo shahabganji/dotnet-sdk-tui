@@ -440,13 +440,18 @@
   <section class="step" id="install-sdk">
     <div class="step-header"><span class="step-num">3</span><h2>Install a .NET SDK</h2></div>
     <p class="lead">With dotnetup in place, the SDKs panel shows the latest version of each active and preview channel. Anything not yet on your machine is marked <span style="color:var(--blue)"><strong>Available</strong></span>.</p>
-    <p>Focus the <strong>SDKs</strong> panel with <kbd>Tab</kbd>, move to the version you want with <kbd>↑</kbd> <kbd>↓</kbd>, and press <kbd>i</kbd> to install it. dsm streams the real download and install progress:</p>
+    <p>Focus the <strong>SDKs</strong> panel with <kbd>Tab</kbd> and move to the version you want with <kbd>↑</kbd> <kbd>↓</kbd>. The line below the table describes the selected channel, and the footer shows the actions you can take.</p>
     <figure>
-      <img src="images/08-install-running.png" alt="Live download progress while installing a .NET SDK">
+      <img src="images/08-sdk-select.png" alt="SDKs panel with an available .NET SDK selected, ready to install">
+      <figcaption>The SDKs panel with <code>10.0.301</code> selected and marked <span style="color:var(--blue)">Available</span> — ready to install.</figcaption>
+    </figure>
+    <p>Press <kbd>i</kbd> to install it. dsm streams the real download and install progress:</p>
+    <figure>
+      <img src="images/09-install-running.png" alt="Live download progress while installing a .NET SDK">
       <figcaption>Live install output — dsm shows the exact <code>dotnetup</code> command and a real progress bar.</figcaption>
     </figure>
     <figure>
-      <img src="images/09-install-complete.png" alt="SDK install completed successfully">
+      <img src="images/10-install-complete.png" alt="SDK install completed successfully">
       <figcaption>On success, dsm lists what was installed and waits for a keypress before returning.</figcaption>
     </figure>
     <ul>
@@ -496,12 +501,12 @@
     <div class="step-header"><span class="step-num">6</span><h2>Uninstall an SDK</h2></div>
     <p class="lead">Back on the main screen, focus the <strong>SDKs</strong> panel, highlight an installed version, and press <kbd>u</kbd>.</p>
     <figure>
-      <img src="images/10-sdk-selected-uninstall.png" alt="An installed SDK selected, ready to uninstall">
+      <img src="images/11-sdk-selected-uninstall.png" alt="An installed SDK selected, ready to uninstall">
       <figcaption><code>8.0.421</code> selected for removal — the description line below the table explains the channel's support status.</figcaption>
     </figure>
     <p>dsm figures out the right dotnetup install spec automatically — feature bands, channels, or <code>latest</code> — so removal just works, then streams the output:</p>
     <figure>
-      <img src="images/11-uninstall-running.png" alt="Live output while uninstalling a .NET SDK">
+      <img src="images/12-uninstall-running.png" alt="Live output while uninstalling a .NET SDK">
       <figcaption>dsm removes the SDK and any now-unused components, ending with <span style="color:var(--lime)">Done</span>.</figcaption>
     </figure>
     <div class="callout warn">
