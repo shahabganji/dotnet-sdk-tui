@@ -254,8 +254,8 @@ public sealed class App
 
     private async Task HandleMainKeyAsync(ConsoleKeyInfo key)
     {
-        // F2 opens the Homebrew workspace
-        if (key.Key == ConsoleKey.F2 && !GetFocusedMainView().IsTextInputActive)
+        // F2 opens the Homebrew workspace (macOS only)
+        if (key.Key == ConsoleKey.F2 && BrewService.IsSupported() && !GetFocusedMainView().IsTextInputActive)
         {
             _screen = Screen.Brew;
             AnsiConsole.Clear();

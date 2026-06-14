@@ -84,6 +84,9 @@ public sealed class BrewView : IView
 
     public IRenderable Render(bool focused)
     {
+        if (!BrewService.IsSupported())
+            return RenderPanel(focused, Ui.Info("Homebrew is only available on macOS."));
+
         if (!BrewService.IsInstalled())
             return RenderPanel(focused, new Rows(
                 Ui.Info("Homebrew is not installed."),

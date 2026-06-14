@@ -331,7 +331,10 @@ public static class Ui
     /// </summary>
     public static IRenderable Footer(string hints, string? globalOverride = null)
     {
-        string globalText = globalOverride ?? "Tab:Switch  F2:Brew  F3:Search  F6:Theme  q:Quit";
+        // Homebrew is macOS-only, so only advertise the F2 workspace there.
+        string globalText = globalOverride ?? (OperatingSystem.IsMacOS()
+            ? "Tab:Switch  F2:Brew  F3:Search  F6:Theme  q:Quit"
+            : "Tab:Switch  F3:Search  F6:Theme  q:Quit");
         string global = $"[{DarkGray}]{Markup.Escape(globalText)}[/]";
         string hintMarkup = $"[{Gold}]{hints}[/]";
         return new Markup($" {hintMarkup}  {global}");

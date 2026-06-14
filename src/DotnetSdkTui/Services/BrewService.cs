@@ -12,8 +12,11 @@ public static class BrewService
     /// <summary>Max search results to enrich + display (brew's catalog is huge).</summary>
     public const int MaxSearchResults = 25;
 
-    /// <summary>Checks whether the brew command is available on the system PATH.</summary>
-    public static bool IsInstalled() => ProcessRunner.IsCommandAvailable("brew");
+    /// <summary>Whether Homebrew is supported on this platform (macOS only).</summary>
+    public static bool IsSupported() => OperatingSystem.IsMacOS();
+
+    /// <summary>Checks whether brew is supported and available on the system PATH.</summary>
+    public static bool IsInstalled() => IsSupported() && ProcessRunner.IsCommandAvailable("brew");
 
     /// <summary>
     /// Lists installed formulae via <c>brew list --versions --formula</c>.
