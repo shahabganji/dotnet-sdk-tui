@@ -17,8 +17,9 @@ public sealed class App
     private readonly RuntimesView _runtimesView;
     private readonly SearchView _searchView;
     private readonly SetupView _setupView;
+    private readonly BrewView _brewView;
 
-    private enum Screen { Main, Search }
+    private enum Screen { Main, Search, Brew }
     private Screen _screen = Screen.Main;
 
     // Focus on main screen: 0=SDKs, 1=Runtimes, 2=Setup
@@ -42,6 +43,7 @@ public sealed class App
         _runtimesView = new RuntimesView();
         _searchView = new SearchView();
         _setupView = new SetupView();
+        _brewView = new BrewView();
     }
 
     public async Task RunAsync()
@@ -154,6 +156,12 @@ public sealed class App
             return;
         }
 
+        if (_screen == Screen.Brew)
+        {
+            RenderBrewScreen();
+            return;
+        }
+
         RenderMainScreen();
     }
 
@@ -210,6 +218,23 @@ public sealed class App
         AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }
 
+    private void RenderBrewScreen()
+    {
+        var root = new Layout("Root")
+            .SplitRows(
+                new Layout("TopPad").Size(1),
+                new Layout("Top").Size(3),
+                new Layout("Body").MinimumSize(10),
+                new Layout("Footer").Size(2));
+
+        root["TopPad"].Update(new Text(""));
+        root["Top"].Update(Ui.WelcomePanel());
+        root["Body"].Update(_brewView.Render(true));
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), "F1:.NET  F6:Theme  q:Quit")));
+
+        AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
+    }
+
     private async Task HandleKeyAsync(ConsoleKeyInfo key)
     {
         if (_screen == Screen.Search)
@@ -218,11 +243,26 @@ public sealed class App
             return;
         }
 
+        if (_screen == Screen.Brew)
+        {
+            await HandleBrewKeyAsync(key);
+            return;
+        }
+
         await HandleMainKeyAsync(key);
     }
 
     private async Task HandleMainKeyAsync(ConsoleKeyInfo key)
     {
+        // F2 opens the Homebrew workspace
+        if (key.Key == ConsoleKey.F2 && !GetFocusedMainView().IsTextInputActive)
+        {
+            _screen = Screen.Brew;
+            AnsiConsole.Clear();
+            await _brewView.ActivateAsync();
+            return;
+        }
+
         // F3 opens search
         if (key.Key == ConsoleKey.F3 && !GetFocusedMainView().IsTextInputActive)
         {
@@ -301,6 +341,33 @@ public sealed class App
         }
     }
 
+    private async Task HandleBrewKeyAsync(ConsoleKeyInfo key)
+    {
+        // F5/F6 toggles theme even in the brew workspace
+        if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
+        {
+            ThemeManager.Toggle();
+            return;
+        }
+
+        // F1 returns to the .NET main screen (works even while typing a search)
+        if (key.Key == ConsoleKey.F1)
+        {
+            _screen = Screen.Main;
+            AnsiConsole.Clear();
+            return;
+        }
+
+        var result = await _brewView.HandleKeyAsync(key);
+
+        // Quit from the brew workspace means "go back to main"
+        if (result == KeyResult.Quit)
+        {
+            _screen = Screen.Main;
+            AnsiConsole.Clear();
+        }
+    }
+
     /// <summary>
     /// Checks if any view has a pending interactive command.
     /// If so, exits TUI, runs the command with real terminal output, then resumes.
@@ -328,6 +395,11 @@ public sealed class App
         {
             pending = _setupView.PendingCommand;
             _setupView.ClearPendingCommand();
+        }
+        else if (_brewView.PendingCommand is not null)
+        {
+            pending = _brewView.PendingCommand;
+            _brewView.ClearPendingCommand();
         }
 
         if (pending is null)
@@ -372,14 +444,22 @@ public sealed class App
         // Re-apply theme background before returning to TUI
         ThemeManager.ApplyBackground();
 
-        // Refresh PATH (add dotnetup + dotnet to process PATH and shell profile)
-        DotnetUpService.RefreshPath();
-        DotnetUpService.EnsurePathInShellProfile();
-        _sdksView.Refresh();
-        _runtimesView.Refresh();
-        _setupView.Refresh();
-        _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
-        _ = LoadSetupInfoAsync();
+        if (cmd == "brew")
+        {
+            // Brew commands only affect the Homebrew workspace; skip dotnet PATH logic.
+            _brewView.Refresh();
+        }
+        else
+        {
+            // Refresh PATH (add dotnetup + dotnet to process PATH and shell profile)
+            DotnetUpService.RefreshPath();
+            DotnetUpService.EnsurePathInShellProfile();
+            _sdksView.Refresh();
+            _runtimesView.Refresh();
+            _setupView.Refresh();
+            _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
+            _ = LoadSetupInfoAsync();
+        }
     }
 
     /// <summary>
@@ -459,6 +539,7 @@ public sealed class App
         return _sdksView.NeedsLiveUpdate
             || _runtimesView.NeedsLiveUpdate
             || _searchView.NeedsLiveUpdate
+            || _brewView.NeedsLiveUpdate
             || AppVersion.CheckInProgress;
     }
 

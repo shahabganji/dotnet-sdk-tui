@@ -7,6 +7,7 @@ namespace DotnetSdkTui.Models;
 /// </summary>
 [JsonSerializable(typeof(SdkListResponse))]
 [JsonSerializable(typeof(DotnetUpInfo))]
+[JsonSerializable(typeof(BrewInfoResponse))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal partial class AppJsonContext : JsonSerializerContext
 {
