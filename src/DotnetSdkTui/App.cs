@@ -230,7 +230,7 @@ public sealed class App
         root["TopPad"].Update(new Text(""));
         root["Top"].Update(Ui.WelcomePanel());
         root["Body"].Update(_brewView.Render(true));
-        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), "F1:.NET  F6:Theme  q:Quit")));
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), "F1:.NET  F3:Search  F6:Theme  q:Quit")));
 
         AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }

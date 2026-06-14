@@ -25,6 +25,9 @@ public static class BrewService
         if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.Output))
             return [];
 
+        // Latest-available versions for formulae that have an update pending.
+        Dictionary<string, string> outdated = await GetOutdatedAsync(ct);
+
         var packages = new List<BrewPackage>();
         foreach (string rawLine in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -34,12 +37,40 @@ public static class BrewService
 
             string name = parts[0];
             // Last token is the most recently installed version
-            string? version = parts.Length > 1 ? parts[^1] : null;
-            packages.Add(new BrewPackage(name, version, version, null, true));
+            string? installed = parts.Length > 1 ? parts[^1] : null;
+            // If outdated, the latest available differs; otherwise it equals the installed version.
+            string? latest = outdated.TryGetValue(name, out string? newer) ? newer : installed;
+            packages.Add(new BrewPackage(name, installed, latest, null, true));
         }
 
         packages.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         return packages;
+    }
+
+    /// <summary>
+    /// Maps formula name → latest available version for installed formulae that are outdated,
+    /// via <c>brew outdated --json=v2</c>. Returns an empty map on failure (best-effort).
+    /// </summary>
+    private static async Task<Dictionary<string, string>> GetOutdatedAsync(CancellationToken ct)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            BrewOutdatedResponse? outdated = await ProcessRunner.RunJsonAsync(
+                "brew", "outdated --json=v2 --formula", AppJsonContext.Default.BrewOutdatedResponse, ct: ct);
+            if (outdated?.Formulae is null)
+                return map;
+
+            foreach (BrewOutdated f in outdated.Formulae)
+            {
+                if (!string.IsNullOrWhiteSpace(f.Name) && !string.IsNullOrWhiteSpace(f.CurrentVersion))
+                    map[f.Name] = f.CurrentVersion;
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { /* best-effort: treat all as up-to-date */ }
+
+        return map;
     }
 
     /// <summary>

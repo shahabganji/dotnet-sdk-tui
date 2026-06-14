@@ -144,7 +144,7 @@ public sealed class BrewView : IView
 
         Table table = _mode == Mode.Search
             ? Ui.StyledTable("", "Name", "Version", "Status")
-            : Ui.StyledTable("", "Name", "Version");
+            : Ui.StyledTable("", "Name", "Installed", "Available");
 
         for (int i = _scrollOffset; i < endIndex; i++)
         {
@@ -152,10 +152,10 @@ public sealed class BrewView : IView
             bool selected = focused && i == _selectedIndex;
             string pointer = selected ? ">" : " ";
             string style = selected ? $"{Ui.Yellow} bold" : Ui.White;
-            string version = pkg.IsInstalled ? (pkg.InstalledVersion ?? "-") : (pkg.LatestVersion ?? "-");
 
             if (_mode == Mode.Search)
             {
+                string version = pkg.IsInstalled ? (pkg.InstalledVersion ?? "-") : (pkg.LatestVersion ?? "-");
                 string statusColor = pkg.IsInstalled ? Ui.Green : Ui.Blue;
                 string statusText = pkg.IsInstalled ? "Installed" : "Available";
                 table.AddRow(
@@ -166,10 +166,20 @@ public sealed class BrewView : IView
             }
             else
             {
+                string installed = pkg.InstalledVersion ?? "-";
+                bool hasUpdate = !string.IsNullOrEmpty(pkg.LatestVersion)
+                    && !string.Equals(pkg.LatestVersion, pkg.InstalledVersion, StringComparison.Ordinal);
+                string available = pkg.LatestVersion ?? installed;
+                // Gold + arrow when an update is available; muted when already up to date.
+                string availableMarkup = hasUpdate
+                    ? $"[{Ui.Gold}]{Markup.Escape(available)} ⬆[/]"
+                    : $"[{Ui.Gray}]{Markup.Escape(available)}[/]";
+
                 table.AddRow(
                     new Markup($"[{style}]{pointer}[/]"),
                     new Markup($"[{style}]{Markup.Escape(pkg.Name)}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(version)}[/]"));
+                    new Markup($"[{style}]{Markup.Escape(installed)}[/]"),
+                    new Markup(availableMarkup));
             }
         }
 
@@ -182,7 +192,7 @@ public sealed class BrewView : IView
             return "r:Refresh  Esc:Back  (install Homebrew to manage packages)";
         if (_mode == Mode.Search)
             return "type:Search  up/down:Navigate  Enter:Install  Esc:Cancel";
-        return "up/down:Navigate  /:Search  u:Uninstall  r:Refresh  Esc:Back";
+        return "up/down:Navigate  F3:Search  u:Uninstall  r:Refresh  Esc:Back";
     }
 
     public Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)
@@ -209,7 +219,8 @@ public sealed class BrewView : IView
                 if (_installed.Count > 0) _selectedIndex = Math.Min(_installed.Count - 1, _selectedIndex + 1);
                 return KeyResult.Handled;
 
-            case ConsoleKey.Oem2: // "/"
+            case ConsoleKey.F3:    // consistent with the .NET workspace
+            case ConsoleKey.Oem2:  // "/" accelerator
                 EnterSearchMode();
                 return KeyResult.Handled;
 

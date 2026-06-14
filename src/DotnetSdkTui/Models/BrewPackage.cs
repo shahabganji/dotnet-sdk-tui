@@ -51,3 +51,20 @@ internal sealed class BrewInstalled
     [JsonPropertyName("version")]
     public string? Version { get; set; }
 }
+
+// ── JSON shapes for `brew outdated --json=v2 --formula` ──────────────────
+
+internal sealed class BrewOutdatedResponse
+{
+    [JsonPropertyName("formulae")]
+    public List<BrewOutdated>? Formulae { get; set; }
+}
+
+internal sealed class BrewOutdated
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("current_version")]
+    public string? CurrentVersion { get; set; }
+}
