@@ -151,7 +151,8 @@
       display: grid;
       grid-template-columns: 220px minmax(0, 1fr);
       gap: 3rem;
-      align-items: start;
+      /* NOTE: do NOT set align-items:start here — the sidebar cell must
+         stretch to the full row height so the sticky nav has room to travel. */
     }
     .guide-main { min-width: 0; }
 
