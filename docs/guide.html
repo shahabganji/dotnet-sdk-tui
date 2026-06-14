@@ -143,33 +143,63 @@
       margin-bottom: 0.5rem;
     }
 
-    /* ── Table of contents ───────────────────── */
-    .toc {
+    /* ── Two-column layout: sticky sidebar + content ── */
+    .guide-layout {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 3rem;
+      align-items: start;
+    }
+    .guide-main { min-width: 0; }
+
+    /* ── Sticky side navigation (table of contents) ── */
+    .side-toc {
+      position: sticky;
+      top: 84px;
       background: var(--bg-surface);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 1.5rem 1.8rem;
-      margin: 0 0 3rem;
+      padding: 1.3rem 1.3rem 1rem;
     }
-    .toc h2 { font-size: 1rem; margin-bottom: 1rem; color: var(--teal); text-transform: uppercase; letter-spacing: 0.05em; }
-    .toc ol { list-style: none; counter-reset: step; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem 1.5rem; }
-    .toc ol li { counter-increment: step; }
-    .toc ol li a {
+    .side-toc h2 {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--teal); margin-bottom: 1rem;
+    }
+    .side-toc ol { list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 0.25rem; }
+    .side-toc li { counter-increment: step; }
+    .side-toc a {
       display: flex; align-items: center; gap: 0.7rem;
-      color: var(--text); text-decoration: none;
-      padding: 0.4rem 0.5rem; border-radius: 8px;
+      color: var(--text-muted); text-decoration: none;
+      padding: 0.45rem 0.6rem; border-radius: 8px;
+      font-size: 0.9rem; line-height: 1.3;
       transition: background 0.2s, color 0.2s;
     }
-    .toc ol li a:hover { background: var(--bg-card); color: var(--teal); }
-    .toc ol li a::before {
+    .side-toc a::before {
       content: counter(step);
       flex: 0 0 auto;
-      width: 1.7rem; height: 1.7rem;
+      width: 1.5rem; height: 1.5rem;
       display: grid; place-items: center;
-      background: var(--teal); color: #fff;
-      border-radius: 50%; font-size: 0.8rem; font-weight: 700;
+      background: var(--bg-card); color: var(--text-muted);
+      border-radius: 50%; font-size: 0.75rem; font-weight: 700;
+      transition: background 0.2s, color 0.2s;
     }
-    @media (max-width: 640px) { .toc ol { grid-template-columns: 1fr; } }
+    .side-toc a:hover { color: var(--teal); background: var(--bg-card); }
+    .side-toc a.active { color: var(--teal); background: var(--bg-card); font-weight: 600; }
+    .side-toc a.active::before { background: var(--teal); color: #fff; }
+
+    /* Collapse to a stacked card on narrow screens */
+    @media (max-width: 900px) {
+      .guide-layout { grid-template-columns: 1fr; gap: 0; }
+      .guide-sidebar { margin-bottom: 2.5rem; }
+      .side-toc { position: static; top: auto; }
+      .side-toc ol { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.3rem 1rem; }
+    }
+    @media (max-width: 520px) {
+      .side-toc ol { grid-template-columns: 1fr; }
+    }
 
     /* ── Icon legend ─────────────────────────── */
     .legend {
@@ -333,20 +363,24 @@
   </div>
 </section>
 
-<div class="container">
+<div class="guide-layout">
 
-  <!-- Table of contents -->
-  <div class="toc">
-    <h2>What you'll do</h2>
-    <ol>
-      <li><a href="#launch">Launch dsm</a></li>
-      <li><a href="#dotnetup">Install dotnetup</a></li>
-      <li><a href="#install-sdk">Install a .NET SDK</a></li>
-      <li><a href="#search">Search for older versions</a></li>
-      <li><a href="#install-search">Install from search</a></li>
-      <li><a href="#uninstall">Uninstall an SDK</a></li>
-    </ol>
-  </div>
+  <!-- Sticky side navigation -->
+  <aside class="guide-sidebar">
+    <nav class="side-toc">
+      <h2>What you'll do</h2>
+      <ol>
+        <li><a href="#launch">Launch dsm</a></li>
+        <li><a href="#dotnetup">Install dotnetup</a></li>
+        <li><a href="#install-sdk">Install a .NET SDK</a></li>
+        <li><a href="#search">Search for older versions</a></li>
+        <li><a href="#install-search">Install from search</a></li>
+        <li><a href="#uninstall">Uninstall an SDK</a></li>
+      </ol>
+    </nav>
+  </aside>
+
+  <div class="guide-main">
 
   <!-- Icon legend -->
   <div class="legend">
@@ -481,7 +515,8 @@
     <a href="#launch" class="btn btn-secondary">Back to top <i class="bi bi-arrow-up"></i></a>
   </div>
 
-</div>
+  </div><!-- /guide-main -->
+</div><!-- /guide-layout -->
 
 <!-- Footer -->
 <footer>
@@ -508,6 +543,30 @@
   }
   const saved = localStorage.getItem('theme');
   if (saved) document.documentElement.setAttribute('data-theme', saved);
+
+  // Scrollspy: highlight the current step in the side nav
+  (function () {
+    const links = Array.from(document.querySelectorAll('.side-toc a'));
+    const byId = {};
+    links.forEach(a => { byId[a.getAttribute('href').slice(1)] = a; });
+    const steps = document.querySelectorAll('.step[id]');
+    let current = null;
+    function setActive(id) {
+      if (id === current) return;
+      current = id;
+      links.forEach(l => l.classList.remove('active'));
+      if (byId[id]) byId[id].classList.add('active');
+    }
+    const observer = new IntersectionObserver((entries) => {
+      // Pick the visible step closest to the top of the viewport
+      const visible = entries.filter(e => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible.length) setActive(visible[0].target.id);
+    }, { rootMargin: '-20% 0px -65% 0px', threshold: 0 });
+    steps.forEach(s => observer.observe(s));
+    // Activate first step on load
+    if (steps.length) setActive(steps[0].id);
+  })();
 </script>
 
 </body>
