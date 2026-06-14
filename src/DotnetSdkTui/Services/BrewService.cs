@@ -125,6 +125,9 @@ public static class BrewService
     /// <summary>The command to uninstall a formula (run interactively by the App).</summary>
     public static (string Command, string Args) UninstallCommand(string name) => ("brew", $"uninstall {name}");
 
+    /// <summary>The command to upgrade a formula to its latest version (run interactively by the App).</summary>
+    public static (string Command, string Args) UpgradeCommand(string name) => ("brew", $"upgrade {name}");
+
     /// <summary>
     /// Fetches version/description/installed-state for a set of formulae via
     /// <c>brew info --json=v2</c>. Returns an empty map on any failure (best-effort enrichment).

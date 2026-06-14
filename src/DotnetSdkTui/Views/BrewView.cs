@@ -195,7 +195,7 @@ public sealed class BrewView : IView
             return "r:Refresh  Esc:Back  (install Homebrew to manage packages)";
         if (_mode == Mode.Search)
             return "type:Search  up/down:Navigate  Enter:Install  Esc:Cancel";
-        return "up/down:Navigate  F3:Search  u:Uninstall  r:Refresh  Esc:Back";
+        return "up/down:Navigate  p:Upgrade  u:Uninstall  r:Refresh  Esc:Back";
     }
 
     public Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)
@@ -229,6 +229,10 @@ public sealed class BrewView : IView
 
             case ConsoleKey.U:
                 RequestUninstall();
+                return KeyResult.Handled;
+
+            case ConsoleKey.P:
+                RequestUpgrade();
                 return KeyResult.Handled;
 
             case ConsoleKey.R:
@@ -389,6 +393,22 @@ public sealed class BrewView : IView
         BrewPackage pkg = _installed[_selectedIndex];
         var (command, args) = BrewService.UninstallCommand(pkg.Name);
         PendingCommand = (command, args, null);
+    }
+
+    private void RequestUpgrade()
+    {
+        if (_installed.Count == 0 || _selectedIndex >= _installed.Count) return;
+
+        BrewPackage pkg = _installed[_selectedIndex];
+        bool hasUpdate = !string.IsNullOrEmpty(pkg.LatestVersion)
+            && !string.Equals(pkg.LatestVersion, pkg.InstalledVersion, StringComparison.Ordinal);
+        if (!hasUpdate)
+        {
+            _statusMessage = $"{pkg.Name} is already up to date.";
+            return;
+        }
+
+        PendingCommand = BrewService.UpgradeCommand(pkg.Name);
     }
 
     private static IRenderable RenderPanel(bool focused, IRenderable content)
