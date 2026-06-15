@@ -18,6 +18,8 @@ public sealed class SdksView : IView
         string SupportPhase,
         string EolDate,
         bool IsInstalled,
+        bool IsManaged,
+        string InstallRoot,
         string Architecture,
         string LifecycleIcon,
         string Description);
@@ -66,6 +68,11 @@ public sealed class SdksView : IView
         try
         {
             var installedTask = DotnetUpService.ListInstalledAsync();
+            // Installations dotnetup actually manages; empty when dotnetup is absent or tracks nothing.
+            Task<List<SdkInfo>> trackedTask = DotnetUpService.IsInstalled()
+                ? DotnetUpService.ListTrackedAsync()
+                : Task.FromResult(new List<SdkInfo>());
+
             List<ChannelInfo> channels;
             try
             {
@@ -78,6 +85,12 @@ public sealed class SdksView : IView
             }
 
             List<SdkInfo> installed = await installedTask;
+            List<SdkInfo> tracked = await trackedTask;
+            var managedRoots = tracked
+                .Select(t => t.InstallRoot)
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             var rows = new List<SdkRow>();
 
@@ -88,12 +101,16 @@ public sealed class SdksView : IView
                 var channelInfo = channels.FirstOrDefault(c =>
                     sdk.Version.StartsWith(c.ChannelVersion, StringComparison.OrdinalIgnoreCase));
 
+                bool isManaged = DotnetUpService.IsManagedInstallRoot(sdk.InstallRoot, managedRoots);
+
                 string supportPhase = channelInfo is not null
                     ? FormatSupportPhase(channelInfo.SupportPhase)
                     : "Installed";
                 string eolDate = Ui.FormatDate(channelInfo?.EolDate);
                 string lifecycleIcon = GetLifecycleIcon(channelInfo?.SupportPhase, channelInfo?.EolDate);
-                string description = GetChannelDescription(channel, channelInfo?.SupportPhase ?? "unknown");
+                string description = isManaged
+                    ? GetChannelDescription(channel, channelInfo?.SupportPhase ?? "unknown")
+                    : $"Installed outside dotnetup at {sdk.InstallRoot} - dotnetup can't manage it.";
 
                 rows.Add(new SdkRow(
                     sdk.Version,
@@ -101,6 +118,8 @@ public sealed class SdksView : IView
                     supportPhase,
                     eolDate,
                     true,
+                    isManaged,
+                    sdk.InstallRoot,
                     sdk.Architecture.Length > 0 ? sdk.Architecture : System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant(),
                     lifecycleIcon,
                     description));
@@ -130,6 +149,8 @@ public sealed class SdksView : IView
                         FormatSupportPhase(channel.SupportPhase),
                         Ui.FormatDate(channel.EolDate),
                         false,
+                        false,
+                        "",
                         "-",
                         lifecycleIcon,
                         GetChannelDescription(channel.ChannelVersion, channel.SupportPhase)));
@@ -191,7 +212,12 @@ public sealed class SdksView : IView
 
             string statusText;
             string statusColor;
-            if (row.IsInstalled)
+            if (row.IsInstalled && !row.IsManaged)
+            {
+                statusColor = Ui.Gold;
+                statusText = "External";
+            }
+            else if (row.IsInstalled)
             {
                 statusColor = Ui.Green;
                 statusText = "Installed";
@@ -311,6 +337,12 @@ public sealed class SdksView : IView
             return;
         }
 
+        if (!row.IsManaged)
+        {
+            _statusMessage = $"{row.Version} was installed outside dotnetup ({row.InstallRoot}) - dotnetup can only uninstall SDKs it installed.";
+            return;
+        }
+
         string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, "SDK");
         PendingCommand = ("dotnetup", $"sdk uninstall {spec} --source all");
     }
@@ -329,6 +361,12 @@ public sealed class SdksView : IView
         if (!DotnetUpService.IsInstalled())
         {
             _statusMessage = "dotnetup not found. Cannot update without dotnetup.";
+            return;
+        }
+
+        if (!row.IsManaged)
+        {
+            _statusMessage = $"{row.Version} was installed outside dotnetup ({row.InstallRoot}) - install a managed version with 'i' before updating here.";
             return;
         }
 

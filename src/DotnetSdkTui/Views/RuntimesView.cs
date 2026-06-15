@@ -19,6 +19,8 @@ public sealed class RuntimesView : IView
         string SupportPhase,
         string EolDate,
         bool IsInstalled,
+        bool IsManaged,
+        string InstallRoot,
         string Architecture,
         string LifecycleIcon,
         string Description);
@@ -65,6 +67,11 @@ public sealed class RuntimesView : IView
         try
         {
             var installedTask = DotnetUpService.ListInstalledAsync();
+            // Installations dotnetup actually manages; empty when dotnetup is absent or tracks nothing.
+            Task<List<SdkInfo>> trackedTask = DotnetUpService.IsInstalled()
+                ? DotnetUpService.ListTrackedAsync()
+                : Task.FromResult(new List<SdkInfo>());
+
             List<ChannelInfo> channels;
             try
             {
@@ -77,6 +84,13 @@ public sealed class RuntimesView : IView
             }
 
             List<SdkInfo> installed = await installedTask;
+            List<SdkInfo> tracked = await trackedTask;
+            var managedRoots = tracked
+                .Select(t => t.InstallRoot)
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             var rows = new List<RuntimeRow>();
 
             // Show installed runtimes (not SDKs)
@@ -86,11 +100,16 @@ public sealed class RuntimesView : IView
                 var channelInfo = channels.FirstOrDefault(c =>
                     rt.Version.StartsWith(c.ChannelVersion, StringComparison.OrdinalIgnoreCase));
 
+                bool isManaged = DotnetUpService.IsManagedInstallRoot(rt.InstallRoot, managedRoots);
+
                 string supportPhase = channelInfo is not null
                     ? FormatSupportPhase(channelInfo.SupportPhase)
                     : "Installed";
                 string eolDate = Ui.FormatDate(channelInfo?.EolDate);
                 string lifecycleIcon = GetLifecycleIcon(channelInfo?.SupportPhase, channelInfo?.EolDate);
+                string description = isManaged
+                    ? $".NET {channel} {rt.DisplayComponent} - {supportPhase}"
+                    : $"Installed outside dotnetup at {rt.InstallRoot} - dotnetup can't manage it.";
 
                 rows.Add(new RuntimeRow(
                     rt.DisplayComponent,
@@ -99,9 +118,11 @@ public sealed class RuntimesView : IView
                     supportPhase,
                     eolDate,
                     true,
+                    isManaged,
+                    rt.InstallRoot,
                     rt.Architecture.Length > 0 ? rt.Architecture : System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant(),
                     lifecycleIcon,
-                    $".NET {channel} {rt.DisplayComponent} - {supportPhase}"));
+                    description));
             }
 
             // Show latest available runtime for channels where it's not already installed
@@ -129,6 +150,8 @@ public sealed class RuntimesView : IView
                         FormatSupportPhase(channel.SupportPhase),
                         Ui.FormatDate(channel.EolDate),
                         false,
+                        false,
+                        "",
                         "-",
                         lifecycleIcon,
                         $".NET {channel.ChannelVersion} Runtime - {FormatSupportPhase(channel.SupportPhase)}"));
@@ -190,7 +213,12 @@ public sealed class RuntimesView : IView
 
             string statusText;
             string statusColor;
-            if (row.IsInstalled)
+            if (row.IsInstalled && !row.IsManaged)
+            {
+                statusColor = Ui.Gold;
+                statusText = "External";
+            }
+            else if (row.IsInstalled)
             {
                 statusColor = Ui.Green;
                 statusText = "Installed";
@@ -298,6 +326,11 @@ public sealed class RuntimesView : IView
         if (!DotnetUpService.IsInstalled())
         {
             _statusMessage = "dotnetup not found.";
+            return;
+        }
+        if (!row.IsManaged)
+        {
+            _statusMessage = $"{row.Version} was installed outside dotnetup ({row.InstallRoot}) - dotnetup can only uninstall runtimes it installed.";
             return;
         }
         string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, row.Component);

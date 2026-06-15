@@ -39,6 +39,78 @@ public static class DotnetUpService
         return installations;
     }
 
+    /// <summary>
+    /// Lists the installations that dotnetup actually tracks (i.e. installed and managed by
+    /// dotnetup itself), parsed from <c>dotnetup list --format Json</c>'s <c>installations</c> array.
+    /// Returns an empty list when dotnetup tracks nothing or the command fails — callers should
+    /// treat an empty result as "dotnetup manages no installations".
+    /// </summary>
+    public static async Task<List<SdkInfo>> ListTrackedAsync(CancellationToken ct = default)
+    {
+        var tracked = new List<SdkInfo>();
+        try
+        {
+            ProcessResult result = await ProcessRunner.RunAsync("dotnetup", "list --format Json", ct: ct);
+            if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.Output))
+                return tracked;
+
+            using var doc = System.Text.Json.JsonDocument.Parse(result.Output);
+            if (!doc.RootElement.TryGetProperty("installations", out var installations))
+                return tracked;
+
+            foreach (var inst in installations.EnumerateArray())
+            {
+                string component = inst.TryGetProperty("component", out var c) ? c.GetString() ?? "" : "";
+                string version = inst.TryGetProperty("version", out var v) ? v.GetString() ?? "" : "";
+                string installRoot = inst.TryGetProperty("installRoot", out var r) ? r.GetString() ?? "" : "";
+                string arch = inst.TryGetProperty("architecture", out var a) ? a.GetString() ?? "" : "";
+
+                if (version.Length == 0) continue;
+                tracked.Add(new SdkInfo(component, version, installRoot, arch));
+            }
+        }
+        catch { }
+
+        return tracked;
+    }
+
+    /// <summary>
+    /// Determines whether an SDK/runtime install path reported by <c>dotnet --list-sdks</c> lives
+    /// under one of the roots that dotnetup manages.
+    /// </summary>
+    /// <remarks>
+    /// <c>dotnet --list-sdks</c> reports the leaf directory (e.g. <c>~/Library/Application Support/dotnet/sdk</c>),
+    /// while dotnetup tracks the base root (e.g. <c>~/Library/Application Support/dotnet</c>), so a path is
+    /// considered managed when it equals, or is nested under, a managed root. SDKs installed elsewhere
+    /// (e.g. the official installer's <c>/usr/local/share/dotnet</c>) are external and cannot be managed
+    /// by dotnetup.
+    /// </remarks>
+    public static bool IsManagedInstallRoot(string installRoot, IEnumerable<string> managedRoots)
+    {
+        string normalized = NormalizeRoot(installRoot);
+        if (normalized.Length == 0) return false;
+
+        foreach (string root in managedRoots)
+        {
+            string r = NormalizeRoot(root);
+            if (r.Length == 0) continue;
+
+            if (normalized.Equals(r, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Nested under the managed root (handles both '/' and '\' separators).
+            if (normalized.StartsWith(r + '/', StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith(r + '\\', StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Trims trailing path separators from a directory path for stable comparison.</summary>
+    private static string NormalizeRoot(string path) =>
+        string.IsNullOrWhiteSpace(path) ? "" : path.Trim().TrimEnd('/', '\\');
+
     /// <summary>Installs an SDK channel via <c>dotnetup sdk install</c>.</summary>
     public static Task<ProcessResult> InstallSdkAsync(string channel, CancellationToken ct = default) =>
         ProcessRunner.RunWithCallbackAsync("dotnetup", $"sdk install {channel}", null, null, null, ct);
