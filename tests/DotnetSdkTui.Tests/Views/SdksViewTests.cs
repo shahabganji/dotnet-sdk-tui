@@ -34,7 +34,11 @@ public class SdksViewTests
     {
         var view = new SdksView();
         await view.ActivateAsync();
-        await Task.Delay(1500); // let it load
+
+        // Wait for the background load to finish rather than guessing a fixed delay —
+        // navigation keys return NotHandled while loading, which races slow/CI networks.
+        for (int i = 0; i < 100 && view.NeedsLiveUpdate; i++)
+            await Task.Delay(100);
 
         var result = await view.HandleKeyAsync(
             new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false));
