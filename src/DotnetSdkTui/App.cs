@@ -32,6 +32,9 @@ public sealed class App
     private string? _setupInfo;
     private readonly bool _skipSplash;
 
+    // Set when the user requests bulk migration (Shift+M); handled by CheckBulkMigrateAsync.
+    private IReadOnlyList<SdksView.SdkMigration>? _pendingBulkMigrate;
+
     public App(bool skipSplash = false)
     {
         _skipSplash = skipSplash;
@@ -93,6 +96,13 @@ public sealed class App
 
             // Check for pending interactive commands from views
             if (await CheckPendingCommandsAsync())
+            {
+                AnsiConsole.Clear();
+                continue;
+            }
+
+            // Check for a pending bulk-migration request (Shift+M)
+            if (await CheckBulkMigrateAsync())
             {
                 AnsiConsole.Clear();
                 continue;
@@ -258,6 +268,16 @@ public sealed class App
             return;
         }
 
+        // Shift+M: bulk-migrate all unmanaged SDKs into dotnetup (global, any focus).
+        if (key.Key == ConsoleKey.M
+            && (key.Modifiers.HasFlag(ConsoleModifiers.Shift) || key.KeyChar == 'M')
+            && !GetFocusedMainView().IsTextInputActive)
+        {
+            if (DotnetUpService.IsInstalled() && _sdksView.HasUnmanaged)
+                _pendingBulkMigrate = _sdksView.GetUnmanagedMigrations();
+            return;
+        }
+
         // Pass key to focused view
         await GetFocusedMainView().HandleKeyAsync(key);
     }
@@ -287,7 +307,7 @@ public sealed class App
     /// </summary>
     private async Task<bool> CheckPendingCommandsAsync()
     {
-        (string cmd, string args)? pending = null;
+        (string cmd, string args, string? note)? pending = null;
 
         if (_sdksView.PendingCommand is not null)
         {
@@ -313,18 +333,35 @@ public sealed class App
         if (pending is null)
             return false;
 
+        await RunInteractiveAndRefreshAsync(pending.Value.cmd, pending.Value.args, pending.Value.note);
+        return true;
+    }
+
+    /// <summary>
+    /// Exits the TUI, runs an external command with real terminal output, optionally prints a
+    /// follow-up note on success, then restores the TUI and refreshes all views.
+    /// </summary>
+    private async Task RunInteractiveAndRefreshAsync(string cmd, string args, string? note)
+    {
         // Exit TUI, restore terminal to original settings for the external command
         ThemeManager.ResetBackground();
         AnsiConsole.Clear();
         Console.CursorVisible = true;
 
-        Console.WriteLine($"Running: {pending.Value.cmd} {pending.Value.args}");
+        Console.WriteLine($"Running: {cmd} {args}");
         Console.WriteLine(new string('-', 60));
 
-        int exitCode = await ProcessRunner.RunInteractiveAsync(pending.Value.cmd, pending.Value.args);
+        int exitCode = await ProcessRunner.RunInteractiveAsync(cmd, args);
 
         Console.WriteLine();
         Console.WriteLine(new string('-', 60));
+
+        if (exitCode == 0 && !string.IsNullOrWhiteSpace(note))
+        {
+            Console.WriteLine(note);
+            Console.WriteLine(new string('-', 60));
+        }
+
         Console.WriteLine(exitCode == 0
             ? "Completed successfully. Press any key to continue..."
             : $"Failed (exit code {exitCode}). Press any key to continue...");
@@ -343,7 +380,68 @@ public sealed class App
         _setupView.Refresh();
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
         _ = LoadSetupInfoAsync();
+    }
 
+    /// <summary>
+    /// If a bulk migration was requested, exits the TUI, shows a confirmation dialog summarising
+    /// which versions move to which, and on confirmation migrates all unmanaged SDKs to dotnetup.
+    /// </summary>
+    private async Task<bool> CheckBulkMigrateAsync()
+    {
+        var plan = _pendingBulkMigrate;
+        _pendingBulkMigrate = null;
+        if (plan is null || plan.Count == 0)
+            return false;
+
+        // Leave the live TUI so we can render the dialog and read a confirmation.
+        ThemeManager.ResetBackground();
+        AnsiConsole.Clear();
+        Console.CursorVisible = true;
+
+        var summary = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Channel")
+            .AddColumn("Current version");
+        foreach (var m in plan)
+            summary.AddRow(Markup.Escape(m.Channel), Markup.Escape(m.CurrentVersion));
+
+        var body = new Rows(
+            new Markup($"[bold]Migrate {plan.Count} unmanaged SDK(s) to dotnetup[/]"),
+            new Text(""),
+            summary,
+            new Text(""),
+            new Markup("[yellow]This will:[/]"),
+            new Markup("  • Migrate these system SDKs into dotnetup, updating each to the latest patch"),
+            new Markup("  • Possibly include other system installs dotnetup detects"),
+            new Markup("  • Leave your existing copies in place until you remove them yourself"),
+            new Markup("[grey]dsm keeps dotnetup's dotnet on your PATH. Downloads may be several hundred MB per SDK.[/]"));
+
+        AnsiConsole.Write(new Panel(body)
+            .Header("[yellow bold] Bulk migrate [/]")
+            .Border(BoxBorder.Rounded)
+            .BorderColor(ThemeManager.PanelBorderColor)
+            .Padding(2, 1));
+        AnsiConsole.WriteLine();
+
+        bool confirmed = AnsiConsole.Prompt(
+            new ConfirmationPrompt("Migrate all of these to dotnetup now?") { DefaultValue = false });
+
+        if (!confirmed)
+        {
+            // Nothing ran — restore the TUI background and return to the main screen.
+            ThemeManager.ApplyBackground();
+            try { Console.CursorVisible = false; } catch (IOException) { }
+            return true;
+        }
+
+        string channels = string.Join(' ', plan.Select(m => m.Channel).Distinct());
+        const string note =
+            "dotnetup now manages these SDKs. Your original copies remain on disk; remove the ones you no " +
+            "longer need with the official .NET uninstall tool (e.g. 'sudo dotnet-core-uninstall remove " +
+            "--sdk <version>'). Those locations may hold other system-installed versions, so don't delete " +
+            "whole folders.";
+
+        await RunInteractiveAndRefreshAsync("dotnetup", $"sdk install {channels} --migrate-from-system", note);
         return true;
     }
 

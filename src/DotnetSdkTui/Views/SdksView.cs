@@ -34,8 +34,11 @@ public sealed class SdksView : IView
     private int _selectedIndex;
     private int _scrollOffset;
 
-    /// <summary>Set by install/uninstall to signal App to run a command interactively.</summary>
-    internal (string Command, string Args)? PendingCommand { get; private set; }
+    /// <summary>
+    /// Set by install/uninstall/migrate to signal App to run a command interactively.
+    /// <c>Note</c>, when present, is printed in the terminal after the command succeeds.
+    /// </summary>
+    internal (string Command, string Args, string? Note)? PendingCommand { get; private set; }
 
     public bool NeedsLiveUpdate => _loading;
     public bool IsTextInputActive => false;
@@ -101,7 +104,10 @@ public sealed class SdksView : IView
                 var channelInfo = channels.FirstOrDefault(c =>
                     sdk.Version.StartsWith(c.ChannelVersion, StringComparison.OrdinalIgnoreCase));
 
-                bool isManaged = DotnetUpService.IsManagedInstallRoot(sdk.InstallRoot, managedRoots);
+                // Without dotnetup the managed/unmanaged distinction is meaningless (nothing can be
+                // managed), so don't flag installs as unmanaged — keep the plain "Installed" status.
+                bool isManaged = !DotnetUpService.IsInstalled()
+                    || DotnetUpService.IsManagedInstallRoot(sdk.InstallRoot, managedRoots);
 
                 string supportPhase = channelInfo is not null
                     ? FormatSupportPhase(channelInfo.SupportPhase)
@@ -110,7 +116,7 @@ public sealed class SdksView : IView
                 string lifecycleIcon = GetLifecycleIcon(channelInfo?.SupportPhase, channelInfo?.EolDate);
                 string description = isManaged
                     ? GetChannelDescription(channel, channelInfo?.SupportPhase ?? "unknown")
-                    : $"Installed outside dotnetup at {sdk.InstallRoot} - dotnetup can't manage it.";
+                    : $"Unmanaged - installed outside dotnetup at {sdk.InstallRoot}. Press m to let dotnetup manage (migrate) it.";
 
                 rows.Add(new SdkRow(
                     sdk.Version,
@@ -215,7 +221,7 @@ public sealed class SdksView : IView
             if (row.IsInstalled && !row.IsManaged)
             {
                 statusColor = Ui.Gold;
-                statusText = "External";
+                statusText = "Unmanaged";
             }
             else if (row.IsInstalled)
             {
@@ -257,7 +263,17 @@ public sealed class SdksView : IView
     {
         if (!DotnetUpService.IsInstalled())
             return "up/down:Navigate  r:Refresh  (install dotnetup to manage SDKs)";
-        return "up/down:Navigate  i:Install  u:Uninstall  p:Update  r:Refresh";
+
+        // Surface the migrate action only when the selected SDK is unmanaged.
+        string hints = _selectedIndex < _rows.Count && _rows[_selectedIndex] is { IsInstalled: true, IsManaged: false }
+            ? "up/down:Navigate  m:Migrate to dotnetup  r:Refresh"
+            : "up/down:Navigate  i:Install  u:Uninstall  p:Update  r:Refresh";
+
+        // Offer the bulk action whenever any unmanaged SDK is present.
+        if (HasUnmanaged)
+            hints += "  Shift+M:Migrate all";
+
+        return hints;
     }
 
     public async Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)
@@ -291,6 +307,11 @@ public sealed class SdksView : IView
                 RequestUpdate();
                 return KeyResult.Handled;
 
+            case ConsoleKey.M:
+                if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
+                RequestMigrate();
+                return KeyResult.Handled;
+
             case ConsoleKey.R:
                 Refresh();
                 return KeyResult.Handled;
@@ -307,7 +328,9 @@ public sealed class SdksView : IView
         var row = _rows[_selectedIndex];
         if (row.IsInstalled)
         {
-            _statusMessage = $"{row.Version} is already installed.";
+            _statusMessage = row.IsManaged
+                ? $"{row.Version} is already installed."
+                : UnmanagedMessage(row.Version, row.InstallRoot);
             return;
         }
 
@@ -317,7 +340,7 @@ public sealed class SdksView : IView
             return;
         }
 
-        PendingCommand = ("dotnetup", $"sdk install {row.Channel}");
+        PendingCommand = ("dotnetup", $"sdk install {row.Channel}", null);
     }
 
     private async Task RequestUninstallAsync()
@@ -339,12 +362,12 @@ public sealed class SdksView : IView
 
         if (!row.IsManaged)
         {
-            _statusMessage = $"{row.Version} was installed outside dotnetup ({row.InstallRoot}) - dotnetup can only uninstall SDKs it installed.";
+            _statusMessage = UnmanagedMessage(row.Version, row.InstallRoot);
             return;
         }
 
         string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, "SDK");
-        PendingCommand = ("dotnetup", $"sdk uninstall {spec} --source all");
+        PendingCommand = ("dotnetup", $"sdk uninstall {spec} --source all", null);
     }
 
     private void RequestUpdate()
@@ -366,11 +389,70 @@ public sealed class SdksView : IView
 
         if (!row.IsManaged)
         {
-            _statusMessage = $"{row.Version} was installed outside dotnetup ({row.InstallRoot}) - install a managed version with 'i' before updating here.";
+            _statusMessage = UnmanagedMessage(row.Version, row.InstallRoot);
             return;
         }
 
-        PendingCommand = ("dotnetup", $"sdk install {row.Channel}");
+        PendingCommand = ("dotnetup", $"sdk install {row.Channel}", null);
+    }
+
+    /// <summary>
+    /// Brings a single unmanaged (externally installed) SDK under dotnetup management by installing
+    /// that exact version into dotnetup's directory and making it the default dotnet.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately installs the exact selected version rather than using <c>--migrate-from-system</c>,
+    /// which migrates every matching system channel at once — not what a per-row action should do.
+    /// </remarks>
+    private void RequestMigrate()
+    {
+        if (_rows.Count == 0 || _selectedIndex >= _rows.Count) return;
+
+        var row = _rows[_selectedIndex];
+        if (!row.IsInstalled)
+        {
+            _statusMessage = $"{row.Version} is not installed. Use 'i' to install it via dotnetup.";
+            return;
+        }
+
+        if (row.IsManaged)
+        {
+            _statusMessage = $"{row.Version} is already managed by dotnetup.";
+            return;
+        }
+
+        if (!DotnetUpService.IsInstalled())
+        {
+            _statusMessage = "dotnetup not found. Cannot migrate without dotnetup.";
+            return;
+        }
+
+        string note =
+            $"dotnetup now manages {row.Version} in its own directory. " +
+            $"The original copy is still at {row.InstallRoot}; remove it with the official .NET uninstall " +
+            $"tool (e.g. 'sudo dotnet-core-uninstall remove --sdk {row.Version}') if you no longer need it. " +
+            "That location may hold other system-installed versions, so don't delete the whole folder.";
+
+        PendingCommand = ("dotnetup", $"sdk install {row.Version}", note);
+    }
+
+    /// <summary>Consistent status message shown when an action is attempted on an unmanaged SDK.</summary>
+    private static string UnmanagedMessage(string version, string installRoot) =>
+        $"{version} is unmanaged (installed at {installRoot}) - press m to let dotnetup manage it.";
+
+    /// <summary>A single unmanaged SDK eligible for bulk migration.</summary>
+    internal sealed record SdkMigration(string CurrentVersion, string Channel);
+
+    /// <summary>True when at least one installed SDK is unmanaged (eligible for bulk migration).</summary>
+    internal bool HasUnmanaged => _rows.Any(r => r is { IsInstalled: true, IsManaged: false });
+
+    /// <summary>Lists every unmanaged SDK, used to preview and drive bulk migration.</summary>
+    internal IReadOnlyList<SdkMigration> GetUnmanagedMigrations()
+    {
+        return _rows
+            .Where(r => r is { IsInstalled: true, IsManaged: false })
+            .Select(r => new SdkMigration(r.Version, r.Channel))
+            .ToList();
     }
 
     private static IRenderable RenderPanel(bool focused, IRenderable content)

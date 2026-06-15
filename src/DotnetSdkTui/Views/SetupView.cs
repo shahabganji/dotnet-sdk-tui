@@ -21,7 +21,7 @@ public sealed class SetupView : IView
     private DotnetUpInfo? _info;
 
     /// <summary>Set by install/update to signal App to run a command interactively.</summary>
-    internal (string Command, string Args)? PendingCommand { get; private set; }
+    internal (string Command, string Args, string? Note)? PendingCommand { get; private set; }
 
     public bool NeedsLiveUpdate => _loading;
     public bool IsTextInputActive => false;
@@ -159,16 +159,16 @@ public sealed class SetupView : IView
     private void RequestInstall()
     {
         if (OperatingSystem.IsWindows())
-            PendingCommand = ("powershell", "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
+            PendingCommand = ("powershell", "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"", null);
         else
-            PendingCommand = ("bash", "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"");
+            PendingCommand = ("bash", "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"", null);
     }
 
     private void RequestUpdate()
     {
         if (OperatingSystem.IsWindows())
-            PendingCommand = ("powershell", "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
+            PendingCommand = ("powershell", "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"", null);
         else
-            PendingCommand = ("bash", "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"");
+            PendingCommand = ("bash", "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"", null);
     }
 }
