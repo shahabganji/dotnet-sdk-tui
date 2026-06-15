@@ -219,6 +219,24 @@
     .legend .note { color: var(--text-muted); font-size: 0.82rem; margin-top: 1rem; }
     @media (max-width: 640px) { .legend-grid { grid-template-columns: 1fr; } }
 
+    /* ── Spotlight (prominent intro) ─────────── */
+    .spotlight {
+      background: var(--bg-card);
+      border: 1px solid var(--teal);
+      border-radius: 12px;
+      padding: 1.5rem 1.8rem;
+      margin: 0 0 3rem;
+    }
+    .spotlight .stitle {
+      display: flex; align-items: center; gap: 0.6rem;
+      color: var(--teal); font-weight: 800; font-size: 1.15rem; margin-bottom: 0.5rem;
+    }
+    .spotlight p { margin: 0; color: var(--text-muted); }
+    .spotlight a { color: var(--teal); font-weight: 600; text-decoration: none; }
+    .spotlight a:hover { text-decoration: underline; }
+
+    .step h3 { font-size: 1.12rem; font-weight: 700; margin: 1.6rem 0 0.6rem; }
+
     /* ── Steps ───────────────────────────────── */
     .step {
       padding: 2.5rem 0;
@@ -360,7 +378,7 @@
     <div class="breadcrumb"><a href="index.html">Home</a> &nbsp;/&nbsp; Step-by-step Guide</div>
     <div class="section-label">Walkthrough</div>
     <h1>Getting started, <span class="accent">step by step</span></h1>
-    <p>A visual tour of <strong>dsm</strong> — from your first launch to installing, searching, and removing .NET SDKs. Every step has a real screenshot of the terminal UI.</p>
+    <p>A visual tour of <strong>dsm</strong> — from your first launch to bringing your existing SDKs under management, then installing, searching, and removing .NET SDKs. Every step has a real screenshot of the terminal UI.</p>
   </div>
 </section>
 
@@ -373,6 +391,7 @@
       <ol>
         <li><a href="#launch">Launch dsm</a></li>
         <li><a href="#dotnetup">Install dotnetup</a></li>
+        <li><a href="#migrate">Migrate existing SDKs</a></li>
         <li><a href="#install-sdk">Install a .NET SDK</a></li>
         <li><a href="#search">Search for older versions</a></li>
         <li><a href="#install-search">Install from search</a></li>
@@ -382,6 +401,12 @@
   </aside>
 
   <div class="guide-main">
+
+  <!-- Spotlight: the common entry point -->
+  <div class="spotlight">
+    <div class="stitle"><i class="bi bi-stars"></i> Already have .NET installed? Start here.</div>
+    <p>Most developers come to dsm with .NET SDKs already on their machine — from the official installer, a Linux package, or Homebrew. dsm manages SDKs through <strong>dotnetup</strong>, so <a href="#dotnetup">install that first</a> — then your existing SDKs show up as <strong style="color:var(--gold)">Unmanaged</strong> and dsm can bring them all under management in a single step. A completely empty machine is the exception, not the rule.</p>
+  </div>
 
   <!-- Icon legend -->
   <div class="legend">
@@ -437,8 +462,46 @@
   </section>
 
   <!-- Step 3 -->
+  <section class="step" id="migrate">
+    <div class="step-header"><span class="step-num">3</span><h2>Migrate your existing SDKs</h2></div>
+    <p class="lead">This is where most people start. If you already had .NET installed before dsm, those SDKs appear right away — but tagged <strong style="color:var(--gold)">Unmanaged</strong>. dotnetup didn't install them (they live somewhere like <code>/usr/local/share/dotnet</code>), so it can't update or remove them until you hand them over.</p>
+    <div class="callout">
+      <div class="ctitle"><i class="bi bi-info-circle"></i> Requires dotnetup</div>
+      <p>The <strong>Unmanaged</strong> tag and the migrate action only appear once dotnetup is installed (<a href="#dotnetup" style="color:var(--teal)">step 2</a>). Before that, dsm simply lists your SDKs as <em>Installed</em> — there's nothing to manage them with yet.</p>
+    </div>
+    <p>On an unmanaged row the usual <kbd>i</kbd> / <kbd>u</kbd> / <kbd>p</kbd> actions don't apply — they're replaced by a single <strong>migrate</strong> action, and the footer advertises it whenever an unmanaged SDK is in play.</p>
+
+    <p>When dotnetup is installed but hasn't taken over your existing SDKs yet, every pre-existing version shows up tagged <span style="color:var(--gold)">Unmanaged</span>. Select one and the footer swaps the install/uninstall keys for a single <kbd>m</kbd> migrate action; the line under the table tells you exactly where that copy lives.</p>
+    <figure>
+      <img src="images/13-unmanaged-sdks.png" alt="dsm showing SDKs and runtimes installed outside dotnetup, marked Unmanaged">
+      <figcaption>SDKs installed outside dotnetup show as <span style="color:var(--gold)">Unmanaged</span>. With one selected, the footer shows <kbd>m</kbd> to migrate it and <kbd>Shift+M</kbd> to migrate them all.</figcaption>
+    </figure>
+
+    <h3>Migrate one SDK</h3>
+    <p>Focus the <strong>SDKs</strong> panel, highlight an <span style="color:var(--gold)">Unmanaged</span> version, and press <kbd>m</kbd>. dsm installs that exact version into dotnetup's directory so it becomes managed. Your original copy is left exactly where it was — dsm tells you where, and how to remove it, when it finishes.</p>
+
+    <h3>Migrate them all at once</h3>
+    <p>Press <kbd>Shift</kbd>+<kbd>M</kbd> from anywhere on the main screen to migrate every unmanaged SDK in one go. dsm first shows a confirmation dialog summarising exactly what will happen:</p>
+    <figure>
+      <img src="images/14-bulk-migrate.png" alt="Bulk-migrate confirmation dialog listing the unmanaged SDKs and what migrating will do">
+      <figcaption>The bulk-migrate dialog lists every unmanaged SDK and what will happen. It defaults to <kbd>n</kbd>, so an accidental keypress backs out safely.</figcaption>
+    </figure>
+    <p>Confirm with <kbd>y</kbd> and dsm hands off to <code>dotnetup sdk install &lt;channels&gt; --migrate-from-system</code>, migrating each SDK and updating it to the latest patch.</p>
+
+    <div class="callout warn">
+      <div class="ctitle"><i class="bi bi-exclamation-triangle"></i> Heads up</div>
+      <p>Migrating installs a fresh, managed copy — your original install stays on disk. Once you've confirmed the managed version works, remove the old one with the official .NET uninstall tool (e.g. <code>dotnet-core-uninstall remove --sdk &lt;version&gt;</code>). That location often holds several versions, so never delete the whole folder.</p>
+    </div>
+
+    <ul>
+      <li><kbd>m</kbd> &mdash; <strong>migrate</strong> the selected unmanaged SDK (exact version)</li>
+      <li><kbd>Shift</kbd>+<kbd>M</kbd> &mdash; <strong>migrate all</strong> unmanaged SDKs, with a confirmation dialog</li>
+    </ul>
+  </section>
+
+  <!-- Step 4 -->
   <section class="step" id="install-sdk">
-    <div class="step-header"><span class="step-num">3</span><h2>Install a .NET SDK</h2></div>
+    <div class="step-header"><span class="step-num">4</span><h2>Install a .NET SDK</h2></div>
     <p class="lead">With dotnetup in place, the SDKs panel shows the latest version of each active and preview channel. Anything not yet on your machine is marked <span style="color:var(--blue)"><strong>Available</strong></span>.</p>
     <p>Focus the <strong>SDKs</strong> panel with <kbd>Tab</kbd> and move to the version you want with <kbd>↑</kbd> <kbd>↓</kbd>. The line below the table describes the selected channel, and the footer shows the actions you can take.</p>
     <figure>
@@ -461,9 +524,9 @@
     </ul>
   </section>
 
-  <!-- Step 4 -->
+  <!-- Step 5 -->
   <section class="step" id="search">
-    <div class="step-header"><span class="step-num">4</span><h2>Search for older versions</h2></div>
+    <div class="step-header"><span class="step-num">5</span><h2>Search for older versions</h2></div>
     <p class="lead">The main screen only shows the latest of each channel. To find a specific older patch, open search with <kbd>F3</kbd>.</p>
     <figure>
       <img src="images/05-search-empty.png" alt="Empty search screen">
@@ -481,9 +544,9 @@
     </ul>
   </section>
 
-  <!-- Step 5 -->
+  <!-- Step 6 -->
   <section class="step" id="install-search">
-    <div class="step-header"><span class="step-num">5</span><h2>Install from search</h2></div>
+    <div class="step-header"><span class="step-num">6</span><h2>Install from search</h2></div>
     <p class="lead">Inside the results list, highlight the exact version you want and press <kbd>i</kbd>.</p>
     <figure>
       <img src="images/07-search-selected.png" alt="A specific older .NET 8.0 SDK selected in search results">
@@ -496,9 +559,9 @@
     </div>
   </section>
 
-  <!-- Step 6 -->
+  <!-- Step 7 -->
   <section class="step" id="uninstall">
-    <div class="step-header"><span class="step-num">6</span><h2>Uninstall an SDK</h2></div>
+    <div class="step-header"><span class="step-num">7</span><h2>Uninstall an SDK</h2></div>
     <p class="lead">Back on the main screen, focus the <strong>SDKs</strong> panel, highlight an installed version, and press <kbd>u</kbd>.</p>
     <figure>
       <img src="images/11-sdk-selected-uninstall.png" alt="An installed SDK selected, ready to uninstall">
