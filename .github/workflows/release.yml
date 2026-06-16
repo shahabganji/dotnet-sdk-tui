@@ -128,8 +128,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           current="${GITHUB_REF_NAME}"
-          # Most recent tag reachable before this one — the actual previous version.
-          previous=$(git describe --tags --abbrev=0 "${current}^" 2>/dev/null || echo "")
+          # Previous version by semver order (robust when several tags share one commit,
+          # which git-describe-by-ancestry would mislabel).
+          previous=$(git tag --sort=-v:refname | awk -v c="$current" 'p==1{print;exit} $0==c{p=1}')
           echo "current=$current previous=${previous:-<none>}"
           if [ -n "$previous" ]; then
             gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
