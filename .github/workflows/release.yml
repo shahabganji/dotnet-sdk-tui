@@ -113,6 +113,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full history + tags to find the previous version
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -120,8 +122,26 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Generate release notes (changes since the previous tag)
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="${GITHUB_REF_NAME}"
+          # Most recent tag reachable before this one — the actual previous version.
+          previous=$(git describe --tags --abbrev=0 "${current}^" 2>/dev/null || echo "")
+          echo "current=$current previous=${previous:-<none>}"
+          if [ -n "$previous" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="$current" -f previous_tag_name="$previous" --jq .body > notes.md
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="$current" --jq .body > notes.md
+          fi
+          cat notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: notes.md
           files: artifacts/*
