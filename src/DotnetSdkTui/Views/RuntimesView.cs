@@ -19,6 +19,8 @@ public sealed class RuntimesView : IView
         string SupportPhase,
         string EolDate,
         bool IsInstalled,
+        bool IsManaged,
+        string InstallRoot,
         string Architecture,
         string LifecycleIcon,
         string Description);
@@ -33,7 +35,11 @@ public sealed class RuntimesView : IView
     private int _selectedIndex;
     private int _scrollOffset;
 
-    internal (string Command, string Args)? PendingCommand { get; private set; }
+    /// <summary>
+    /// Set by install/uninstall/migrate to signal App to run a command interactively.
+    /// <c>Note</c>, when present, is printed in the terminal after the command succeeds.
+    /// </summary>
+    internal (string Command, string Args, string? Note)? PendingCommand { get; private set; }
 
     public bool NeedsLiveUpdate => _loading;
     public bool IsTextInputActive => false;
@@ -65,6 +71,11 @@ public sealed class RuntimesView : IView
         try
         {
             var installedTask = DotnetUpService.ListInstalledAsync();
+            // Installations dotnetup actually manages; empty when dotnetup is absent or tracks nothing.
+            Task<List<SdkInfo>> trackedTask = DotnetUpService.IsInstalled()
+                ? DotnetUpService.ListTrackedAsync()
+                : Task.FromResult(new List<SdkInfo>());
+
             List<ChannelInfo> channels;
             try
             {
@@ -77,6 +88,13 @@ public sealed class RuntimesView : IView
             }
 
             List<SdkInfo> installed = await installedTask;
+            List<SdkInfo> tracked = await trackedTask;
+            var managedRoots = tracked
+                .Select(t => t.InstallRoot)
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             var rows = new List<RuntimeRow>();
 
             // Show installed runtimes (not SDKs)
@@ -86,11 +104,19 @@ public sealed class RuntimesView : IView
                 var channelInfo = channels.FirstOrDefault(c =>
                     rt.Version.StartsWith(c.ChannelVersion, StringComparison.OrdinalIgnoreCase));
 
+                // Without dotnetup the managed/unmanaged distinction is meaningless (nothing can be
+                // managed), so don't flag installs as unmanaged — keep the plain "Installed" status.
+                bool isManaged = !DotnetUpService.IsInstalled()
+                    || DotnetUpService.IsManagedInstallRoot(rt.InstallRoot, managedRoots);
+
                 string supportPhase = channelInfo is not null
                     ? FormatSupportPhase(channelInfo.SupportPhase)
                     : "Installed";
                 string eolDate = Ui.FormatDate(channelInfo?.EolDate);
                 string lifecycleIcon = GetLifecycleIcon(channelInfo?.SupportPhase, channelInfo?.EolDate);
+                string description = isManaged
+                    ? $".NET {channel} {rt.DisplayComponent} - {supportPhase}"
+                    : $"Unmanaged - installed outside dotnetup at {rt.InstallRoot}. Press m to let dotnetup manage (migrate) it.";
 
                 rows.Add(new RuntimeRow(
                     rt.DisplayComponent,
@@ -99,9 +125,11 @@ public sealed class RuntimesView : IView
                     supportPhase,
                     eolDate,
                     true,
+                    isManaged,
+                    rt.InstallRoot,
                     rt.Architecture.Length > 0 ? rt.Architecture : System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant(),
                     lifecycleIcon,
-                    $".NET {channel} {rt.DisplayComponent} - {supportPhase}"));
+                    description));
             }
 
             // Show latest available runtime for channels where it's not already installed
@@ -129,6 +157,8 @@ public sealed class RuntimesView : IView
                         FormatSupportPhase(channel.SupportPhase),
                         Ui.FormatDate(channel.EolDate),
                         false,
+                        false,
+                        "",
                         "-",
                         lifecycleIcon,
                         $".NET {channel.ChannelVersion} Runtime - {FormatSupportPhase(channel.SupportPhase)}"));
@@ -190,7 +220,12 @@ public sealed class RuntimesView : IView
 
             string statusText;
             string statusColor;
-            if (row.IsInstalled)
+            if (row.IsInstalled && !row.IsManaged)
+            {
+                statusColor = Ui.Gold;
+                statusText = "Unmanaged";
+            }
+            else if (row.IsInstalled)
             {
                 statusColor = Ui.Green;
                 statusText = "Installed";
@@ -231,6 +266,11 @@ public sealed class RuntimesView : IView
     {
         if (!DotnetUpService.IsInstalled())
             return "up/down:Navigate  r:Refresh  (install dotnetup to manage runtimes)";
+
+        // Surface the migrate action only when the selected runtime is unmanaged.
+        if (_selectedIndex < _rows.Count && _rows[_selectedIndex] is { IsInstalled: true, IsManaged: false })
+            return "up/down:Navigate  m:Migrate to dotnetup  r:Refresh";
+
         return "up/down:Navigate  i:Install  u:Uninstall  r:Refresh";
     }
 
@@ -260,6 +300,11 @@ public sealed class RuntimesView : IView
                 await RequestUninstallAsync();
                 return KeyResult.Handled;
 
+            case ConsoleKey.M:
+                if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
+                RequestMigrate();
+                return KeyResult.Handled;
+
             case ConsoleKey.R:
                 Refresh();
                 return KeyResult.Handled;
@@ -275,7 +320,9 @@ public sealed class RuntimesView : IView
         var row = _rows[_selectedIndex];
         if (row.IsInstalled)
         {
-            _statusMessage = $"{row.Version} is already installed.";
+            _statusMessage = row.IsManaged
+                ? $"{row.Version} is already installed."
+                : UnmanagedMessage(row.Version, row.InstallRoot);
             return;
         }
         if (!DotnetUpService.IsInstalled())
@@ -283,7 +330,7 @@ public sealed class RuntimesView : IView
             _statusMessage = "dotnetup not found. Press F3 to install it.";
             return;
         }
-        PendingCommand = ("dotnetup", $"runtime install {row.Channel}");
+        PendingCommand = ("dotnetup", $"runtime install {row.Channel}", null);
     }
 
     private async Task RequestUninstallAsync()
@@ -300,8 +347,55 @@ public sealed class RuntimesView : IView
             _statusMessage = "dotnetup not found.";
             return;
         }
+        if (!row.IsManaged)
+        {
+            _statusMessage = UnmanagedMessage(row.Version, row.InstallRoot);
+            return;
+        }
         string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, row.Component);
-        PendingCommand = ("dotnetup", $"runtime uninstall {spec} --source all");
+        PendingCommand = ("dotnetup", $"runtime uninstall {spec} --source all", null);
+    }
+
+    /// <summary>
+    /// Brings a single unmanaged (externally installed) runtime under dotnetup management by installing
+    /// that exact version into dotnetup's directory and making it the default dotnet.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately installs the exact selected version rather than using <c>--migrate-from-system</c>,
+    /// which migrates every matching system channel at once — not what a per-row action should do.
+    /// </remarks>
+    private void RequestMigrate()
+    {
+        if (_rows.Count == 0 || _selectedIndex >= _rows.Count) return;
+        var row = _rows[_selectedIndex];
+        if (!row.IsInstalled)
+        {
+            _statusMessage = $"{row.Version} is not installed. Use 'i' to install it via dotnetup.";
+            return;
+        }
+        if (row.IsManaged)
+        {
+            _statusMessage = $"{row.Version} is already managed by dotnetup.";
+            return;
+        }
+        if (!DotnetUpService.IsInstalled())
+        {
+            _statusMessage = "dotnetup not found. Cannot migrate without dotnetup.";
+            return;
+        }
+
+        // ASP.NET Core runtimes need a component-qualified spec; the core runtime takes a bare version.
+        string spec = row.Component.Contains("ASP", StringComparison.OrdinalIgnoreCase)
+            ? $"aspnetcore@{row.Version}"
+            : row.Version;
+
+        string note =
+            $"dotnetup now manages {row.Component} {row.Version} in its own directory. " +
+            $"The original copy is still at {row.InstallRoot}; remove it with the official " +
+            ".NET uninstall tool if you no longer need it. " +
+            "That location may hold other system-installed versions, so don't delete the whole folder.";
+
+        PendingCommand = ("dotnetup", $"runtime install {spec}", note);
     }
 
     private static IRenderable RenderPanel(bool focused, IRenderable content)
@@ -357,4 +451,8 @@ public sealed class RuntimesView : IView
         var parts = version.Split('.');
         return parts.Length >= 2 ? $"{parts[0]}.{parts[1]}" : version;
     }
+
+    /// <summary>Consistent status message shown when an action is attempted on an unmanaged runtime.</summary>
+    private static string UnmanagedMessage(string version, string installRoot) =>
+        $"{version} is unmanaged (installed at {installRoot}) - press m to let dotnetup manage it.";
 }

@@ -27,7 +27,7 @@ public sealed class SearchView : IView
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(300);
 
     /// <summary>Set when the user wants to install a search result.</summary>
-    internal (string Command, string Args)? PendingCommand { get; private set; }
+    internal (string Command, string Args, string? Note)? PendingCommand { get; private set; }
 
     public bool NeedsLiveUpdate => _searching || _hasPendingSearch;
     public bool IsTextInputActive => _inputActive;
@@ -298,9 +298,9 @@ public sealed class SearchView : IView
         }
 
         if (sdk.Component == "SDK")
-            PendingCommand = ("dotnetup", $"sdk install {sdk.Version}");
+            PendingCommand = ("dotnetup", $"sdk install {sdk.Version}", null);
         else
-            PendingCommand = ("dotnetup", $"runtime install {sdk.Version}");
+            PendingCommand = ("dotnetup", $"runtime install {sdk.Version}", null);
     }
 
     private static string FormatPhase(string phase) =>

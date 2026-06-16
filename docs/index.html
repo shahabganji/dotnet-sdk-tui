@@ -344,6 +344,10 @@
         <p>View installed SDKs alongside the latest available versions. Install, uninstall, and update with a single keystroke.</p>
       </div>
       <div class="feature-card">
+        <div class="card-header"><i class="bi bi-box-arrow-in-down icon"></i><h3>Migrate Existing SDKs</h3></div>
+        <p>Already have .NET installed outside dotnetup? dsm flags it as <strong>Unmanaged</strong> and brings it under management — one SDK with <code>m</code>, or all of them with <code>Shift+M</code>.</p>
+      </div>
+      <div class="feature-card">
         <div class="card-header"><i class="bi bi-gear icon"></i><h3>Runtime Management</h3></div>
         <p>Full visibility into .NET and ASP.NET Core runtimes. Same install/uninstall/update workflow as SDKs.</p>
       </div>
@@ -402,7 +406,7 @@
 
     <div class="feature-card" style="border-left: 3px solid var(--teal); margin-bottom: 2rem;">
       <div class="card-header"><i class="bi bi-camera-reels icon"></i><h3>Prefer a visual walkthrough?</h3></div>
-      <p style="color: var(--text-muted);">The <a href="guide.html" style="color: var(--teal);">step-by-step guide</a> shows every flow with real screenshots — launching dsm, installing dotnetup, installing &amp; searching for SDKs, and uninstalling versions.</p>
+      <p style="color: var(--text-muted);">The <a href="guide.html" style="color: var(--teal);">step-by-step guide</a> shows every flow with real screenshots — launching dsm, installing dotnetup, migrating SDKs you already have, installing &amp; searching for SDKs, and uninstalling versions.</p>
     </div>
 
     <table>
@@ -413,6 +417,8 @@
         <tr><td><code>i</code></td><td>Install selected SDK or Runtime</td></tr>
         <tr><td><code>u</code></td><td>Uninstall selected SDK or Runtime</td></tr>
         <tr><td><code>p</code></td><td>Update to the latest version in the channel</td></tr>
+        <tr><td><code>m</code></td><td>Migrate the selected unmanaged SDK or Runtime into dotnetup</td></tr>
+        <tr><td><code>Shift+M</code></td><td>Migrate all unmanaged SDKs (with confirmation)</td></tr>
         <tr><td><code>r</code></td><td>Refresh data from the network</td></tr>
         <tr><td><code>F3</code></td><td>Open the search screen</td></tr>
         <tr><td><code>F6</code></td><td>Toggle dark / light theme</td></tr>
