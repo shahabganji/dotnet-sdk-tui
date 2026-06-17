@@ -370,7 +370,12 @@ public static class Ui
     /// <param name="title">View title shown in the header.</param>
     /// <param name="content">The rendered view body.</param>
     /// <param name="focused">Whether this view currently holds focus.</param>
-    public static Panel ViewPanel(string icon, string title, IRenderable content, bool focused)
+    /// <param name="shadow">
+    /// When <c>true</c> (the default), a focused panel also gets a faux drop-shadow.
+    /// Pass <c>false</c> for short, fixed-height strips (e.g. the Setup bar) where a
+    /// shadow would eat the single content row.
+    /// </param>
+    public static IRenderable ViewPanel(string icon, string title, IRenderable content, bool focused, bool shadow = true)
     {
         string indicator = focused
             ? $"[{Green} bold]●[/] "   // ● filled, vivid
@@ -381,11 +386,14 @@ public static class Ui
             ? new Style(ThemeManager.FocusedBorderColor, decoration: Decoration.Bold)
             : new Style(ThemeManager.UnfocusedBorderColor, decoration: Decoration.Dim);
 
-        return new Panel(content)
-            .Header($"{indicator}[{titleStyle}]{icon} {Markup.Escape(title)}[/]")
+        // Trailing space after the title keeps it off the corner of the heavier border.
+        var panel = new Panel(content)
+            .Header($"{indicator}[{titleStyle}]{icon} {Markup.Escape(title)} [/]")
             .Border(focused ? BoxBorder.Heavy : BoxBorder.Rounded)
             .BorderStyle(borderStyle)
             .Expand();
+
+        return focused && shadow ? new DropShadow(panel, ThemeManager.ShadowColor) : panel;
     }
 
     /// <summary>

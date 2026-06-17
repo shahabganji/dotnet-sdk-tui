@@ -95,11 +95,20 @@ public static class ThemeManager
     // ── Focus-adaptive view borders ─────────────────────────────────────
     //
     //   Focused:   a bright, saturated green so the active view "pops" — paired
-    //              with a heavy/bold border for a raised, in-front feel.
+    //              with a heavy/bold border and a drop-shadow for a raised feel.
     //   Unfocused: a desaturated slate/grey so inactive views recede into the
     //              background — paired with a thin, dimmed border.
-    public static Color FocusedBorderColor   => _current == AppTheme.Dark ? ParseHex("#5BE85F") : ParseHex("#15803D");
-    public static Color UnfocusedBorderColor => _current == AppTheme.Dark ? ParseHex("#4A4A5E") : ParseHex("#B8B0A0");
+    //
+    //   In light mode the focused green is deepened and saturated so it stays
+    //   crisp against the pale background (a brighter green washes out there).
+    public static Color FocusedBorderColor   => _current == AppTheme.Dark ? ParseHex("#5BE85F") : ParseHex("#0B6E2E");
+    public static Color UnfocusedBorderColor => _current == AppTheme.Dark ? ParseHex("#4A4A5E") : ParseHex("#C9C2B4");
+
+    /// <summary>
+    /// Drop-shadow fill behind the focused view — a deep, green-tinted tone that echoes
+    /// the focus colour so the active view appears to glow rather than cast a flat shadow.
+    /// </summary>
+    public static Color ShadowColor => _current == AppTheme.Dark ? ParseHex("#0E3A1B") : ParseHex("#9FC0A3");
 
     internal static Color ParseHex(string hex)
     {

@@ -83,7 +83,7 @@ public sealed class SetupView : IView
     public IRenderable Render(bool focused)
     {
         if (_loading)
-            return Ui.ViewPanel(Ui.IconSetup, "Setup", Ui.Info("Checking dotnetup..."), focused);
+            return Ui.ViewPanel(Ui.IconSetup, "Setup", Ui.Info("Checking dotnetup..."), focused, shadow: false);
 
         IRenderable content;
 
@@ -113,7 +113,7 @@ public sealed class SetupView : IView
             content = new Markup(msg);
         }
 
-        return Ui.ViewPanel(Ui.IconSetup, "Setup", content, focused);
+        return Ui.ViewPanel(Ui.IconSetup, "Setup", content, focused, shadow: false);
     }
 
     public string GetStatusHints()
