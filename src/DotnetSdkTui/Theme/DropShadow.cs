@@ -13,15 +13,23 @@ namespace DotnetSdkTui.Theme;
 /// segment level. It reserves one column on the right and one row at the bottom
 /// of its allotted space for the shadow, rendering the inner content into the
 /// remaining area so the box plus its shadow still fit the layout cell exactly.
+/// <para>
+/// Box-drawing border glyphs (┗━┛) sit in the lower-middle of their character
+/// cell, so a shadow placed purely in the row below leaves a visible dark sliver
+/// under the border. To avoid that, the bottom-border row's own background is
+/// tinted with the shadow colour, letting the shadow hug the box edge.
+/// </para>
 /// </remarks>
 internal sealed class DropShadow : IRenderable
 {
     private readonly IRenderable _inner;
+    private readonly Color _shadowColor;
     private readonly Style _shadow;
 
     public DropShadow(IRenderable inner, Color shadowColor)
     {
         _inner = inner;
+        _shadowColor = shadowColor;
         _shadow = new Style(background: shadowColor);
     }
 
@@ -46,8 +54,7 @@ internal sealed class DropShadow : IRenderable
         var lines = Segment.SplitLines(_inner.Render(innerOptions, innerWidth));
 
         // Panels emit a trailing line break, so SplitLines hands back an empty final
-        // line. Drop trailing blanks so the shadow sits flush under the bottom border
-        // instead of leaving a gap row between the box and its shadow.
+        // line. Drop trailing blanks so the shadow sits flush under the bottom border.
         while (lines.Count > 0 && lines[^1].CellCount() == 0)
             lines.RemoveAt(lines.Count - 1);
 
@@ -55,10 +62,22 @@ internal sealed class DropShadow : IRenderable
         for (int i = 0; i < lines.Count; i++)
         {
             var line = lines[i];
+            bool isBottomRow = i == lines.Count - 1;
+
+            if (isBottomRow)
+                // Tint the bottom-border row so the shadow reaches up to the box edge,
+                // closing the sub-cell sliver below the border glyph.
+                foreach (var seg in line)
+                    output.Add(Tint(seg));
+            else
+                output.AddRange(line);
+
             int width = line.CellCount();
-            output.AddRange(line);
             if (width < innerWidth)
-                output.Add(new Segment(new string(' ', innerWidth - width)));
+            {
+                var pad = new string(' ', innerWidth - width);
+                output.Add(isBottomRow ? new Segment(pad, _shadow) : new Segment(pad));
+            }
 
             // Shadow on the right edge of every row except the first (offset down).
             output.Add(i == 0 ? new Segment(" ") : new Segment(" ", _shadow));
@@ -71,5 +90,12 @@ internal sealed class DropShadow : IRenderable
         output.Add(Segment.LineBreak);
 
         return output;
+    }
+
+    /// <summary>Returns the segment with its background replaced by the shadow colour.</summary>
+    private Segment Tint(Segment seg)
+    {
+        var s = seg.Style ?? Style.Plain;
+        return new Segment(seg.Text, new Style(s.Foreground, _shadowColor, s.Decoration, s.Link));
     }
 }
