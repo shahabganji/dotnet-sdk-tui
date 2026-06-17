@@ -8,11 +8,26 @@
     <RootNamespace>DotnetSdkTui</RootNamespace>
     <AssemblyName>dotnet-sdk-tui</AssemblyName>
     <Version>0.1.0</Version>
+
+    <!-- Size: drop framework features the TUI never uses so the AOT trimmer can remove them. -->
     <InvariantGlobalization>true</InvariantGlobalization>
+    <StackTraceSupport>false</StackTraceSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <EventSourceSupport>false</EventSourceSupport>
+    <DebuggerSupport>false</DebuggerSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Spectre.Console" Version="0.50.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotnetSdkTui.Benchmarks" />
+    <InternalsVisibleTo Include="DotnetSdkTui.Tests" />
   </ItemGroup>
 
 </Project>

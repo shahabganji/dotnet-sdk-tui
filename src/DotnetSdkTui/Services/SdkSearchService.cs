@@ -237,42 +237,67 @@ internal static class SdkSearchService
         return int.TryParse(majorPart, out int majorVersion) && majorVersion % 2 == 0;
     }
 
+    /// <summary>
+    /// Compares two version strings (e.g. "10.0.301" or "11.0.100-preview.5") numerically by
+    /// dot-separated segment, then orders a release without a pre-release suffix ahead of one with.
+    /// </summary>
+    /// <remarks>
+    /// Span-based and allocation-free — this runs as a sort comparator over potentially hundreds of
+    /// versions, so it avoids the per-call <c>string[]</c>/<c>int[]</c> allocations of a Split-based parse.
+    /// </remarks>
     internal static int CompareSdkVersions(string left, string right)
     {
-        ParseVersion(left, out int[] leftSegments, out string leftSuffix);
-        ParseVersion(right, out int[] rightSegments, out string rightSuffix);
+        ReadOnlySpan<char> leftCore = left;
+        ReadOnlySpan<char> rightCore = right;
+        ReadOnlySpan<char> leftSuffix = default;
+        ReadOnlySpan<char> rightSuffix = default;
 
-        int segmentCount = Math.Max(leftSegments.Length, rightSegments.Length);
-        for (int index = 0; index < segmentCount; index++)
+        int leftDash = leftCore.IndexOf('-');
+        if (leftDash >= 0)
         {
-            int leftSegment = index < leftSegments.Length ? leftSegments[index] : 0;
-            int rightSegment = index < rightSegments.Length ? rightSegments[index] : 0;
-            int comparison = leftSegment.CompareTo(rightSegment);
+            leftSuffix = leftCore[(leftDash + 1)..].Trim();
+            leftCore = leftCore[..leftDash];
+        }
+
+        int rightDash = rightCore.IndexOf('-');
+        if (rightDash >= 0)
+        {
+            rightSuffix = rightCore[(rightDash + 1)..].Trim();
+            rightCore = rightCore[..rightDash];
+        }
+
+        while (!leftCore.IsEmpty || !rightCore.IsEmpty)
+        {
+            int comparison = NextSegment(ref leftCore).CompareTo(NextSegment(ref rightCore));
             if (comparison != 0)
             {
                 return comparison;
             }
         }
 
-        bool leftHasSuffix = !string.IsNullOrEmpty(leftSuffix);
-        bool rightHasSuffix = !string.IsNullOrEmpty(rightSuffix);
+        bool leftHasSuffix = !leftSuffix.IsEmpty;
+        bool rightHasSuffix = !rightSuffix.IsEmpty;
 
         if (leftHasSuffix != rightHasSuffix)
         {
             return leftHasSuffix ? -1 : 1;
         }
 
-        return string.Compare(leftSuffix, rightSuffix, StringComparison.OrdinalIgnoreCase);
+        return leftSuffix.CompareTo(rightSuffix, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void ParseVersion(string version, out int[] segments, out string suffix)
+    /// <summary>Reads the next dot-separated numeric segment from a version core, advancing the span.</summary>
+    private static int NextSegment(ref ReadOnlySpan<char> core)
     {
-        string[] dashParts = version.Split('-', 2, StringSplitOptions.TrimEntries);
-        suffix = dashParts.Length > 1 ? dashParts[1] : string.Empty;
-        segments = dashParts[0]
-            .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(static part => int.TryParse(part, out int value) ? value : 0)
-            .ToArray();
+        if (core.IsEmpty)
+        {
+            return 0;
+        }
+
+        int dot = core.IndexOf('.');
+        ReadOnlySpan<char> segment = dot >= 0 ? core[..dot] : core;
+        core = dot >= 0 ? core[(dot + 1)..] : default;
+        return int.TryParse(segment.Trim(), out int value) ? value : 0;
     }
 }
 
