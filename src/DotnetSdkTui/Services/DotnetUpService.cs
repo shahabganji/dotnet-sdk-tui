@@ -87,29 +87,31 @@ public static class DotnetUpService
     /// </remarks>
     public static bool IsManagedInstallRoot(string installRoot, IEnumerable<string> managedRoots)
     {
-        string normalized = NormalizeRoot(installRoot);
-        if (normalized.Length == 0) return false;
+        ReadOnlySpan<char> normalized = NormalizeRoot(installRoot);
+        if (normalized.IsEmpty) return false;
 
         foreach (string root in managedRoots)
         {
-            string r = NormalizeRoot(root);
-            if (r.Length == 0) continue;
+            ReadOnlySpan<char> r = NormalizeRoot(root);
+            if (r.IsEmpty) continue;
 
             if (normalized.Equals(r, StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            // Nested under the managed root (handles both '/' and '\' separators).
-            if (normalized.StartsWith(r + '/', StringComparison.OrdinalIgnoreCase)
-                || normalized.StartsWith(r + '\\', StringComparison.OrdinalIgnoreCase))
+            // Nested under the managed root (handles both '/' and '\' separators) without
+            // allocating a "<root>/" probe string per candidate.
+            if (normalized.Length > r.Length
+                && (normalized[r.Length] is '/' or '\\')
+                && normalized[..r.Length].Equals(r, StringComparison.OrdinalIgnoreCase))
                 return true;
         }
 
         return false;
     }
 
-    /// <summary>Trims trailing path separators from a directory path for stable comparison.</summary>
-    private static string NormalizeRoot(string path) =>
-        string.IsNullOrWhiteSpace(path) ? "" : path.Trim().TrimEnd('/', '\\');
+    /// <summary>Trims surrounding whitespace and trailing path separators for stable comparison.</summary>
+    private static ReadOnlySpan<char> NormalizeRoot(string path) =>
+        path.AsSpan().Trim().TrimEnd("/\\");
 
     /// <summary>Installs an SDK channel via <c>dotnetup sdk install</c>.</summary>
     public static Task<ProcessResult> InstallSdkAsync(string channel, CancellationToken ct = default) =>
@@ -352,26 +354,27 @@ public static class DotnetUpService
     {
         var installations = new List<SdkInfo>();
 
-        foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (ReadOnlySpan<char> rawLine in output.AsSpan().EnumerateLines())
         {
-            int separatorIndex = rawLine.IndexOf(" [", StringComparison.Ordinal);
-            int openBracketIndex = rawLine.IndexOf('[', StringComparison.Ordinal);
-            int closeBracketIndex = rawLine.LastIndexOf(']');
+            ReadOnlySpan<char> line = rawLine.Trim();
+            int separatorIndex = line.IndexOf(" [");
+            int openBracketIndex = line.IndexOf('[');
+            int closeBracketIndex = line.LastIndexOf(']');
 
             if (separatorIndex <= 0 || openBracketIndex < 0 || closeBracketIndex <= openBracketIndex)
             {
                 continue;
             }
 
-            string version = rawLine[..separatorIndex].Trim();
-            string installRoot = rawLine[(openBracketIndex + 1)..closeBracketIndex].Trim();
+            ReadOnlySpan<char> version = line[..separatorIndex].Trim();
+            ReadOnlySpan<char> installRoot = line[(openBracketIndex + 1)..closeBracketIndex].Trim();
 
-            if (version.Length == 0 || installRoot.Length == 0)
+            if (version.IsEmpty || installRoot.IsEmpty)
             {
                 continue;
             }
 
-            installations.Add(new SdkInfo("SDK", version, installRoot, string.Empty));
+            installations.Add(new SdkInfo("SDK", version.ToString(), installRoot.ToString(), string.Empty));
         }
 
         return installations;
@@ -385,38 +388,37 @@ public static class DotnetUpService
     {
         var installations = new List<SdkInfo>();
 
-        foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (ReadOnlySpan<char> rawLine in output.AsSpan().EnumerateLines())
         {
             // Format: "Microsoft.NETCore.App 10.0.0 [/path/to/shared/Microsoft.NETCore.App]"
-            int firstSpace = rawLine.IndexOf(' ');
+            ReadOnlySpan<char> line = rawLine.Trim();
+            int firstSpace = line.IndexOf(' ');
             if (firstSpace <= 0) continue;
 
-            string runtimeName = rawLine[..firstSpace];
-            string remaining = rawLine[(firstSpace + 1)..].TrimStart();
+            ReadOnlySpan<char> runtimeName = line[..firstSpace];
+            ReadOnlySpan<char> remaining = line[(firstSpace + 1)..].TrimStart();
 
-            int separatorIndex = remaining.IndexOf(" [", StringComparison.Ordinal);
-            int openBracketIndex = remaining.IndexOf('[', StringComparison.Ordinal);
+            int separatorIndex = remaining.IndexOf(" [");
+            int openBracketIndex = remaining.IndexOf('[');
             int closeBracketIndex = remaining.LastIndexOf(']');
 
             if (separatorIndex <= 0 || openBracketIndex < 0 || closeBracketIndex <= openBracketIndex)
                 continue;
 
-            string version = remaining[..separatorIndex].Trim();
-            string installRoot = remaining[(openBracketIndex + 1)..closeBracketIndex].Trim();
+            ReadOnlySpan<char> version = remaining[..separatorIndex].Trim();
+            ReadOnlySpan<char> installRoot = remaining[(openBracketIndex + 1)..closeBracketIndex].Trim();
 
-            if (version.Length == 0 || installRoot.Length == 0)
+            if (version.IsEmpty || installRoot.IsEmpty)
                 continue;
 
-            // Map runtime names to component types
-            string component = runtimeName switch
-            {
-                "Microsoft.NETCore.App" => "Runtime",
-                "Microsoft.AspNetCore.App" => "ASP.NET Core",
-                "Microsoft.WindowsDesktop.App" => "Windows Desktop",
-                _ => runtimeName
-            };
+            // Map runtime names to component types (literals — no allocation for known names).
+            string component =
+                runtimeName.SequenceEqual("Microsoft.NETCore.App") ? "Runtime" :
+                runtimeName.SequenceEqual("Microsoft.AspNetCore.App") ? "ASP.NET Core" :
+                runtimeName.SequenceEqual("Microsoft.WindowsDesktop.App") ? "Windows Desktop" :
+                runtimeName.ToString();
 
-            installations.Add(new SdkInfo(component, version, installRoot, string.Empty));
+            installations.Add(new SdkInfo(component, version.ToString(), installRoot.ToString(), string.Empty));
         }
 
         return installations;

@@ -26,3 +26,6 @@ artifacts/
 
 ## Hex1b
 *.cast
+
+## BenchmarkDotNet output
+BenchmarkDotNet.Artifacts/
