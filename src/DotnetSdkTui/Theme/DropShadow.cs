@@ -45,6 +45,12 @@ internal sealed class DropShadow : IRenderable
 
         var lines = Segment.SplitLines(_inner.Render(innerOptions, innerWidth));
 
+        // Panels emit a trailing line break, so SplitLines hands back an empty final
+        // line. Drop trailing blanks so the shadow sits flush under the bottom border
+        // instead of leaving a gap row between the box and its shadow.
+        while (lines.Count > 0 && lines[^1].CellCount() == 0)
+            lines.RemoveAt(lines.Count - 1);
+
         var output = new List<Segment>();
         for (int i = 0; i < lines.Count; i++)
         {
