@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>DotnetSdkTui.Benchmarks</RootNamespace>
+    <AssemblyName>DotnetSdkTui.Benchmarks</AssemblyName>
+    <!-- BenchmarkDotNet must run in Release; relax warnings-as-errors for generated/bench code. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.*" />
+  </ItemGroup>
+
+  <!-- References the shipped optimized methods so benchmarks measure real code. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DotnetSdkTui\DotnetSdkTui.csproj" />
+  </ItemGroup>
+
+</Project>
