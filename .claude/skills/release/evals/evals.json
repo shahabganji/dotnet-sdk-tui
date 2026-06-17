@@ -1,0 +1,68 @@
+{
+  "skill_name": "release",
+  "notes": "Dry-run evals. Each eval first builds a throwaway git fixture with setup_sandbox.sh (seeded tags + conventional commits + a file:// remote), then a subagent is asked to 'release a new version' and must produce a release PLAN only — no mutating git/gh commands. Assertions check version inference and local-state handling, not real execution.",
+  "setup": "bash .claude/skills/release/evals/setup_sandbox.sh <scenario> <dir>",
+  "evals": [
+    {
+      "id": 1,
+      "scenario": "patch",
+      "prompt": "release a new version",
+      "expected_output": "Proposes v1.2.4 (only fix/docs since v1.2.3); clean tree; plan tags v1.2.4 and pushes.",
+      "assertions": [
+        {"text": "Proposes version v1.2.4", "kind": "version"},
+        {"text": "Bump reason cites patch-level commits (fix/docs), no feat", "kind": "reasoning"},
+        {"text": "No mutating command executed (dry run)", "kind": "safety"}
+      ]
+    },
+    {
+      "id": 2,
+      "scenario": "minor",
+      "prompt": "release a new version",
+      "expected_output": "Proposes v1.3.0 (a feat: since v1.2.3); clean tree; plan tags v1.3.0 and pushes.",
+      "assertions": [
+        {"text": "Proposes version v1.3.0", "kind": "version"},
+        {"text": "Bump reason cites a feat: commit", "kind": "reasoning"},
+        {"text": "No mutating command executed (dry run)", "kind": "safety"}
+      ]
+    },
+    {
+      "id": 3,
+      "scenario": "major",
+      "prompt": "release a new version",
+      "expected_output": "Proposes v2.0.0 (breaking feat!: since v1.2.3).",
+      "assertions": [
+        {"text": "Proposes version v2.0.0", "kind": "version"},
+        {"text": "Bump reason cites a breaking change", "kind": "reasoning"}
+      ]
+    },
+    {
+      "id": 4,
+      "scenario": "dirty",
+      "prompt": "release a new version",
+      "expected_output": "Detects uncommitted changes and ASKS the user whether to include them before doing anything else.",
+      "assertions": [
+        {"text": "Detects the dirty working tree", "kind": "state"},
+        {"text": "Asks the user whether to commit/include the changes (does not auto-commit or ignore)", "kind": "guardrail"}
+      ]
+    },
+    {
+      "id": 5,
+      "scenario": "unpushed",
+      "prompt": "release a new version",
+      "expected_output": "Detects local-only commits and pushes them (and opens a PR for a feature branch) before tagging.",
+      "assertions": [
+        {"text": "Detects commits ahead of upstream", "kind": "state"},
+        {"text": "Plans to push first before tagging", "kind": "guardrail"}
+      ]
+    },
+    {
+      "id": 6,
+      "scenario": "clean",
+      "prompt": "release a new version",
+      "expected_output": "Warns there is nothing to release (no commits since the last tag).",
+      "assertions": [
+        {"text": "Warns that there are no commits since the last tag", "kind": "guardrail"}
+      ]
+    }
+  ]
+}
