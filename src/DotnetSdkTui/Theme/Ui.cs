@@ -354,6 +354,41 @@ public static class Ui
     }
 
     /// <summary>
+    /// Wraps a switchable view's content in a focus-aware panel.
+    /// <para>
+    /// The focused view is emphasised so it clearly stands out: a <see cref="BoxBorder.Heavy"/>
+    /// (thick) border drawn in a bright, saturated green with a bold decoration, plus a vivid
+    /// filled <c>●</c> indicator and a bold yellow title.
+    /// </para>
+    /// <para>
+    /// Unfocused views recede into the background: a thin <see cref="BoxBorder.Rounded"/> border
+    /// drawn in a desaturated slate/grey with a dim decoration, plus a muted hollow <c>○</c>
+    /// indicator and a dimmed title.
+    /// </para>
+    /// </summary>
+    /// <param name="icon">Leading icon for the header (e.g. an emoji or glyph).</param>
+    /// <param name="title">View title shown in the header.</param>
+    /// <param name="content">The rendered view body.</param>
+    /// <param name="focused">Whether this view currently holds focus.</param>
+    public static Panel ViewPanel(string icon, string title, IRenderable content, bool focused)
+    {
+        string indicator = focused
+            ? $"[{Green} bold]●[/] "   // ● filled, vivid
+            : $"[{DarkGray}]○[/] ";    // ○ hollow, dim
+        string titleStyle = focused ? $"{Yellow} bold" : DarkGray;
+
+        var borderStyle = focused
+            ? new Style(ThemeManager.FocusedBorderColor, decoration: Decoration.Bold)
+            : new Style(ThemeManager.UnfocusedBorderColor, decoration: Decoration.Dim);
+
+        return new Panel(content)
+            .Header($"{indicator}[{titleStyle}]{icon} {Markup.Escape(title)}[/]")
+            .Border(focused ? BoxBorder.Heavy : BoxBorder.Rounded)
+            .BorderStyle(borderStyle)
+            .Expand();
+    }
+
+    /// <summary>
     /// Creates a content panel with a themed title header.
     /// </summary>
     public static Panel ContentPanel(string title, IRenderable content)

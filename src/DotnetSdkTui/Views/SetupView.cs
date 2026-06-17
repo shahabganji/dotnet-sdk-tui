@@ -82,16 +82,8 @@ public sealed class SetupView : IView
 
     public IRenderable Render(bool focused)
     {
-        string focusIndicator = focused ? $"[{Ui.Green} bold]●[/] " : $"[{Ui.Gray}]○[/] ";
-
         if (_loading)
-        {
-            return new Panel(Ui.Info("Checking dotnetup..."))
-                .Header($"{focusIndicator}[{Ui.Yellow} bold]{Ui.IconSetup} Setup[/]")
-                .Border(BoxBorder.Rounded)
-                .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
-                .Expand();
-        }
+            return Ui.ViewPanel(Ui.IconSetup, "Setup", Ui.Info("Checking dotnetup..."), focused);
 
         IRenderable content;
 
@@ -121,11 +113,7 @@ public sealed class SetupView : IView
             content = new Markup(msg);
         }
 
-        return new Panel(content)
-            .Header($"{focusIndicator}[{Ui.Yellow} bold]{Ui.IconSetup} Setup[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
-            .Expand();
+        return Ui.ViewPanel(Ui.IconSetup, "Setup", content, focused);
     }
 
     public string GetStatusHints()

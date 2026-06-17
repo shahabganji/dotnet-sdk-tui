@@ -92,6 +92,15 @@ public static class ThemeManager
     public static Color HeaderBorderColor => _current == AppTheme.Dark ? ParseHex("#E52521") : ParseHex("#B91C1C");
     public static Color SelectedRowColor  => _current == AppTheme.Dark ? ParseHex("#FBD000") : ParseHex("#A16207");
 
+    // ── Focus-adaptive view borders ─────────────────────────────────────
+    //
+    //   Focused:   a bright, saturated green so the active view "pops" — paired
+    //              with a heavy/bold border for a raised, in-front feel.
+    //   Unfocused: a desaturated slate/grey so inactive views recede into the
+    //              background — paired with a thin, dimmed border.
+    public static Color FocusedBorderColor   => _current == AppTheme.Dark ? ParseHex("#5BE85F") : ParseHex("#15803D");
+    public static Color UnfocusedBorderColor => _current == AppTheme.Dark ? ParseHex("#4A4A5E") : ParseHex("#B8B0A0");
+
     internal static Color ParseHex(string hex)
     {
         hex = hex.TrimStart('#');
