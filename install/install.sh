@@ -149,8 +149,16 @@ main() {
     binary_path="$(find "$TEMP_DIR" -type f -name "${ARCHIVE_NAME}" -print -quit)"
     [[ -n "$binary_path" ]] || { err "Binary not found in archive."; exit 1; }
 
-    cp "$binary_path" "$target_path"
-    chmod 0755 "$target_path"
+    # Install via a temp file in the destination dir, then atomically rename
+    # into place. Never overwrite the binary in place: when self-update runs,
+    # dsm is executing from this exact path, and overwriting its inode
+    # invalidates the kernel's cached code signature on macOS — the next launch
+    # is then SIGKILLed ("killed: 9"). An atomic rename gives the new binary a
+    # fresh inode while the running process keeps its (now-unlinked) old one.
+    local staged_path="${target_path}.new.$$"
+    cp "$binary_path" "$staged_path"
+    chmod 0755 "$staged_path"
+    mv -f "$staged_path" "$target_path"
 
     printf '\n'
     ok "${action} complete. dsm is ready at ${target_path}"
