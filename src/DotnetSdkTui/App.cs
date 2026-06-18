@@ -301,10 +301,11 @@ public sealed class App
             return;
         }
 
-        // Tab cycling between SDKs, Runtimes, and Setup
+        // Tab cycles focus between SDKs, Runtimes, and Setup; Shift+Tab cycles backward.
         if (key.Key == ConsoleKey.Tab && !GetFocusedMainView().IsTextInputActive)
         {
-            _mainFocus = (_mainFocus + 1) % 3;
+            int step = key.Modifiers.HasFlag(ConsoleModifiers.Shift) ? -1 : 1;
+            _mainFocus = (_mainFocus + step + 3) % 3;
             return;
         }
 
