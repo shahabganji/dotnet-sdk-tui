@@ -46,12 +46,33 @@ public static class ThemeManager
     /// <summary>Short label of the active theme (for footer/status display).</summary>
     public static string ThemeName => Themes[_index].Name;
 
-    /// <summary>Advances to the next theme, switching both the base palette and the selection bar.</summary>
+    // The settings loaded once at startup and reused, so cycling the theme never re-reads the file.
+    private static Services.UserSettings _settings = new();
+
+    /// <summary>
+    /// Restores the theme saved from a previous session (if any), then applies it. Falls back to the
+    /// first theme when nothing is saved or the saved name is unknown. Call once at startup.
+    /// </summary>
+    public static void Restore()
+    {
+        _settings = Services.SettingsStore.Load();
+        if (_settings.Theme is not null)
+        {
+            int i = Array.FindIndex(Themes, t => t.Name == _settings.Theme);
+            if (i >= 0) _index = i;
+        }
+        _current = Themes[_index].Base;
+        ApplyBackground();
+    }
+
+    /// <summary>Advances to the next theme, switching both the base palette and the selection bar, and persists the choice.</summary>
     public static void Cycle()
     {
         _index = (_index + 1) % Themes.Length;
         _current = Themes[_index].Base;
         ApplyBackground();
+        _settings.Theme = Themes[_index].Name;
+        Services.SettingsStore.Save(_settings);
     }
 
     /// <summary>Sets the terminal default background color via OSC 11.</summary>

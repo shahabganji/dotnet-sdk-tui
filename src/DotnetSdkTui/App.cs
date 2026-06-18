@@ -67,7 +67,7 @@ public sealed class App
             AnsiConsole.Profile.Height = 40;
         }
 
-        ThemeManager.ApplyBackground();
+        ThemeManager.Restore();
 
         // Graceful Ctrl+C: stop the loop instead of killing the process
         Console.CancelKeyPress += (_, e) =>
