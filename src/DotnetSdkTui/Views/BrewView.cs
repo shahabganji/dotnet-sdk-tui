@@ -30,6 +30,7 @@ public sealed class BrewView : IView
     private string? _statusMessage;
     private int _selectedIndex;
     private int _scrollOffset;
+    private bool _searchInputActive = true;   // typing vs navigating results, within search mode
     private CancellationTokenSource? _searchCts;
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(300);
 
@@ -37,7 +38,10 @@ public sealed class BrewView : IView
     internal (string Command, string Args, string? Note)? PendingCommand { get; private set; }
 
     public bool NeedsLiveUpdate => _loading || _searching || _hasPendingSearch;
-    public bool IsTextInputActive => _mode == Mode.Search;
+    public bool IsTextInputActive => _mode == Mode.Search && _searchInputActive;
+
+    /// <summary>True whenever the search view is open (typing or navigating results).</summary>
+    public bool IsSearching => _mode == Mode.Search;
 
     private List<BrewPackage> CurrentItems => _mode == Mode.Search ? _results : _installed;
 
@@ -120,7 +124,8 @@ public sealed class BrewView : IView
     {
         string icon = _searching ? "*" : "/";
         string display = _query.Length > 0 ? _query : "type to search formulae...";
-        return new Markup($"[{Ui.Yellow} bold] {icon} Search: [/][{Ui.White}]{Markup.Escape(display)}[/][{Ui.Yellow}]|[/]\n");
+        string cursor = _searchInputActive ? "|" : "";   // hidden while navigating results
+        return new Markup($"[{Ui.Yellow} bold] {icon} Search: [/][{Ui.White}]{Markup.Escape(display)}[/][{Ui.Yellow}]{cursor}[/]\n");
     }
 
     private IRenderable RenderTable(bool focused)
@@ -149,7 +154,8 @@ public sealed class BrewView : IView
         for (int i = _scrollOffset; i < endIndex; i++)
         {
             BrewPackage pkg = items[i];
-            bool selected = focused && i == _selectedIndex;
+            bool selectable = _mode == Mode.List || !_searchInputActive;   // no bar while typing
+            bool selected = focused && selectable && i == _selectedIndex;
 
             if (_mode == Mode.Search)
             {
@@ -198,7 +204,9 @@ public sealed class BrewView : IView
         if (!BrewService.IsInstalled())
             return "r:Refresh  Esc:Back  (install Homebrew to manage packages)";
         if (_mode == Mode.Search)
-            return "type:Search  up/down:Navigate  Enter:Install  Esc:Cancel";
+            return _searchInputActive
+                ? "Type to search  Tab:Results  Esc:Cancel"
+                : "up/down:Navigate  i:Install  Tab:Search  Esc:Cancel";
         return "up/down:Navigate  p:Upgrade  u:Uninstall  r:Refresh  Esc:Back";
     }
 
@@ -253,12 +261,23 @@ public sealed class BrewView : IView
         }
     }
 
-    private KeyResult HandleSearchKey(ConsoleKeyInfo key)
+    // Within search mode, mirror the .NET Search view: a typing field and a navigable result list,
+    // toggled with Tab/↓. Install is 'i' (or Enter) while navigating — consistent with the .NET views.
+    private KeyResult HandleSearchKey(ConsoleKeyInfo key) =>
+        _searchInputActive ? HandleSearchInputKey(key) : HandleSearchNavKey(key);
+
+    private KeyResult HandleSearchInputKey(ConsoleKeyInfo key)
     {
         switch (key.Key)
         {
-            case ConsoleKey.Escape:
-                ExitSearchMode();
+            case ConsoleKey.Tab:
+            case ConsoleKey.DownArrow:
+                if (_results.Count > 0)
+                {
+                    _searchInputActive = false;
+                    _selectedIndex = 0;
+                    _scrollOffset = 0;
+                }
                 return KeyResult.Handled;
 
             case ConsoleKey.Backspace:
@@ -269,16 +288,8 @@ public sealed class BrewView : IView
                 }
                 return KeyResult.Handled;
 
-            case ConsoleKey.UpArrow:
-                if (_results.Count > 0) _selectedIndex = Math.Max(0, _selectedIndex - 1);
-                return KeyResult.Handled;
-
-            case ConsoleKey.DownArrow:
-                if (_results.Count > 0) _selectedIndex = Math.Min(_results.Count - 1, _selectedIndex + 1);
-                return KeyResult.Handled;
-
-            case ConsoleKey.Enter:
-                RequestInstall();
+            case ConsoleKey.Escape:
+                ExitSearchMode();
                 return KeyResult.Handled;
 
             default:
@@ -292,9 +303,47 @@ public sealed class BrewView : IView
         }
     }
 
+    private KeyResult HandleSearchNavKey(ConsoleKeyInfo key)
+    {
+        switch (key.Key)
+        {
+            case ConsoleKey.UpArrow or ConsoleKey.K:
+                if (_results.Count > 0) _selectedIndex = Math.Max(0, _selectedIndex - 1);
+                return KeyResult.Handled;
+
+            case ConsoleKey.DownArrow or ConsoleKey.J:
+                if (_results.Count > 0) _selectedIndex = Math.Min(_results.Count - 1, _selectedIndex + 1);
+                return KeyResult.Handled;
+
+            case ConsoleKey.Tab:
+                _searchInputActive = true;
+                return KeyResult.Handled;
+
+            case ConsoleKey.I or ConsoleKey.Enter:
+                RequestInstall();
+                return KeyResult.Handled;
+
+            case ConsoleKey.Escape:
+                ExitSearchMode();
+                return KeyResult.Handled;
+
+            default:
+                // Any other printable character resumes typing the query.
+                if (key.KeyChar is >= ' ' and <= '~')
+                {
+                    _searchInputActive = true;
+                    _query += key.KeyChar;
+                    TriggerDebouncedSearch();
+                    return KeyResult.Handled;
+                }
+                return KeyResult.NotHandled;
+        }
+    }
+
     private void EnterSearchMode()
     {
         _mode = Mode.Search;
+        _searchInputActive = true;
         _query = "";
         _results = [];
         _selectedIndex = 0;
@@ -306,6 +355,7 @@ public sealed class BrewView : IView
     {
         CancelSearch();
         _mode = Mode.List;
+        _searchInputActive = true;
         _query = "";
         _results = [];
         _selectedIndex = Math.Clamp(_selectedIndex, 0, Math.Max(0, _installed.Count - 1));

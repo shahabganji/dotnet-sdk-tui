@@ -213,7 +213,8 @@ public sealed class App
         root["Header"].Update(Ui.SearchHeader(_setupInfo));
         root["SearchInput"].Update(_searchView.RenderSearchInput());
         root["Results"].Update(_searchView.RenderResults());
-        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_searchView.GetStatusHints())));
+        // Search is a focused context — no package-manager switching here, so omit F2/F3 hints.
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_searchView.GetStatusHints(), $"F6:Theme({ThemeManager.ThemeName})")));
 
         AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }
@@ -230,7 +231,11 @@ public sealed class App
         root["TopPad"].Update(new Text(""));
         root["Top"].Update(Ui.WelcomePanel());
         root["Body"].Update(_brewView.Render(true));
-        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), $"F1:.NET  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit")));
+        // While the brew search view is open it's a focused context: drop the workspace-switch hints.
+        string brewGlobal = _brewView.IsSearching
+            ? $"F6:Theme({ThemeManager.ThemeName})"
+            : $"F2:.NET  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit";
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), brewGlobal)));
 
         AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }
@@ -351,8 +356,8 @@ public sealed class App
             return;
         }
 
-        // F1 returns to the .NET main screen (works even while typing a search)
-        if (key.Key == ConsoleKey.F1)
+        // F2 toggles back to the .NET workspace — but not while the brew search view is open.
+        if (key.Key == ConsoleKey.F2 && !_brewView.IsSearching)
         {
             _screen = Screen.Main;
             AnsiConsole.Clear();
