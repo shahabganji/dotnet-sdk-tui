@@ -505,8 +505,8 @@ public static class Ui
     /// Wraps a switchable view's content in a focus-aware panel, Norton Commander-style.
     /// <para>
     /// The focused view is marked with a bright <see cref="BoxBorder.Double"/> (double-line)
-    /// frame drawn in a vivid green with a bold decoration, plus a filled <c>●</c> indicator
-    /// and a bold yellow title — the classic NC "active panel" look.
+    /// frame drawn in the theme's accent with a bold decoration, plus a filled <c>●</c> indicator
+    /// in the same accent and a bold yellow title — the classic NC "active panel" look.
     /// </para>
     /// <para>
     /// Unfocused views recede into the background: a thin <see cref="BoxBorder.Rounded"/> border
@@ -522,8 +522,8 @@ public static class Ui
     public static IRenderable ViewPanel(string icon, string title, IRenderable content, bool focused)
     {
         string indicator = focused
-            ? $"[{Green} bold]●[/] "   // ● filled, vivid
-            : $"[{DarkGray}]○[/] ";    // ○ hollow, dim
+            ? $"[{ThemeManager.FocusedBorder} bold]●[/] "   // ● filled, in the focus accent
+            : $"[{DarkGray}]○[/] ";                          // ○ hollow, dim
         string titleStyle = focused ? $"{Yellow} bold" : DarkGray;
 
         var borderStyle = focused

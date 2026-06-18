@@ -145,6 +145,9 @@ public static class ThemeManager
     public static Color FocusedBorderColor   => ParseHex(Themes[_index].Border);
     public static Color UnfocusedBorderColor => _current == AppTheme.Dark ? ParseHex("#4A4A5E") : ParseHex("#C9C2B4");
 
+    /// <summary>The focused-border accent as a markup color string (for the focus indicator, etc.).</summary>
+    public static string FocusedBorder => Themes[_index].Border;
+
     /// <summary>
     /// Classic drop-shadow fill for popup dialogs — a near-black (dark theme) or muted grey
     /// (light theme) offset behind the dialog, like the old Norton Commander pop-ups.
