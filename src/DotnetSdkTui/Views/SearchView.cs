@@ -54,11 +54,7 @@ public sealed class SearchView : IView
         var inputMarkup = new Markup(
             $"[{Ui.Yellow} bold] {searchIcon} Search: [/][{Ui.White}]{Markup.Escape(inputDisplay)}{cursor}[/]");
 
-        return new Panel(inputMarkup)
-            .Header($"[{Ui.Yellow} bold] {Ui.IconSearch} Search .NET SDKs & Runtimes [/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(ThemeManager.PanelBorderColor)
-            .Expand();
+        return Ui.ViewPanel(Ui.IconSearch, "Search .NET SDKs & Runtimes", inputMarkup, _inputActive);
     }
 
     /// <summary>Renders the search results panel.</summary>
@@ -115,11 +111,7 @@ public sealed class SearchView : IView
             : $"[{Ui.Gray}]up/down:Navigate  i:Install  Tab:Input  Esc:Back[/]";
         resultParts.Add(new Markup($"\n {hint}"));
 
-        return new Panel(new Rows(resultParts))
-            .Header($"[{Ui.Yellow} bold] {Ui.IconResults} Results [/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(ThemeManager.TableBorderColor)
-            .Expand();
+        return Ui.ViewPanel(Ui.IconResults, "Results", new Rows(resultParts), !_inputActive);
     }
 
     public string GetStatusHints()

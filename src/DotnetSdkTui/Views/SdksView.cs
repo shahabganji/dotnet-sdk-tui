@@ -455,15 +455,8 @@ public sealed class SdksView : IView
             .ToList();
     }
 
-    private static IRenderable RenderPanel(bool focused, IRenderable content)
-    {
-        string focusIndicator = focused ? $"[{Ui.Green} bold]●[/] " : $"[{Ui.Gray}]○[/] ";
-        return new Panel(content)
-            .Header($"{focusIndicator}[{Ui.Yellow} bold]{Ui.IconSdks} SDKs[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
-            .Expand();
-    }
+    private static IRenderable RenderPanel(bool focused, IRenderable content) =>
+        Ui.ViewPanel(Ui.IconSdks, "SDKs", content, focused);
 
     private static string GetLifecycleIcon(string? supportPhase, string? eolDate)
     {

@@ -398,15 +398,8 @@ public sealed class RuntimesView : IView
         PendingCommand = ("dotnetup", $"runtime install {spec}", note);
     }
 
-    private static IRenderable RenderPanel(bool focused, IRenderable content)
-    {
-        string focusIndicator = focused ? $"[{Ui.Green} bold]●[/] " : $"[{Ui.Gray}]○[/] ";
-        return new Panel(content)
-            .Header($"{focusIndicator}[{Ui.Yellow} bold]{Ui.IconRuntimes} Runtimes[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
-            .Expand();
-    }
+    private static IRenderable RenderPanel(bool focused, IRenderable content) =>
+        Ui.ViewPanel(Ui.IconRuntimes, "Runtimes", content, focused);
 
     private static string GetLifecycleIcon(string? supportPhase, string? eolDate)
     {
