@@ -20,7 +20,8 @@ public enum AppTheme
 /// <param name="Base">The light/dark base that drives backgrounds, borders and text.</param>
 /// <param name="BarBg">Selection-bar background.</param>
 /// <param name="BarText">Selection-bar text color.</param>
-public readonly record struct ThemeDef(string Name, AppTheme Base, string BarBg, string BarText);
+/// <param name="Border">Focused-view border color: the bar's hue, lightness-shifted to read on the base.</param>
+public readonly record struct ThemeDef(string Name, AppTheme Base, string BarBg, string BarText, string Border);
 
 /// <summary>
 /// Manages the active theme and provides theme-adaptive color values.
@@ -31,10 +32,10 @@ public static class ThemeManager
     // Two dark-based and two light-based themes; F6 cycles through them in order.
     private static readonly ThemeDef[] Themes =
     [
-        new("Teal",     AppTheme.Dark,  "#0E4F47", "#C8E64D"),
-        new("Indigo",   AppTheme.Dark,  "#312A5E", "#FFD700"),
-        new("Mint",     AppTheme.Light, "#CDE8CF", "#14532D"),
-        new("Lavender", AppTheme.Light, "#DAD2EC", "#4A2E7A"),
+        new("Teal",     AppTheme.Dark,  "#0E4F47", "#C8E64D", "#1DB9A0"),
+        new("Indigo",   AppTheme.Dark,  "#312A5E", "#FFD700", "#7A6AD9"),
+        new("Mint",     AppTheme.Light, "#CDE8CF", "#14532D", "#2E9D6E"),
+        new("Lavender", AppTheme.Light, "#DAD2EC", "#4A2E7A", "#6E57B0"),
     ];
 
     private static int _index;
@@ -136,14 +137,12 @@ public static class ThemeManager
 
     // ── Focus-adaptive view borders ─────────────────────────────────────
     //
-    //   Focused:   a bright, saturated green so the active view "pops" — paired
-    //              with a Norton Commander-style double-line border.
-    //   Unfocused: a desaturated slate/grey so inactive views recede into the
-    //              background — paired with a thin, dimmed single-line border.
-    //
-    //   In light mode the focused green is deepened and saturated so it stays
-    //   crisp against the pale background (a brighter green washes out there).
-    public static Color FocusedBorderColor   => _current == AppTheme.Dark ? ParseHex("#5BE85F") : ParseHex("#0B6E2E");
+    //   Focused:   the active theme's accent (the selection bar's hue, lightness-shifted to read on
+    //              the base) so the active view "pops" and shares one accent with the selected row —
+    //              paired with a Norton Commander-style double-line border.
+    //   Unfocused: a desaturated slate/grey so inactive views recede into the background — paired with
+    //              a thin, dimmed single-line border.
+    public static Color FocusedBorderColor   => ParseHex(Themes[_index].Border);
     public static Color UnfocusedBorderColor => _current == AppTheme.Dark ? ParseHex("#4A4A5E") : ParseHex("#C9C2B4");
 
     /// <summary>

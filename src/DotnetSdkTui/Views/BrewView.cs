@@ -416,13 +416,8 @@ public sealed class BrewView : IView
         PendingCommand = (command, args, null);
     }
 
-    private static IRenderable RenderPanel(bool focused, IRenderable content)
-    {
-        string focusIndicator = focused ? $"[{Ui.Green} bold]●[/] " : $"[{Ui.Gray}]○[/] ";
-        return new Panel(content)
-            .Header($"{focusIndicator}[{Ui.Yellow} bold]\U0001f37a Homebrew[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
-            .Expand();
-    }
+    // Use the shared focus-aware panel so the Homebrew workspace matches the other views:
+    // accent double-border when focused, the ● indicator, and a consistently padded title.
+    private static IRenderable RenderPanel(bool focused, IRenderable content) =>
+        Ui.ViewPanel("\U0001f37a", "Homebrew", content, focused);
 }
