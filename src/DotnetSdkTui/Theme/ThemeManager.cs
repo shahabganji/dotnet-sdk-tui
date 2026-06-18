@@ -75,6 +75,11 @@ public static class ThemeManager
     public static string TableBorder   => _current == AppTheme.Dark ? "#C84C09" : "#92400E";
     public static string HeaderBorder  => _current == AppTheme.Dark ? "#E52521" : "#B91C1C";
     public static string SelectedRow   => _current == AppTheme.Dark ? "#FBD000" : "#A16207";
+    // Selection highlight bar: a colored row background with a contrasting text color
+    // replaces the old ">" pointer. Dark = banner-teal bar / lime text (echoing the splash
+    // banner gradient); light = lavender bar / deep-purple text.
+    public static string SelectedRowText => _current == AppTheme.Dark ? "#C8E64D" : "#4A2E7A";
+    public static string SelectedRowBg   => _current == AppTheme.Dark ? "#0E4F47" : "#DAD2EC";
     public static string InstalledColor => _current == AppTheme.Dark ? "#43B047" : "#15803D";
     public static string AvailableColor => _current == AppTheme.Dark ? "#049CD8" : "#0369A1";
     public static string ErrorColor    => _current == AppTheme.Dark ? "#E52521" : "#B91C1C";

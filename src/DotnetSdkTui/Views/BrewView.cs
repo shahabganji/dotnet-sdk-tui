@@ -145,27 +145,23 @@ public sealed class BrewView : IView
         _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, items.Count - visibleCount));
         int endIndex = Math.Min(_scrollOffset + visibleCount, items.Count);
 
-        Table table = _mode == Mode.Search
-            ? Ui.StyledTable("", "Name", "Version", "Status")
-            : Ui.StyledTable("", "Name", "Installed", "Available");
-
+        var tableRows = new List<(Cell[], bool)>();
         for (int i = _scrollOffset; i < endIndex; i++)
         {
             BrewPackage pkg = items[i];
             bool selected = focused && i == _selectedIndex;
-            string pointer = selected ? ">" : " ";
-            string style = selected ? $"{Ui.Yellow} bold" : Ui.White;
 
             if (_mode == Mode.Search)
             {
                 string version = pkg.IsInstalled ? (pkg.InstalledVersion ?? "-") : (pkg.LatestVersion ?? "-");
                 string statusColor = pkg.IsInstalled ? Ui.Green : Ui.Blue;
                 string statusText = pkg.IsInstalled ? "Installed" : "Available";
-                table.AddRow(
-                    new Markup($"[{style}]{pointer}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(pkg.Name)}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(version)}[/]"),
-                    new Markup($"[{statusColor}]{statusText}[/]"));
+                tableRows.Add((new[]
+                {
+                    new Cell(pkg.Name, Ui.White),
+                    new Cell(version, Ui.White),
+                    new Cell(statusText, statusColor),
+                }, selected));
             }
             else
             {
@@ -173,20 +169,28 @@ public sealed class BrewView : IView
                 bool hasUpdate = !string.IsNullOrEmpty(pkg.LatestVersion)
                     && !string.Equals(pkg.LatestVersion, pkg.InstalledVersion, StringComparison.Ordinal);
                 string available = pkg.LatestVersion ?? installed;
-                // Gold + arrow when an update is available; muted when already up to date.
-                string availableMarkup = hasUpdate
-                    ? $"[{Ui.Gold}]{Markup.Escape(available)} ⬆[/]"
-                    : $"[{Ui.Gray}]{Markup.Escape(available)}[/]";
+                // Gold + arrow when an update is available; muted when up to date. On the selected row
+                // the bar's foreground takes over, so the colored markup is only needed when unselected.
+                Cell availableCell = selected
+                    ? new Cell(hasUpdate ? $"{available} ⬆" : available, Ui.White)
+                    : new Cell(hasUpdate
+                        ? $"[{Ui.Gold}]{Markup.Escape(available)} ⬆[/]"
+                        : $"[{Ui.Gray}]{Markup.Escape(available)}[/]", Ui.White, IsMarkup: true);
 
-                table.AddRow(
-                    new Markup($"[{style}]{pointer}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(pkg.Name)}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(installed)}[/]"),
-                    new Markup(availableMarkup));
+                tableRows.Add((new[]
+                {
+                    new Cell(pkg.Name, Ui.White),
+                    new Cell(installed, Ui.White),
+                    availableCell,
+                }, selected));
             }
         }
 
-        return table;
+        string[] headers = _mode == Mode.Search
+            ? new[] { "Name", "Version", "Status" }
+            : new[] { "Name", "Installed", "Available" };
+
+        return Ui.SelectableTable(headers, tableRows);
     }
 
     public string GetStatusHints()

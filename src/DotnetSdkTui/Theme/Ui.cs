@@ -1,8 +1,19 @@
+using System.Globalization;
 using System.Text;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
 namespace DotnetSdkTui.Theme;
+
+/// <summary>
+/// A single cell in a <see cref="Ui.SelectableTable"/> row.
+/// </summary>
+/// <param name="Text">Cell content. When <see cref="IsMarkup"/> is <c>false</c> this is plain text
+/// that gets escaped and (for unselected rows) colored with <see cref="Color"/>; when <c>true</c> it is
+/// emitted verbatim as already-styled markup (e.g. an emoji or a colored glyph).</param>
+/// <param name="Color">Foreground markup style applied to plain-text cells in unselected rows.</param>
+/// <param name="IsMarkup">Whether <see cref="Text"/> is pre-formatted markup.</param>
+public readonly record struct Cell(string Text, string Color, bool IsMarkup = false);
 
 /// <summary>
 /// Provides Super Mario-themed UI components for the terminal interface,
@@ -40,6 +51,9 @@ public static class Ui
 
     /// <summary>Dim text color for tertiary content.</summary>
     public static string DarkGray => ThemeManager.DimText;
+
+    /// <summary>Full markup style for text in the selected (highlighted) row: themed text color on the highlight bar, bold.</summary>
+    public static string Selected => $"{ThemeManager.SelectedRowText} on {ThemeManager.SelectedRowBg} bold";
 
     // ── Icons with Windows conhost fallbacks ──────────────────────────
     public static string IconSdks     => SupportsEmoji ? "📦" : "\u25c6";
@@ -356,6 +370,136 @@ public static class Ui
 
         return table;
     }
+
+    /// <summary>Horizontal padding inside each column cell (matches <see cref="StyledTable"/>).</summary>
+    private const int CellPad = 1;
+
+    /// <summary>
+    /// Renders a rounded, fully-bordered table (matching <see cref="StyledTable"/>'s frame, header and
+    /// column dividers) in which the selected row is drawn as a single solid Norton Commander-style
+    /// highlight bar: the vertical dividers cross every other row but give way to the bar on the
+    /// selected one, while the outer frame stays intact.
+    /// </summary>
+    /// <param name="headers">Column headers (an empty string yields a header-less column, e.g. an icon column).</param>
+    /// <param name="rows">The rows, each carrying its cells and whether it is the selected row.</param>
+    public static IRenderable SelectableTable(IReadOnlyList<string> headers, IReadOnlyList<(Cell[] Cells, bool Selected)> rows)
+    {
+        int n = headers.Count;
+
+        // Column = widest content + left/right padding, just like a Spectre table cell.
+        int[] col = new int[n];
+        for (int j = 0; j < n; j++)
+            col[j] = VisibleWidth(headers[j]);
+        foreach (var (cells, _) in rows)
+            for (int j = 0; j < n && j < cells.Length; j++)
+                col[j] = Math.Max(col[j], VisibleWidth(cells[j].IsMarkup ? cells[j].Text : Markup.Escape(cells[j].Text)));
+        for (int j = 0; j < n; j++)
+            col[j] += 2 * CellPad;
+
+        string tb = ThemeManager.TableBorder;
+        string vbar = $"[{tb}]│[/]";
+        string selDivider = $"[{tb} on {ThemeManager.SelectedRowBg}]│[/]"; // divider kept on the highlight bar
+        string leftPad = new string(' ', CellPad);
+
+        string Rule(char l, char m, char r)
+        {
+            var s = new StringBuilder().Append(l);
+            for (int j = 0; j < n; j++)
+            {
+                s.Append('─', col[j]);
+                s.Append(j < n - 1 ? m : r);
+            }
+            return $"[{tb}]{s}[/]";
+        }
+
+        var lines = new List<IRenderable> { new Markup(Rule('╭', '┬', '╮')) };
+
+        // Header row + separator rule.
+        var hb = new StringBuilder(vbar);
+        for (int j = 0; j < n; j++)
+        {
+            hb.Append(leftPad)
+              .Append($"[{Yellow} bold]{Markup.Escape(headers[j])}[/]")
+              .Append(new string(' ', col[j] - CellPad - VisibleWidth(headers[j])))
+              .Append(vbar);
+        }
+        lines.Add(new Markup(hb.ToString()));
+        lines.Add(new Markup(Rule('├', '┼', '┤')));
+
+        // Data rows.
+        for (int r = 0; r < rows.Count; r++)
+        {
+            var (cells, selected) = rows[r];
+            var sb = new StringBuilder(vbar);   // left frame border (kept on every row)
+            for (int j = 0; j < n; j++)
+            {
+                Cell cell = j < cells.Length ? cells[j] : new Cell(string.Empty, White);
+                string disp = cell.IsMarkup ? cell.Text : Markup.Escape(cell.Text);
+                int rightFill = Math.Max(0, col[j] - CellPad - VisibleWidth(disp));
+
+                // The cell body sits on the highlight bar when selected; the column divider stays
+                // visible on the bar (border color over the selection background).
+                string body = $"{leftPad}{(selected || cell.IsMarkup ? disp : $"[{cell.Color}]{disp}[/]")}{new string(' ', rightFill)}";
+                sb.Append(selected ? $"[{Selected}]{body}[/]" : body);
+
+                if (j < n - 1) sb.Append(selected ? selDivider : vbar);
+            }
+            sb.Append(vbar);                    // right frame border
+            lines.Add(new Markup(sb.ToString()));
+        }
+
+        lines.Add(new Markup(Rule('╰', '┴', '╯')));
+        return new Rows(lines);
+    }
+
+    /// <summary>
+    /// Visible cell width of a markup string: strips <c>[…]</c> style tags (honoring <c>[[</c>/<c>]]</c>
+    /// escapes) and counts East-Asian-wide and emoji code points as two columns.
+    /// </summary>
+    public static int VisibleWidth(string markup)
+    {
+        var text = new StringBuilder(markup.Length);
+        for (int i = 0; i < markup.Length; i++)
+        {
+            char c = markup[i];
+            if (c == '[')
+            {
+                if (i + 1 < markup.Length && markup[i + 1] == '[') { text.Append('['); i++; }
+                else { int close = markup.IndexOf(']', i); if (close < 0) break; i = close; }
+            }
+            else if (c == ']')
+            {
+                if (i + 1 < markup.Length && markup[i + 1] == ']') { text.Append(']'); i++; }
+            }
+            else
+            {
+                text.Append(c);
+            }
+        }
+
+        int w = 0;
+        var en = StringInfo.GetTextElementEnumerator(text.ToString());
+        while (en.MoveNext())
+        {
+            string el = (string)en.Current;
+            w += IsWide(char.ConvertToUtf32(el, 0)) ? 2 : 1;
+        }
+        return w;
+    }
+
+    private static bool IsWide(int cp) =>
+        cp >= 0x1100 && (
+            cp <= 0x115F ||                          // Hangul Jamo
+            cp is 0x2329 or 0x232A ||
+            (cp >= 0x2E80 && cp <= 0xA4CF && cp != 0x303F) ||  // CJK … Yi
+            (cp >= 0xAC00 && cp <= 0xD7A3) ||        // Hangul Syllables
+            (cp >= 0xF900 && cp <= 0xFAFF) ||        // CJK Compatibility Ideographs
+            (cp >= 0xFE30 && cp <= 0xFE4F) ||        // CJK Compatibility Forms
+            (cp >= 0xFF00 && cp <= 0xFF60) ||        // Fullwidth Forms
+            (cp >= 0xFFE0 && cp <= 0xFFE6) ||
+            (cp >= 0x1F300 && cp <= 0x1FAFF) ||      // emoji & pictographs
+            (cp >= 0x20000 && cp <= 0x3FFFD));       // CJK Extension B+
+
 
     /// <summary>
     /// Wraps a switchable view's content in a focus-aware panel, Norton Commander-style.
