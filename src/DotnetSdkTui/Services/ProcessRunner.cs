@@ -255,7 +255,7 @@ public static class ProcessRunner
     /// Runs a process without redirecting stdout/stderr so the child process
     /// writes directly to the terminal. Used for streaming install output.
     /// </summary>
-    public static async Task<int> RunInteractiveAsync(string command, string arguments, string? workingDirectory = null)
+    public static async Task<int> RunInteractiveAsync(string command, string arguments, string? workingDirectory = null, IReadOnlyDictionary<string, string>? environment = null)
     {
         // On Windows, resolve full path to avoid "Access is denied" from NativeAOT Zone.Identifier restrictions
         string resolvedCommand = command;
@@ -276,6 +276,12 @@ public static class ProcessRunner
 
         if (!string.IsNullOrWhiteSpace(workingDirectory))
             psi.WorkingDirectory = workingDirectory;
+
+        if (environment is not null)
+        {
+            foreach (KeyValuePair<string, string> kv in environment)
+                psi.Environment[kv.Key] = kv.Value;
+        }
 
         using var process = new Process { StartInfo = psi };
         if (!process.Start())
