@@ -13,27 +13,44 @@ public enum AppTheme
 }
 
 /// <summary>
+/// A complete selectable theme: a light/dark base plus the selection-bar colors that pair with it.
+/// Cycled in order with F6.
+/// </summary>
+/// <param name="Name">Short label shown in the footer.</param>
+/// <param name="Base">The light/dark base that drives backgrounds, borders and text.</param>
+/// <param name="BarBg">Selection-bar background.</param>
+/// <param name="BarText">Selection-bar text color.</param>
+public readonly record struct ThemeDef(string Name, AppTheme Base, string BarBg, string BarText);
+
+/// <summary>
 /// Manages the active theme and provides theme-adaptive color values.
 /// All color properties update automatically when the theme changes.
 /// </summary>
 public static class ThemeManager
 {
-    private static AppTheme _current = AppTheme.Dark;
+    // Two dark-based and two light-based themes; F6 cycles through them in order.
+    private static readonly ThemeDef[] Themes =
+    [
+        new("Teal",     AppTheme.Dark,  "#0E4F47", "#C8E64D"),
+        new("Indigo",   AppTheme.Dark,  "#312A5E", "#FFD700"),
+        new("Mint",     AppTheme.Light, "#CDE8CF", "#14532D"),
+        new("Lavender", AppTheme.Light, "#DAD2EC", "#4A2E7A"),
+    ];
 
-    /// <summary>Gets the currently active theme.</summary>
+    private static int _index;
+    private static AppTheme _current = Themes[0].Base;
+
+    /// <summary>Gets the active light/dark base (drives backgrounds, borders and text).</summary>
     public static AppTheme Current => _current;
 
-    /// <summary>Toggles between dark and light themes.</summary>
-    public static void Toggle()
-    {
-        _current = _current == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
-        ApplyBackground();
-    }
+    /// <summary>Short label of the active theme (for footer/status display).</summary>
+    public static string ThemeName => Themes[_index].Name;
 
-    /// <summary>Sets the active theme explicitly.</summary>
-    public static void Set(AppTheme theme)
+    /// <summary>Advances to the next theme, switching both the base palette and the selection bar.</summary>
+    public static void Cycle()
     {
-        _current = theme;
+        _index = (_index + 1) % Themes.Length;
+        _current = Themes[_index].Base;
         ApplyBackground();
     }
 
@@ -75,11 +92,10 @@ public static class ThemeManager
     public static string TableBorder   => _current == AppTheme.Dark ? "#C84C09" : "#92400E";
     public static string HeaderBorder  => _current == AppTheme.Dark ? "#E52521" : "#B91C1C";
     public static string SelectedRow   => _current == AppTheme.Dark ? "#FBD000" : "#A16207";
-    // Selection highlight bar: a colored row background with a contrasting text color
-    // replaces the old ">" pointer. Dark = banner-teal bar / lime text (echoing the splash
-    // banner gradient); light = lavender bar / deep-purple text.
-    public static string SelectedRowText => _current == AppTheme.Dark ? "#C8E64D" : "#4A2E7A";
-    public static string SelectedRowBg   => _current == AppTheme.Dark ? "#0E4F47" : "#DAD2EC";
+    // Selection highlight bar: a colored row background with a contrasting text color replaces the
+    // old ">" pointer. The pair comes from the active theme (see Themes).
+    public static string SelectedRowText => Themes[_index].BarText;
+    public static string SelectedRowBg   => Themes[_index].BarBg;
     public static string InstalledColor => _current == AppTheme.Dark ? "#43B047" : "#15803D";
     public static string AvailableColor => _current == AppTheme.Dark ? "#049CD8" : "#0369A1";
     public static string ErrorColor    => _current == AppTheme.Dark ? "#E52521" : "#B91C1C";

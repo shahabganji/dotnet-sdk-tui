@@ -230,7 +230,7 @@ public sealed class App
         root["TopPad"].Update(new Text(""));
         root["Top"].Update(Ui.WelcomePanel());
         root["Body"].Update(_brewView.Render(true));
-        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), "F1:.NET  F3:Search  F6:Theme  q:Quit")));
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), $"F1:.NET  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit")));
 
         AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }
@@ -272,10 +272,10 @@ public sealed class App
             return;
         }
 
-        // F5/F6 toggles theme
+        // F5/F6 cycles theme
         if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
         {
-            ThemeManager.Toggle();
+            ThemeManager.Cycle();
             return;
         }
 
@@ -324,10 +324,10 @@ public sealed class App
 
     private async Task HandleSearchKeyAsync(ConsoleKeyInfo key)
     {
-        // F5/F6 toggles theme even in search
+        // F5/F6 cycles theme even in search
         if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
         {
-            ThemeManager.Toggle();
+            ThemeManager.Cycle();
             return;
         }
 
@@ -343,10 +343,10 @@ public sealed class App
 
     private async Task HandleBrewKeyAsync(ConsoleKeyInfo key)
     {
-        // F5/F6 toggles theme even in the brew workspace
+        // F5/F6 cycles theme even in the brew workspace
         if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
         {
-            ThemeManager.Toggle();
+            ThemeManager.Cycle();
             return;
         }
 
