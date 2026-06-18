@@ -416,11 +416,12 @@ public sealed class App
             new Markup("  • Leave your existing copies in place until you remove them yourself"),
             new Markup("[grey]dsm keeps dotnetup's dotnet on your PATH. Downloads may be several hundred MB per SDK.[/]"));
 
-        AnsiConsole.Write(new Panel(body)
+        var dialog = new Panel(body)
             .Header("[yellow bold] Bulk migrate [/]")
-            .Border(BoxBorder.Rounded)
+            .Border(BoxBorder.Double)
             .BorderColor(ThemeManager.PanelBorderColor)
-            .Padding(2, 1));
+            .Padding(2, 1);
+        AnsiConsole.Write(new DropShadow(dialog, ThemeManager.ShadowColor));
         AnsiConsole.WriteLine();
 
         bool confirmed = AnsiConsole.Prompt(

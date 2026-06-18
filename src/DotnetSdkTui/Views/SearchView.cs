@@ -54,7 +54,7 @@ public sealed class SearchView : IView
         var inputMarkup = new Markup(
             $"[{Ui.Yellow} bold] {searchIcon} Search: [/][{Ui.White}]{Markup.Escape(inputDisplay)}{cursor}[/]");
 
-        return Ui.ViewPanel(Ui.IconSearch, "Search .NET SDKs & Runtimes", inputMarkup, _inputActive, shadow: false);
+        return Ui.ViewPanel(Ui.IconSearch, "Search .NET SDKs & Runtimes", inputMarkup, _inputActive);
     }
 
     /// <summary>Renders the search results panel.</summary>

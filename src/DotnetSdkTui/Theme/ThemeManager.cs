@@ -95,9 +95,9 @@ public static class ThemeManager
     // ── Focus-adaptive view borders ─────────────────────────────────────
     //
     //   Focused:   a bright, saturated green so the active view "pops" — paired
-    //              with a heavy/bold border and a drop-shadow for a raised feel.
+    //              with a Norton Commander-style double-line border.
     //   Unfocused: a desaturated slate/grey so inactive views recede into the
-    //              background — paired with a thin, dimmed border.
+    //              background — paired with a thin, dimmed single-line border.
     //
     //   In light mode the focused green is deepened and saturated so it stays
     //   crisp against the pale background (a brighter green washes out there).
@@ -105,10 +105,10 @@ public static class ThemeManager
     public static Color UnfocusedBorderColor => _current == AppTheme.Dark ? ParseHex("#4A4A5E") : ParseHex("#C9C2B4");
 
     /// <summary>
-    /// Drop-shadow fill behind the focused view — a deep, green-tinted tone that echoes
-    /// the focus colour so the active view appears to glow rather than cast a flat shadow.
+    /// Classic drop-shadow fill for popup dialogs — a near-black (dark theme) or muted grey
+    /// (light theme) offset behind the dialog, like the old Norton Commander pop-ups.
     /// </summary>
-    public static Color ShadowColor => _current == AppTheme.Dark ? ParseHex("#0E3A1B") : ParseHex("#9FC0A3");
+    public static Color ShadowColor => _current == AppTheme.Dark ? ParseHex("#08080C") : ParseHex("#BBB3A3");
 
     internal static Color ParseHex(string hex)
     {

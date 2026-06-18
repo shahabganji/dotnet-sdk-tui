@@ -354,28 +354,24 @@ public static class Ui
     }
 
     /// <summary>
-    /// Wraps a switchable view's content in a focus-aware panel.
+    /// Wraps a switchable view's content in a focus-aware panel, Norton Commander-style.
     /// <para>
-    /// The focused view is emphasised so it clearly stands out: a <see cref="BoxBorder.Heavy"/>
-    /// (thick) border drawn in a bright, saturated green with a bold decoration, plus a vivid
-    /// filled <c>●</c> indicator and a bold yellow title.
+    /// The focused view is marked with a bright <see cref="BoxBorder.Double"/> (double-line)
+    /// frame drawn in a vivid green with a bold decoration, plus a filled <c>●</c> indicator
+    /// and a bold yellow title — the classic NC "active panel" look.
     /// </para>
     /// <para>
     /// Unfocused views recede into the background: a thin <see cref="BoxBorder.Rounded"/> border
     /// drawn in a desaturated slate/grey with a dim decoration, plus a muted hollow <c>○</c>
     /// indicator and a dimmed title.
     /// </para>
+    /// Panels deliberately carry no drop-shadow; shadows are reserved for popup dialogs.
     /// </summary>
     /// <param name="icon">Leading icon for the header (e.g. an emoji or glyph).</param>
     /// <param name="title">View title shown in the header.</param>
     /// <param name="content">The rendered view body.</param>
     /// <param name="focused">Whether this view currently holds focus.</param>
-    /// <param name="shadow">
-    /// When <c>true</c> (the default), a focused panel also gets a faux drop-shadow.
-    /// Pass <c>false</c> for short, fixed-height strips (e.g. the Setup bar) where a
-    /// shadow would eat the single content row.
-    /// </param>
-    public static IRenderable ViewPanel(string icon, string title, IRenderable content, bool focused, bool shadow = true)
+    public static IRenderable ViewPanel(string icon, string title, IRenderable content, bool focused)
     {
         string indicator = focused
             ? $"[{Green} bold]●[/] "   // ● filled, vivid
@@ -386,14 +382,12 @@ public static class Ui
             ? new Style(ThemeManager.FocusedBorderColor, decoration: Decoration.Bold)
             : new Style(ThemeManager.UnfocusedBorderColor, decoration: Decoration.Dim);
 
-        // Trailing space after the title keeps it off the corner of the heavier border.
-        var panel = new Panel(content)
+        // Trailing space after the title keeps it off the corner of the double border.
+        return new Panel(content)
             .Header($"{indicator}[{titleStyle}]{icon} {Markup.Escape(title)} [/]")
-            .Border(focused ? BoxBorder.Heavy : BoxBorder.Rounded)
+            .Border(focused ? BoxBorder.Double : BoxBorder.Rounded)
             .BorderStyle(borderStyle)
             .Expand();
-
-        return focused && shadow ? new DropShadow(panel, ThemeManager.ShadowColor) : panel;
     }
 
     /// <summary>

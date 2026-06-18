@@ -6,7 +6,7 @@ namespace DotnetSdkTui.Theme;
 /// <summary>
 /// Wraps a renderable with a faux drop-shadow: a dark band along the right and
 /// bottom edges, offset one cell down-and-right, so the content appears lifted
-/// off the screen. Used to make the focused view "pop".
+/// off the screen. Used for popup dialogs, Norton Commander-style.
 /// </summary>
 /// <remarks>
 /// Spectre.Console has no native shadow primitive, so this composes one at the
@@ -44,19 +44,22 @@ internal sealed class DropShadow : IRenderable
         if (maxWidth <= 1)
             return _inner.Render(options, maxWidth);
 
-        int innerWidth = maxWidth - 1;
-
-        // Reserve the bottom row for the shadow so box + shadow fit the cell height.
+        // Reserve the bottom row for the shadow so box + shadow fit the available height.
         var innerOptions = options.Height is { } h && h > 1
             ? options with { Height = h - 1 }
             : options;
 
-        var lines = Segment.SplitLines(_inner.Render(innerOptions, innerWidth));
+        var lines = Segment.SplitLines(_inner.Render(innerOptions, maxWidth - 1));
 
         // Panels emit a trailing line break, so SplitLines hands back an empty final
         // line. Drop trailing blanks so the shadow sits flush under the bottom border.
         while (lines.Count > 0 && lines[^1].CellCount() == 0)
             lines.RemoveAt(lines.Count - 1);
+        if (lines.Count == 0)
+            return _inner.Render(options, maxWidth);
+
+        // Shadow the box's actual width, so a content-sized dialog isn't shadowed full-width.
+        int boxWidth = lines.Max(l => l.CellCount());
 
         var output = new List<Segment>();
         for (int i = 0; i < lines.Count; i++)
@@ -73,9 +76,9 @@ internal sealed class DropShadow : IRenderable
                 output.AddRange(line);
 
             int width = line.CellCount();
-            if (width < innerWidth)
+            if (width < boxWidth)
             {
-                var pad = new string(' ', innerWidth - width);
+                var pad = new string(' ', boxWidth - width);
                 output.Add(isBottomRow ? new Segment(pad, _shadow) : new Segment(pad));
             }
 
@@ -86,7 +89,7 @@ internal sealed class DropShadow : IRenderable
 
         // Shadow along the bottom edge, offset one column to the right.
         output.Add(new Segment(" "));
-        output.Add(new Segment(new string(' ', innerWidth), _shadow));
+        output.Add(new Segment(new string(' ', boxWidth), _shadow));
         output.Add(Segment.LineBreak);
 
         return output;
