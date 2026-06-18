@@ -390,6 +390,13 @@
 
     <p style="color: var(--text-muted); margin-top: 1.5rem;">After installation, open a new terminal and run <code>dsm</code>. The app will notify you when updates are available — press <code>Ctrl+U</code> to self-update.</p>
 
+    <h3 style="margin: 2rem 0 0.5rem;">Troubleshooting</h3>
+    <div class="feature-card" style="border-left: 3px solid var(--gold); margin-top: 0.5rem;">
+      <div class="card-header"><i class="bi bi-exclamation-triangle icon"></i><h3>macOS: <code>killed</code> / “killed: 9” after updating</h3></div>
+      <p style="color: var(--text-muted); margin-bottom: 0.75rem;">If <code>dsm</code> exits immediately with <code>killed</code> (signal 9) right after an update, an older installer replaced the binary in place, which invalidates its code signature on macOS. Re-run the install command to fix it — the installer now replaces the binary atomically, so future updates are safe:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></pre>
+    </div>
+
     <h3 style="margin: 2rem 0 0.5rem;">Prerequisites</h3>
     <div class="feature-card" style="margin-top: 0.5rem;">
       <div class="card-header"><i class="bi bi-box-arrow-up-right icon"></i><h3>dotnetup</h3></div>

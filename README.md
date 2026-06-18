@@ -64,6 +64,18 @@ dsm --no-splash    # Skip the banner animation
 dsm --version      # Print version and exit
 ```
 
+## Troubleshooting
+
+### macOS: `killed` / "killed: 9" right after updating
+
+If `dsm` exits immediately with `killed` (signal 9) after an update — including `dsm --version` — an older installer replaced the binary **in place**, which invalidates its code signature on macOS (the OS then SIGKILLs it at launch). Re-run the install command to fix it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | bash
+```
+
+This lays down a fresh binary and `dsm` runs normally again. The installer now replaces the binary atomically (new file + rename), so updates from this point on are safe.
+
 ## Build from source
 
 Requires [.NET 10 SDK](https://dotnet.microsoft.com/download) or later.
