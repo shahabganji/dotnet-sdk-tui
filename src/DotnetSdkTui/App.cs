@@ -67,7 +67,7 @@ public sealed class App
             AnsiConsole.Profile.Height = 40;
         }
 
-        ThemeManager.ApplyBackground();
+        ThemeManager.Restore();
 
         // Graceful Ctrl+C: stop the loop instead of killing the process
         Console.CancelKeyPress += (_, e) =>
@@ -213,7 +213,8 @@ public sealed class App
         root["Header"].Update(Ui.SearchHeader(_setupInfo));
         root["SearchInput"].Update(_searchView.RenderSearchInput());
         root["Results"].Update(_searchView.RenderResults());
-        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_searchView.GetStatusHints())));
+        // Search is a focused context — no package-manager switching here, so omit F2/F3 hints.
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_searchView.GetStatusHints(), $"F6:Theme({ThemeManager.ThemeName})")));
 
         AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }
@@ -230,7 +231,11 @@ public sealed class App
         root["TopPad"].Update(new Text(""));
         root["Top"].Update(Ui.WelcomePanel());
         root["Body"].Update(_brewView.Render(true));
-        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), "F1:.NET  F3:Search  F6:Theme  q:Quit")));
+        // While the brew search view is open it's a focused context: drop the workspace-switch hints.
+        string brewGlobal = _brewView.IsSearching
+            ? $"F6:Theme({ThemeManager.ThemeName})"
+            : $"F2:.NET  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit";
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), brewGlobal)));
 
         AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
     }
@@ -272,10 +277,10 @@ public sealed class App
             return;
         }
 
-        // F5/F6 toggles theme
+        // F5/F6 cycles theme
         if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
         {
-            ThemeManager.Toggle();
+            ThemeManager.Cycle();
             return;
         }
 
@@ -301,10 +306,11 @@ public sealed class App
             return;
         }
 
-        // Tab cycling between SDKs, Runtimes, and Setup
+        // Tab cycles focus between SDKs, Runtimes, and Setup; Shift+Tab cycles backward.
         if (key.Key == ConsoleKey.Tab && !GetFocusedMainView().IsTextInputActive)
         {
-            _mainFocus = (_mainFocus + 1) % 3;
+            int step = key.Modifiers.HasFlag(ConsoleModifiers.Shift) ? -1 : 1;
+            _mainFocus = (_mainFocus + step + 3) % 3;
             return;
         }
 
@@ -324,10 +330,10 @@ public sealed class App
 
     private async Task HandleSearchKeyAsync(ConsoleKeyInfo key)
     {
-        // F5/F6 toggles theme even in search
+        // F5/F6 cycles theme even in search
         if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
         {
-            ThemeManager.Toggle();
+            ThemeManager.Cycle();
             return;
         }
 
@@ -343,15 +349,15 @@ public sealed class App
 
     private async Task HandleBrewKeyAsync(ConsoleKeyInfo key)
     {
-        // F5/F6 toggles theme even in the brew workspace
+        // F5/F6 cycles theme even in the brew workspace
         if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
         {
-            ThemeManager.Toggle();
+            ThemeManager.Cycle();
             return;
         }
 
-        // F1 returns to the .NET main screen (works even while typing a search)
-        if (key.Key == ConsoleKey.F1)
+        // F2 toggles back to the .NET workspace — but not while the brew search view is open.
+        if (key.Key == ConsoleKey.F2 && !_brewView.IsSearching)
         {
             _screen = Screen.Main;
             AnsiConsole.Clear();

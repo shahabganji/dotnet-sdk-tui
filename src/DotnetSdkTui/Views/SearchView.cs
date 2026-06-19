@@ -72,28 +72,28 @@ public sealed class SearchView : IView
         }
         else if (_results.Count > 0)
         {
-            var table = Ui.StyledTable("", "Component", "Version", "Channel", "Support", "Latest");
-
             int maxRows = Math.Min(_results.Count, 20);
+            var tableRows = new List<(Cell[], bool)>();
             for (int i = 0; i < maxRows; i++)
             {
                 var sdk = _results[i];
                 bool selected = !_inputActive && i == _selectedIndex;
-                string pointer = selected ? ">" : " ";
-                string style = selected ? $"{Ui.Yellow} bold" : Ui.White;
                 string latest = sdk.IsLatest ? "*" : "";
                 string componentColor = sdk.Component == "SDK" ? Ui.Green : Ui.Blue;
 
-                table.AddRow(
-                    new Markup($"[{style}]{pointer}[/]"),
-                    new Markup($"[{componentColor}]{Markup.Escape(sdk.Component)}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(sdk.Version)}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(sdk.ChannelVersion)}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(FormatPhase(sdk.SupportPhase))}[/]"),
-                    new Markup($"[{Ui.Gold}]{latest}[/]"));
+                tableRows.Add((new[]
+                {
+                    new Cell(sdk.Component, componentColor),
+                    new Cell(sdk.Version, Ui.White),
+                    new Cell(sdk.ChannelVersion, Ui.White),
+                    new Cell(FormatPhase(sdk.SupportPhase), Ui.White),
+                    new Cell(latest, Ui.Gold),
+                }, selected));
             }
 
-            resultParts.Add(table);
+            resultParts.Add(Ui.SelectableTable(
+                new[] { "Component", "Version", "Channel", "Support", "Latest" },
+                tableRows));
             if (_results.Count > maxRows)
                 resultParts.Add(Ui.Muted($"Showing {maxRows} of {_results.Count} results"));
         }

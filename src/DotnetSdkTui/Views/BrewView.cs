@@ -30,6 +30,7 @@ public sealed class BrewView : IView
     private string? _statusMessage;
     private int _selectedIndex;
     private int _scrollOffset;
+    private bool _searchInputActive = true;   // typing vs navigating results, within search mode
     private CancellationTokenSource? _searchCts;
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(300);
 
@@ -37,7 +38,10 @@ public sealed class BrewView : IView
     internal (string Command, string Args, string? Note)? PendingCommand { get; private set; }
 
     public bool NeedsLiveUpdate => _loading || _searching || _hasPendingSearch;
-    public bool IsTextInputActive => _mode == Mode.Search;
+    public bool IsTextInputActive => _mode == Mode.Search && _searchInputActive;
+
+    /// <summary>True whenever the search view is open (typing or navigating results).</summary>
+    public bool IsSearching => _mode == Mode.Search;
 
     private List<BrewPackage> CurrentItems => _mode == Mode.Search ? _results : _installed;
 
@@ -120,7 +124,8 @@ public sealed class BrewView : IView
     {
         string icon = _searching ? "*" : "/";
         string display = _query.Length > 0 ? _query : "type to search formulae...";
-        return new Markup($"[{Ui.Yellow} bold] {icon} Search: [/][{Ui.White}]{Markup.Escape(display)}[/][{Ui.Yellow}]|[/]\n");
+        string cursor = _searchInputActive ? "|" : "";   // hidden while navigating results
+        return new Markup($"[{Ui.Yellow} bold] {icon} Search: [/][{Ui.White}]{Markup.Escape(display)}[/][{Ui.Yellow}]{cursor}[/]\n");
     }
 
     private IRenderable RenderTable(bool focused)
@@ -145,27 +150,24 @@ public sealed class BrewView : IView
         _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, items.Count - visibleCount));
         int endIndex = Math.Min(_scrollOffset + visibleCount, items.Count);
 
-        Table table = _mode == Mode.Search
-            ? Ui.StyledTable("", "Name", "Version", "Status")
-            : Ui.StyledTable("", "Name", "Installed", "Available");
-
+        var tableRows = new List<(Cell[], bool)>();
         for (int i = _scrollOffset; i < endIndex; i++)
         {
             BrewPackage pkg = items[i];
-            bool selected = focused && i == _selectedIndex;
-            string pointer = selected ? ">" : " ";
-            string style = selected ? $"{Ui.Yellow} bold" : Ui.White;
+            bool selectable = _mode == Mode.List || !_searchInputActive;   // no bar while typing
+            bool selected = focused && selectable && i == _selectedIndex;
 
             if (_mode == Mode.Search)
             {
                 string version = pkg.IsInstalled ? (pkg.InstalledVersion ?? "-") : (pkg.LatestVersion ?? "-");
                 string statusColor = pkg.IsInstalled ? Ui.Green : Ui.Blue;
                 string statusText = pkg.IsInstalled ? "Installed" : "Available";
-                table.AddRow(
-                    new Markup($"[{style}]{pointer}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(pkg.Name)}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(version)}[/]"),
-                    new Markup($"[{statusColor}]{statusText}[/]"));
+                tableRows.Add((new[]
+                {
+                    new Cell(pkg.Name, Ui.White),
+                    new Cell(version, Ui.White),
+                    new Cell(statusText, statusColor),
+                }, selected));
             }
             else
             {
@@ -173,20 +175,28 @@ public sealed class BrewView : IView
                 bool hasUpdate = !string.IsNullOrEmpty(pkg.LatestVersion)
                     && !string.Equals(pkg.LatestVersion, pkg.InstalledVersion, StringComparison.Ordinal);
                 string available = pkg.LatestVersion ?? installed;
-                // Gold + arrow when an update is available; muted when already up to date.
-                string availableMarkup = hasUpdate
-                    ? $"[{Ui.Gold}]{Markup.Escape(available)} ⬆[/]"
-                    : $"[{Ui.Gray}]{Markup.Escape(available)}[/]";
+                // Gold + arrow when an update is available; muted when up to date. On the selected row
+                // the bar's foreground takes over, so the colored markup is only needed when unselected.
+                Cell availableCell = selected
+                    ? new Cell(hasUpdate ? $"{available} ⬆" : available, Ui.White)
+                    : new Cell(hasUpdate
+                        ? $"[{Ui.Gold}]{Markup.Escape(available)} ⬆[/]"
+                        : $"[{Ui.Gray}]{Markup.Escape(available)}[/]", Ui.White, IsMarkup: true);
 
-                table.AddRow(
-                    new Markup($"[{style}]{pointer}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(pkg.Name)}[/]"),
-                    new Markup($"[{style}]{Markup.Escape(installed)}[/]"),
-                    new Markup(availableMarkup));
+                tableRows.Add((new[]
+                {
+                    new Cell(pkg.Name, Ui.White),
+                    new Cell(installed, Ui.White),
+                    availableCell,
+                }, selected));
             }
         }
 
-        return table;
+        string[] headers = _mode == Mode.Search
+            ? new[] { "Name", "Version", "Status" }
+            : new[] { "Name", "Installed", "Available" };
+
+        return Ui.SelectableTable(headers, tableRows);
     }
 
     public string GetStatusHints()
@@ -194,7 +204,9 @@ public sealed class BrewView : IView
         if (!BrewService.IsInstalled())
             return "r:Refresh  Esc:Back  (install Homebrew to manage packages)";
         if (_mode == Mode.Search)
-            return "type:Search  up/down:Navigate  Enter:Install  Esc:Cancel";
+            return _searchInputActive
+                ? "Type to search  Tab:Results  Esc:Cancel"
+                : "up/down:Navigate  i:Install  Tab:Search  Esc:Cancel";
         return "up/down:Navigate  p:Upgrade  u:Uninstall  r:Refresh  Esc:Back";
     }
 
@@ -249,12 +261,23 @@ public sealed class BrewView : IView
         }
     }
 
-    private KeyResult HandleSearchKey(ConsoleKeyInfo key)
+    // Within search mode, mirror the .NET Search view: a typing field and a navigable result list,
+    // toggled with Tab/↓. Install is 'i' (or Enter) while navigating — consistent with the .NET views.
+    private KeyResult HandleSearchKey(ConsoleKeyInfo key) =>
+        _searchInputActive ? HandleSearchInputKey(key) : HandleSearchNavKey(key);
+
+    private KeyResult HandleSearchInputKey(ConsoleKeyInfo key)
     {
         switch (key.Key)
         {
-            case ConsoleKey.Escape:
-                ExitSearchMode();
+            case ConsoleKey.Tab:
+            case ConsoleKey.DownArrow:
+                if (_results.Count > 0)
+                {
+                    _searchInputActive = false;
+                    _selectedIndex = 0;
+                    _scrollOffset = 0;
+                }
                 return KeyResult.Handled;
 
             case ConsoleKey.Backspace:
@@ -265,16 +288,8 @@ public sealed class BrewView : IView
                 }
                 return KeyResult.Handled;
 
-            case ConsoleKey.UpArrow:
-                if (_results.Count > 0) _selectedIndex = Math.Max(0, _selectedIndex - 1);
-                return KeyResult.Handled;
-
-            case ConsoleKey.DownArrow:
-                if (_results.Count > 0) _selectedIndex = Math.Min(_results.Count - 1, _selectedIndex + 1);
-                return KeyResult.Handled;
-
-            case ConsoleKey.Enter:
-                RequestInstall();
+            case ConsoleKey.Escape:
+                ExitSearchMode();
                 return KeyResult.Handled;
 
             default:
@@ -288,9 +303,47 @@ public sealed class BrewView : IView
         }
     }
 
+    private KeyResult HandleSearchNavKey(ConsoleKeyInfo key)
+    {
+        switch (key.Key)
+        {
+            case ConsoleKey.UpArrow or ConsoleKey.K:
+                if (_results.Count > 0) _selectedIndex = Math.Max(0, _selectedIndex - 1);
+                return KeyResult.Handled;
+
+            case ConsoleKey.DownArrow or ConsoleKey.J:
+                if (_results.Count > 0) _selectedIndex = Math.Min(_results.Count - 1, _selectedIndex + 1);
+                return KeyResult.Handled;
+
+            case ConsoleKey.Tab:
+                _searchInputActive = true;
+                return KeyResult.Handled;
+
+            case ConsoleKey.I or ConsoleKey.Enter:
+                RequestInstall();
+                return KeyResult.Handled;
+
+            case ConsoleKey.Escape:
+                ExitSearchMode();
+                return KeyResult.Handled;
+
+            default:
+                // Any other printable character resumes typing the query.
+                if (key.KeyChar is >= ' ' and <= '~')
+                {
+                    _searchInputActive = true;
+                    _query += key.KeyChar;
+                    TriggerDebouncedSearch();
+                    return KeyResult.Handled;
+                }
+                return KeyResult.NotHandled;
+        }
+    }
+
     private void EnterSearchMode()
     {
         _mode = Mode.Search;
+        _searchInputActive = true;
         _query = "";
         _results = [];
         _selectedIndex = 0;
@@ -302,6 +355,7 @@ public sealed class BrewView : IView
     {
         CancelSearch();
         _mode = Mode.List;
+        _searchInputActive = true;
         _query = "";
         _results = [];
         _selectedIndex = Math.Clamp(_selectedIndex, 0, Math.Max(0, _installed.Count - 1));
@@ -412,13 +466,8 @@ public sealed class BrewView : IView
         PendingCommand = (command, args, null);
     }
 
-    private static IRenderable RenderPanel(bool focused, IRenderable content)
-    {
-        string focusIndicator = focused ? $"[{Ui.Green} bold]●[/] " : $"[{Ui.Gray}]○[/] ";
-        return new Panel(content)
-            .Header($"{focusIndicator}[{Ui.Yellow} bold]\U0001f37a Homebrew[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(focused ? ThemeManager.PanelBorderColor : ThemeManager.TableBorderColor)
-            .Expand();
-    }
+    // Use the shared focus-aware panel so the Homebrew workspace matches the other views:
+    // accent double-border when focused, the ● indicator, and a consistently padded title.
+    private static IRenderable RenderPanel(bool focused, IRenderable content) =>
+        Ui.ViewPanel("\U0001f37a", "Homebrew", content, focused);
 }

@@ -207,14 +207,11 @@ public sealed class SdksView : IView
 
         int endIndex = Math.Min(_scrollOffset + visibleCount, _rows.Count);
 
-        var table = Ui.StyledTable("", "", "Version", "Channel", "Status", "Arch", "Support", "EOL");
-
+        var tableRows = new List<(Cell[], bool)>();
         for (int i = _scrollOffset; i < endIndex; i++)
         {
             var row = _rows[i];
             bool selected = focused && i == _selectedIndex;
-            string pointer = selected ? ">" : " ";
-            string style = selected ? $"{Ui.Yellow} bold" : Ui.White;
 
             string statusText;
             string statusColor;
@@ -234,18 +231,21 @@ public sealed class SdksView : IView
                 statusText = "Available";
             }
 
-            table.AddRow(
-                new Markup($"[{style}]{pointer}[/]"),
-                new Markup($"{row.LifecycleIcon}"),
-                new Markup($"[{style}]{Markup.Escape(row.Version)}[/]"),
-                new Markup($"[{style}]{Markup.Escape(row.Channel)}[/]"),
-                new Markup($"[{statusColor}]{statusText}[/]"),
-                new Markup($"[{style}]{Markup.Escape(row.Architecture)}[/]"),
-                new Markup($"[{style}]{Markup.Escape(row.SupportPhase)}[/]"),
-                new Markup($"[{style}]{Markup.Escape(row.EolDate)}[/]"));
+            tableRows.Add((new[]
+            {
+                new Cell(row.LifecycleIcon, Ui.White, IsMarkup: true),
+                new Cell(row.Version, Ui.White),
+                new Cell(row.Channel, Ui.White),
+                new Cell(statusText, statusColor),
+                new Cell(row.Architecture, Ui.White),
+                new Cell(row.SupportPhase, Ui.White),
+                new Cell(row.EolDate, Ui.White),
+            }, selected));
         }
 
-        parts.Add(table);
+        parts.Add(Ui.SelectableTable(
+            new[] { "", "Version", "Channel", "Status", "Arch", "Support", "EOL" },
+            tableRows));
 
         if (focused && _selectedIndex < _rows.Count)
         {
