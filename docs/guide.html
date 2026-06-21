@@ -302,6 +302,38 @@
     .callout .ctitle { color: var(--teal); font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
     .callout.warn { border-left-color: var(--gold); }
     .callout.warn .ctitle { color: var(--gold); }
+
+    /* ── Inspired-by banner ──────────────────── */
+    .inspired {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--teal) 14%, var(--bg-surface)), var(--bg-surface));
+      border: 1px solid color-mix(in srgb, var(--teal) 40%, var(--border));
+      border-radius: 12px;
+      padding: 1.1rem 1.3rem;
+      margin: 1.4rem 0;
+    }
+    .inspired .ispark { font-size: 1.6rem; line-height: 1; flex-shrink: 0; }
+    .inspired .ibody { flex: 1; }
+    .inspired .ititle { color: var(--teal); font-weight: 800; font-size: 1.05rem; margin-bottom: 0.2rem; }
+    .inspired .ibody p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
+    .inspired a.ilink {
+      flex-shrink: 0;
+      color: var(--teal);
+      font-weight: 700;
+      text-decoration: none;
+      border: 1px solid color-mix(in srgb, var(--teal) 50%, var(--border));
+      border-radius: 8px;
+      padding: 0.5rem 0.9rem;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .inspired a.ilink:hover { background: var(--teal); color: var(--bg); }
+    @media (max-width: 620px) {
+      .inspired { flex-wrap: wrap; }
+      .inspired a.ilink { width: 100%; text-align: center; }
+    }
     .callout p { margin: 0; color: var(--text-muted); }
     .callout code, .step code {
       font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
@@ -431,6 +463,14 @@
       <img src="images/01-banner.png" alt="Animated .NET SDK Manager startup banner">
       <figcaption>The startup banner — the lime highlight sweeps across the letters.</figcaption>
     </figure>
+    <div class="inspired">
+      <span class="ispark">✨</span>
+      <div class="ibody">
+        <div class="ititle">Inspired by Aspire</div>
+        <p>The banner's animated teal-to-lime shine sweep takes its cue from <strong>Aspire</strong> and its polished developer experience.</p>
+      </div>
+      <a class="ilink" href="https://aspire.dev" target="_blank" rel="noopener">aspire.dev <i class="bi bi-box-arrow-up-right"></i></a>
+    </div>
     <p>Once it loads, you land on the main screen. The <strong>SDKs</strong> panel is on top, <strong>Runtimes</strong> below, and a compact <strong>Setup</strong> panel (showing your <code>dotnetup</code> version) sits in the top-right. The footer always lists the keys available for the focused panel.</p>
     <figure>
       <img src="images/02-main-screen.png" alt="dsm main screen showing installed SDKs and runtimes">
