@@ -434,13 +434,28 @@ public static class Ui
 
         int TotalWidth(int[] c) => c.Sum() + FrameWidth(c.Length);
 
-        // Drop low-priority columns until the table fits.
+        // Drop low-priority columns until the table fits — but before dropping the next
+        // column, check whether truncating the flexible column would already close the gap.
+        // This keeps as many columns visible as possible at each width.
         if (dropOrder is { Count: > 0 })
         {
             int[] cur = ComputeCols(visible);
             int dropIdx = 0;
             while (TotalWidth(cur) > budget && dropIdx < dropOrder.Count)
             {
+                int over = TotalWidth(cur) - budget;
+                if (flexibleColumn is int flexCheck && visible.Contains(flexCheck))
+                {
+                    int flexPos = visible.IndexOf(flexCheck);
+                    int flexW = cur[flexPos];
+                    // The column can't shrink below the wider of its header width or the
+                    // ellipsis minimum, both measured with cell padding included.
+                    int minByHeader = VisibleWidth(headers[flexCheck]) + 2 * CellPad;
+                    int minByCell = 2 * CellPad + 3;          // " X… "
+                    int minFlexW = Math.Max(minByCell, minByHeader);
+                    int savings = Math.Max(0, flexW - minFlexW);
+                    if (savings >= over) break;                // truncation alone closes the gap
+                }
                 int toDrop = dropOrder[dropIdx++];
                 visible.Remove(toDrop);
                 cur = ComputeCols(visible);
