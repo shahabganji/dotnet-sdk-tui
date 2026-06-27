@@ -33,6 +33,13 @@ public sealed class App
     private string? _setupInfo;
     private readonly bool _skipSplash;
 
+    // Last terminal size observed at render time; the main loop re-renders when this changes
+    // so resizing the window doesn't leave stale geometry on the screen.
+    private int _lastWidth;
+    private int _lastHeight;
+    private volatile bool _resizeSignaled;
+    private IDisposable? _winchRegistration;
+
     // Set when the user requests bulk migration (Shift+M); handled by CheckBulkMigrateAsync.
     private IReadOnlyList<SdksView.SdkMigration>? _pendingBulkMigrate;
 
@@ -76,6 +83,19 @@ public sealed class App
             _running = false;
         };
 
+        // Re-render automatically when the terminal is resized. On macOS/Linux the kernel
+        // delivers SIGWINCH instantly; on Windows we fall back to size polling in the main loop.
+        if (!OperatingSystem.IsWindows())
+        {
+            try
+            {
+                _winchRegistration = System.Runtime.InteropServices.PosixSignalRegistration.Create(
+                    System.Runtime.InteropServices.PosixSignal.SIGWINCH,
+                    _ => _resizeSignaled = true);
+            }
+            catch { /* signal hookup is a best-effort optimisation */ }
+        }
+
         if (!_skipSplash)
             await Ui.RenderSplashAsync();
 
@@ -94,7 +114,16 @@ public sealed class App
         while (_running)
         {
             try { Console.SetCursorPosition(0, 0); } catch (IOException) { }
+
+            // Clear once when a resize is detected so the previous geometry doesn't bleed through.
+            if (_resizeSignaled || TerminalSizeChanged())
+            {
+                _resizeSignaled = false;
+                AnsiConsole.Clear();
+            }
+
             RenderScreen();
+            RememberTerminalSize();
 
             // Check for pending interactive commands from views
             if (await CheckPendingCommandsAsync())
@@ -110,42 +139,51 @@ public sealed class App
                 continue;
             }
 
-            // In search mode or during live updates, use non-blocking polling
-            // so async results can trigger re-renders
-            if (_screen == Screen.Search || IsLiveUpdateNeeded())
+            // Always poll instead of doing a blocking ReadKey so SIGWINCH (or a Windows size
+            // change picked up by TerminalSizeChanged) can interrupt the wait and re-render.
+            // Live-update screens use a tight 200 ms cycle; idle screens wake every ~1 s.
+            bool tight = _screen == Screen.Search || IsLiveUpdateNeeded();
+            var deadline = DateTime.UtcNow.AddMilliseconds(tight ? 200 : 1000);
+            while (DateTime.UtcNow < deadline && _running)
             {
-                var deadline = DateTime.UtcNow.AddMilliseconds(200);
-                while (DateTime.UtcNow < deadline && _running)
-                {
-                    try
-                    {
-                        if (Console.KeyAvailable)
-                        {
-                            var key = Console.ReadKey(true);
-                            await HandleKeyAsync(key);
-                            break;
-                        }
-                    }
-                    catch (InvalidOperationException) { break; }
-                    await Task.Delay(30);
-                }
-            }
-            else
-            {
+                if (_resizeSignaled || TerminalSizeChanged()) break;
+
                 try
                 {
-                    var key = Console.ReadKey(true);
-                    await HandleKeyAsync(key);
+                    if (Console.KeyAvailable)
+                    {
+                        var key = Console.ReadKey(true);
+                        await HandleKeyAsync(key);
+                        break;
+                    }
                 }
-                catch (InvalidOperationException)
-                {
-                    await Task.Delay(100);
-                }
+                catch (InvalidOperationException) { break; }
+                await Task.Delay(tight ? 30 : 80);
             }
         }
 
+        _winchRegistration?.Dispose();
         try { Console.CursorVisible = true; } catch (IOException) { }
         Ui.RenderGoodbye();
+    }
+
+    private bool TerminalSizeChanged()
+    {
+        try
+        {
+            return Console.WindowWidth != _lastWidth || Console.WindowHeight != _lastHeight;
+        }
+        catch { return false; }
+    }
+
+    private void RememberTerminalSize()
+    {
+        try
+        {
+            _lastWidth = Console.WindowWidth;
+            _lastHeight = Console.WindowHeight;
+        }
+        catch { }
     }
 
     private void RenderScreen()
