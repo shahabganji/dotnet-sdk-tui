@@ -1,4 +1,6 @@
+using System.Text;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 using DotnetSdkTui.Views;
 using DotnetSdkTui.Theme;
 using DotnetSdkTui.Services;
@@ -39,6 +41,14 @@ public sealed class App
     private int _lastHeight;
     private volatile bool _resizeSignaled;
     private IDisposable? _winchRegistration;
+
+    // Per-frame back-buffer + last-committed frame. The render path builds the new frame in
+    // _frameWriter via a private Spectre console, prefixes/suffixes it with sync-output
+    // escapes and resize-strip wipes, and writes the whole thing in a single Console.Write.
+    // If the resulting frame is byte-identical to the previous one we skip the syscall.
+    private readonly System.IO.StringWriter _frameWriter = new();
+    private IAnsiConsole? _renderConsole;
+    private string? _lastFrame;
 
     // Set when the user requests bulk migration (Shift+M); handled by CheckBulkMigrateAsync.
     private IReadOnlyList<SdksView.SdkMigration>? _pendingBulkMigrate;
@@ -96,50 +106,46 @@ public sealed class App
             catch { /* signal hookup is a best-effort optimisation */ }
         }
 
-        if (!_skipSplash)
-            await Ui.RenderSplashAsync();
-
+        // Kick off the data loads BEFORE the splash so that by the time the splash
+        // animation finishes (~3 s), the SDK / Runtime / Setup data is already cached.
+        // ActivateAsync is fire-and-forget — the splash continues to animate normally
+        // because Spectre.Console.Live runs on the Console thread and the loads run
+        // on the thread pool.
         _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
         _ = LoadSetupInfoAsync();
         _ = AppVersion.CheckForUpdateAsync();
-
-        // Activate views
-        await Task.WhenAll(
+        var prefetch = Task.WhenAll(
             _sdksView.ActivateAsync(),
             _runtimesView.ActivateAsync(),
             _setupView.ActivateAsync());
+
+        if (!_skipSplash)
+            await Ui.RenderSplashAsync();
+
+        // Make sure the prefetch is observed (it almost always completed during the splash).
+        await prefetch;
 
         AnsiConsole.Clear();
 
         while (_running)
         {
-            // Resize handling — k9s-style. We never blank the whole screen on resize
-            // (AnsiConsole.Clear flashes). Instead, before drawing the new frame we wipe
-            // only the strip that's about to be left orphaned by a horizontal shrink, and
-            // after the draw we erase from the cursor down to handle a vertical shrink.
-            // Every other case (growing, or unchanged) needs no pre-wipe at all.
+            // Resize handling — k9s-style. Render each frame to a private in-memory buffer,
+            // wrap it with the synchronized-output escape (DEC 2026) plus any pre-/post-frame
+            // erases, and emit the whole thing in ONE Console.Write so the terminal sees the
+            // new frame as a single atomic update — no row-by-row paint. If the resulting
+            // frame is byte-identical to the previous one we skip the write entirely.
             int width = SafeWidth();
             int height = SafeHeight();
             bool resized = _resizeSignaled || width != _lastWidth || height != _lastHeight;
             if (resized) _resizeSignaled = false;
 
-            try { Console.SetCursorPosition(0, 0); } catch (IOException) { }
-            BeginSynchronizedOutput();
-            // If we just shrank horizontally, wipe the orphaned right strip before drawing
-            // the new frame. Doing this inside the synchronized region means the terminal
-            // never shows the half-erased intermediate state.
-            if (resized && _lastWidth > 0 && width < _lastWidth && _lastHeight > 0)
-                EraseRightStrip(width, _lastWidth, Math.Min(_lastHeight, height));
-            RenderScreen();
-            EraseFromCursorToBottom();
-            EndSynchronizedOutput();
-            _lastWidth = width;
-            _lastHeight = height;
+            EmitFrame(BuildScreen(), width, height, resized);
 
             // Check for pending interactive commands from views
             if (await CheckPendingCommandsAsync())
             {
                 AnsiConsole.Clear();
+                _lastFrame = null;          // force a real write on the first frame after the prompt
                 continue;
             }
 
@@ -147,6 +153,7 @@ public sealed class App
             if (await CheckBulkMigrateAsync())
             {
                 AnsiConsole.Clear();
+                _lastFrame = null;
                 continue;
             }
 
@@ -187,44 +194,69 @@ public sealed class App
     /// (narrower) frame. Painting only the orphaned strip — not the full screen — keeps the
     /// repaint invisible to the eye instead of flashing.
     /// </summary>
-    private static void EraseRightStrip(int newWidth, int oldWidth, int rows)
+    /// <summary>
+    /// Builds the entire next frame in memory (a private Spectre console writing into
+    /// <see cref="_frameWriter"/>), prepends/appends the resize-wipe and synchronized-output
+    /// escapes, and emits everything in a single <see cref="Console.Write(string)"/> so the
+    /// terminal sees the new frame as one atomic update — the cure for "row-by-row paint"
+    /// flicker during a resize drag. If the resulting frame is identical to the previously
+    /// committed one, the syscall is skipped entirely.
+    /// </summary>
+    private void EmitFrame(IRenderable renderable, int width, int height, bool resized)
     {
-        if (rows <= 0 || oldWidth <= newWidth) return;
-        var sb = new System.Text.StringBuilder(rows * 12);
-        int stripCol = newWidth + 1; // 1-based for ANSI CUP
-        for (int row = 1; row <= rows; row++)
+        if (_renderConsole is null)
         {
-            // CUP (cursor position) then EL (erase in line, 0 = to end of line).
-            sb.Append('\x1B').Append('[').Append(row).Append(';').Append(stripCol).Append('H');
-            sb.Append('\x1B').Append('[').Append('K');
+            _renderConsole = AnsiConsole.Create(new AnsiConsoleSettings
+            {
+                Out = new AnsiConsoleOutput(_frameWriter),
+                Ansi = AnsiSupport.Yes,
+                ColorSystem = ColorSystemSupport.TrueColor,
+                Interactive = InteractionSupport.No,
+            });
         }
-        try { Console.Write(sb.ToString()); } catch (IOException) { }
-    }
+        _renderConsole.Profile.Width = width;
+        _renderConsole.Profile.Height = height;
 
-    /// <summary>
-    /// Erases everything below the current cursor position (ANSI ED with parameter 0). Called
-    /// after each render so a vertical shrink doesn't leave stale rows below the new frame.
-    /// </summary>
-    private static void EraseFromCursorToBottom()
-    {
-        try { Console.Write("\x1B[0J"); } catch (IOException) { }
-    }
+        var body = _frameWriter.GetStringBuilder();
+        body.Clear();
+        _renderConsole.Write(renderable);
+        string bodyText = body.ToString();
 
-    /// <summary>
-    /// Begin a synchronized-output region (DEC mode 2026). Modern terminals (iTerm2, Ghostty,
-    /// WezTerm, Kitty, Alacritty, recent Windows Terminal) buffer everything until the matching
-    /// "end" so the user sees the new frame appear atomically instead of watching it stream in
-    /// row by row — which is the actual source of perceived flicker during a resize burst.
-    /// Terminals that don't recognise the escape silently ignore it.
-    /// </summary>
-    private static void BeginSynchronizedOutput()
-    {
-        try { Console.Write("\x1B[?2026h"); } catch (IOException) { }
-    }
+        var sb = new StringBuilder(bodyText.Length + 256);
+        // 1. Begin synchronized output (modern terminals buffer until end-marker; older ones
+        //    silently ignore both escapes).
+        sb.Append("\x1B[?2026h");
+        // 2. On horizontal shrink, wipe the orphaned right strip BEFORE drawing the new frame
+        //    so it never becomes visible (we're inside the sync region so this is invisible).
+        if (resized && _lastWidth > width && _lastHeight > 0)
+        {
+            int rows = Math.Min(_lastHeight, height);
+            int stripCol = width + 1; // 1-based column for ANSI CUP
+            for (int row = 1; row <= rows; row++)
+            {
+                sb.Append("\x1B[").Append(row).Append(';').Append(stripCol).Append('H');
+                sb.Append("\x1B[K");
+            }
+        }
+        // 3. Move cursor to top-left, paint the frame, and erase anything below it (handles
+        //    a vertical shrink without needing a full-screen clear).
+        sb.Append("\x1B[H");
+        sb.Append(bodyText);
+        sb.Append("\x1B[0J");
+        // 4. Commit.
+        sb.Append("\x1B[?2026l");
 
-    private static void EndSynchronizedOutput()
-    {
-        try { Console.Write("\x1B[?2026l"); } catch (IOException) { }
+        string frame = sb.ToString();
+        _lastWidth = width;
+        _lastHeight = height;
+
+        // Frame deduplication: when no input arrived and no live data refreshed, the rebuilt
+        // frame is byte-identical to the last commit, so the terminal would just re-paint
+        // the same pixels. Skip the syscall and any associated repaint cost entirely.
+        if (frame == _lastFrame) return;
+        _lastFrame = frame;
+
+        try { Console.Write(frame); } catch (IOException) { }
     }
 
     private static int SafeWidth()
@@ -246,24 +278,14 @@ public sealed class App
         catch { return false; }
     }
 
-    private void RenderScreen()
+    private IRenderable BuildScreen()
     {
-        if (_screen == Screen.Search)
-        {
-            RenderSearchScreen();
-            return;
-        }
-
-        if (_screen == Screen.Brew)
-        {
-            RenderBrewScreen();
-            return;
-        }
-
-        RenderMainScreen();
+        if (_screen == Screen.Search) return BuildSearchScreen();
+        if (_screen == Screen.Brew)   return BuildBrewScreen();
+        return BuildMainScreen();
     }
 
-    private void RenderMainScreen()
+    private IRenderable BuildMainScreen()
     {
         var root = new Layout("Root")
             .SplitRows(
@@ -294,10 +316,10 @@ public sealed class App
         root["Body"]["SDKs"].Update(_sdksView.Render(_mainFocus == FocusSdks));
         root["Body"]["Runtimes"].Update(_runtimesView.Render(_mainFocus == FocusRuntimes));
 
-        AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
+        return new Padder(root, new Padding(2, 0, 2, 0));
     }
 
-    private void RenderSearchScreen()
+    private IRenderable BuildSearchScreen()
     {
         var root = new Layout("Root")
             .SplitRows(
@@ -314,10 +336,10 @@ public sealed class App
         // Search is a focused context — no package-manager switching here, so omit F2/F3 hints.
         root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_searchView.GetStatusHints(), $"F6:Theme({ThemeManager.ThemeName})")));
 
-        AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
+        return new Padder(root, new Padding(2, 0, 2, 0));
     }
 
-    private void RenderBrewScreen()
+    private IRenderable BuildBrewScreen()
     {
         var root = new Layout("Root")
             .SplitRows(
@@ -335,7 +357,7 @@ public sealed class App
             : $"F2:.NET  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit";
         root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), brewGlobal)));
 
-        AnsiConsole.Write(new Padder(root, new Padding(2, 0, 2, 0)));
+        return new Padder(root, new Padding(2, 0, 2, 0));
     }
 
     private async Task HandleKeyAsync(ConsoleKeyInfo key)
