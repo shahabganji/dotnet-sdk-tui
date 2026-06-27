@@ -196,7 +196,7 @@ public sealed class BrewView : IView
             ? new[] { "Name", "Version", "Status" }
             : new[] { "Name", "Installed", "Available" };
 
-        return Ui.SelectableTable(headers, tableRows);
+        return Ui.SelectableTable(headers, tableRows, flexibleColumn: 0);
     }
 
     public string GetStatusHints()

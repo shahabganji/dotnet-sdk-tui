@@ -245,7 +245,11 @@ public sealed class SdksView : IView
 
         parts.Add(Ui.SelectableTable(
             new[] { "", "Version", "Channel", "Status", "Arch", "Support", "EOL" },
-            tableRows));
+            tableRows,
+            // Drop least-essential columns first; at extreme narrow widths only "Version" remains.
+            // Order: EOL → Support → Arch → Channel → Status → icon. Version always stays.
+            dropOrder: new[] { 6, 5, 4, 2, 3, 0 },
+            flexibleColumn: 1));
 
         if (focused && _selectedIndex < _rows.Count)
         {

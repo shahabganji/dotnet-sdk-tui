@@ -347,8 +347,8 @@ public static class Ui
     {
         // Homebrew is macOS-only, so only advertise the F2 workspace there.
         string globalText = globalOverride ?? (OperatingSystem.IsMacOS()
-            ? $"Tab:Switch  F2:Brew  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit"
-            : $"Tab:Switch  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit");
+            ? $"Tab:Switch  F1:Help  F2:Brew  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit"
+            : $"Tab:Switch  F1:Help  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit");
         string global = $"[{DarkGray}]{Markup.Escape(globalText)}[/]";
         string hintMarkup = $"[{Gold}]{hints}[/]";
         return new Markup($" {hintMarkup}  {global}");
@@ -382,20 +382,168 @@ public static class Ui
     /// </summary>
     /// <param name="headers">Column headers (an empty string yields a header-less column, e.g. an icon column).</param>
     /// <param name="rows">The rows, each carrying its cells and whether it is the selected row.</param>
-    public static IRenderable SelectableTable(IReadOnlyList<string> headers, IReadOnlyList<(Cell[] Cells, bool Selected)> rows)
+    /// <param name="dropOrder">Column indices in priority order — the first entry is dropped first when the
+    /// table doesn't fit, then the second, and so on. Columns not listed here are never dropped.</param>
+    /// <param name="availableWidth">Width budget (in cells) the table may occupy. When null the budget is
+    /// derived from <see cref="Console.WindowWidth"/> minus a small margin for outer padding.</param>
+    /// <param name="flexibleColumn">Column index whose cells may be truncated (with an ellipsis) if the
+    /// table still doesn't fit after every <paramref name="dropOrder"/> column has been dropped.</param>
+    public static IRenderable SelectableTable(
+        IReadOnlyList<string> headers,
+        IReadOnlyList<(Cell[] Cells, bool Selected)> rows,
+        IReadOnlyList<int>? dropOrder = null,
+        int? availableWidth = null,
+        int? flexibleColumn = null)
     {
-        int n = headers.Count;
+        int total = headers.Count;
+        var visible = new List<int>(total);
+        for (int j = 0; j < total; j++) visible.Add(j);
 
-        // Column = widest content + left/right padding, just like a Spectre table cell.
-        int[] col = new int[n];
-        for (int j = 0; j < n; j++)
-            col[j] = VisibleWidth(headers[j]);
-        foreach (var (cells, _) in rows)
-            for (int j = 0; j < n && j < cells.Length; j++)
-                col[j] = Math.Max(col[j], VisibleWidth(cells[j].IsMarkup ? cells[j].Text : Markup.Escape(cells[j].Text)));
-        for (int j = 0; j < n; j++)
-            col[j] += 2 * CellPad;
+        // Default budget mirrors the actual content area inside a ViewPanel:
+        //   App outer Padder padding (2 + 2) + ViewPanel border (1 + 1) + Spectre Panel
+        //   internal padding (1 + 1) = 8, plus 2 cells of safety so a single off-by-one
+        //   doesn't trigger Spectre's wrap-to-next-line which destroys the table grid.
+        int budget = availableWidth ?? Math.Max(20, SafeWindowWidth() - 10);
 
+        // Build truncated cell payloads on demand so the original `rows` list is untouched.
+        var cellOverride = new Dictionary<(int row, int col), string>();
+
+        int FrameWidth(int n) => n + 1; // one vertical bar per column boundary + the two outer frames
+
+        int[] ComputeCols(IReadOnlyList<int> cols)
+        {
+            int n = cols.Count;
+            int[] c = new int[n];
+            for (int j = 0; j < n; j++) c[j] = VisibleWidth(headers[cols[j]]);
+            for (int r = 0; r < rows.Count; r++)
+            {
+                var cells = rows[r].Cells;
+                for (int j = 0; j < n; j++)
+                {
+                    int src = cols[j];
+                    if (src >= cells.Length) continue;
+                    string disp = cellOverride.TryGetValue((r, src), out string? ov)
+                        ? ov
+                        : (cells[src].IsMarkup ? cells[src].Text : Markup.Escape(cells[src].Text));
+                    c[j] = Math.Max(c[j], VisibleWidth(disp));
+                }
+            }
+            for (int j = 0; j < n; j++) c[j] += 2 * CellPad;
+            return c;
+        }
+
+        int TotalWidth(int[] c) => c.Sum() + FrameWidth(c.Length);
+
+        // Drop low-priority columns until the table fits — but before dropping the next
+        // column, check whether truncating the flexible column would already close the gap.
+        // This keeps as many columns visible as possible at each width.
+        if (dropOrder is { Count: > 0 })
+        {
+            int[] cur = ComputeCols(visible);
+            int dropIdx = 0;
+            while (TotalWidth(cur) > budget && dropIdx < dropOrder.Count)
+            {
+                int over = TotalWidth(cur) - budget;
+                if (flexibleColumn is int flexCheck && visible.Contains(flexCheck))
+                {
+                    int flexPos = visible.IndexOf(flexCheck);
+                    int flexW = cur[flexPos];
+                    // The column can't shrink below the wider of its header width or the
+                    // ellipsis minimum, both measured with cell padding included.
+                    int minByHeader = VisibleWidth(headers[flexCheck]) + 2 * CellPad;
+                    int minByCell = 2 * CellPad + 3;          // " X… "
+                    int minFlexW = Math.Max(minByCell, minByHeader);
+                    int savings = Math.Max(0, flexW - minFlexW);
+                    if (savings >= over) break;                // truncation alone closes the gap
+                }
+                int toDrop = dropOrder[dropIdx++];
+                visible.Remove(toDrop);
+                cur = ComputeCols(visible);
+            }
+        }
+
+        // Still too wide? Truncate the flexible column's cells (and its header) with an ellipsis.
+        if (flexibleColumn is int flex && visible.Contains(flex))
+        {
+            int[] cur = ComputeCols(visible);
+            int over = TotalWidth(cur) - budget;
+            if (over > 0)
+            {
+                int flexPos = visible.IndexOf(flex);
+                int flexW = cur[flexPos];                       // current width incl. padding
+                int newW = Math.Max(2 * CellPad + 3, flexW - over); // keep room for "…" + padding
+                int innerMax = newW - 2 * CellPad;
+
+                for (int r = 0; r < rows.Count; r++)
+                {
+                    var cells = rows[r].Cells;
+                    if (flex >= cells.Length) continue;
+                    Cell cell = cells[flex];
+                    string disp = cell.IsMarkup ? cell.Text : Markup.Escape(cell.Text);
+                    if (VisibleWidth(disp) <= innerMax) continue;
+                    cellOverride[(r, flex)] = Truncate(disp, innerMax, cell.IsMarkup);
+                }
+            }
+        }
+
+        return RenderTable(headers, rows, visible, ComputeCols(visible), cellOverride);
+    }
+
+    private static int SafeWindowWidth()
+    {
+        try { int w = Console.WindowWidth; return w > 0 ? w : 120; }
+        catch { return 120; }
+    }
+
+    /// <summary>
+    /// Truncates a (possibly markup) string to at most <paramref name="maxWidth"/> visible columns,
+    /// appending an ellipsis. Markup tags are preserved as-is so styling stays balanced.
+    /// </summary>
+    private static string Truncate(string display, int maxWidth, bool isMarkup)
+    {
+        if (maxWidth <= 1) return "…";
+        int budget = maxWidth - 1; // reserve one cell for the ellipsis
+        var sb = new StringBuilder(display.Length + 1);
+        int w = 0;
+        for (int i = 0; i < display.Length; i++)
+        {
+            char c = display[i];
+            if (isMarkup && c == '[')
+            {
+                if (i + 1 < display.Length && display[i + 1] == '[') { if (w >= budget) break; sb.Append("[["); w++; i++; continue; }
+                int close = display.IndexOf(']', i);
+                if (close < 0) break;
+                sb.Append(display, i, close - i + 1);
+                i = close;
+                continue;
+            }
+            if (isMarkup && c == ']' && i + 1 < display.Length && display[i + 1] == ']')
+            {
+                if (w >= budget) break;
+                sb.Append("]]"); w++; i++; continue;
+            }
+            // Step one text element (handles surrogate pairs / emoji).
+            int step = 1;
+            if (char.IsHighSurrogate(c) && i + 1 < display.Length && char.IsLowSurrogate(display[i + 1])) step = 2;
+            int cp = step == 2 ? char.ConvertToUtf32(c, display[i + 1]) : c;
+            int cw = IsWide(cp) ? 2 : 1;
+            if (w + cw > budget) break;
+            sb.Append(display, i, step);
+            w += cw;
+            i += step - 1;
+        }
+        sb.Append('…');
+        return sb.ToString();
+    }
+
+    private static IRenderable RenderTable(
+        IReadOnlyList<string> headers,
+        IReadOnlyList<(Cell[] Cells, bool Selected)> rows,
+        IReadOnlyList<int> visible,
+        int[] col,
+        IReadOnlyDictionary<(int row, int col), string> cellOverride)
+    {
+        int n = visible.Count;
         string tb = ThemeManager.TableBorder;
         string vbar = $"[{tb}]│[/]";
         string selDivider = $"[{tb} on {ThemeManager.SelectedRowBg}]│[/]"; // divider kept on the highlight bar
@@ -418,9 +566,10 @@ public static class Ui
         var hb = new StringBuilder(vbar);
         for (int j = 0; j < n; j++)
         {
+            string header = headers[visible[j]];
             hb.Append(leftPad)
-              .Append($"[{Yellow} bold]{Markup.Escape(headers[j])}[/]")
-              .Append(new string(' ', col[j] - CellPad - VisibleWidth(headers[j])))
+              .Append($"[{Yellow} bold]{Markup.Escape(header)}[/]")
+              .Append(new string(' ', col[j] - CellPad - VisibleWidth(header)))
               .Append(vbar);
         }
         lines.Add(new Markup(hb.ToString()));
@@ -433,8 +582,11 @@ public static class Ui
             var sb = new StringBuilder(vbar);   // left frame border (kept on every row)
             for (int j = 0; j < n; j++)
             {
-                Cell cell = j < cells.Length ? cells[j] : new Cell(string.Empty, White);
-                string disp = cell.IsMarkup ? cell.Text : Markup.Escape(cell.Text);
+                int src = visible[j];
+                Cell cell = src < cells.Length ? cells[src] : new Cell(string.Empty, White);
+                string disp = cellOverride.TryGetValue((r, src), out string? ov)
+                    ? ov
+                    : (cell.IsMarkup ? cell.Text : Markup.Escape(cell.Text));
                 int rightFill = Math.Max(0, col[j] - CellPad - VisibleWidth(disp));
 
                 // The cell body sits on the highlight bar when selected; the column divider stays
