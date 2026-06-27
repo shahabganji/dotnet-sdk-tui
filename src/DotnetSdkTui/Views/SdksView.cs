@@ -245,7 +245,11 @@ public sealed class SdksView : IView
 
         parts.Add(Ui.SelectableTable(
             new[] { "", "Version", "Channel", "Status", "Arch", "Support", "EOL" },
-            tableRows));
+            tableRows,
+            // When the panel is too narrow, drop the least-essential columns first:
+            // EOL → Support → Arch → Channel. Version + Status stay visible.
+            dropOrder: new[] { 6, 5, 4, 2 },
+            flexibleColumn: 1));
 
         if (focused && _selectedIndex < _rows.Count)
         {

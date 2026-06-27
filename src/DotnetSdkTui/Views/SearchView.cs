@@ -93,7 +93,10 @@ public sealed class SearchView : IView
 
             resultParts.Add(Ui.SelectableTable(
                 new[] { "Component", "Version", "Channel", "Support", "Latest" },
-                tableRows));
+                tableRows,
+                // Drop "Latest", then "Support", then "Channel" when narrow.
+                dropOrder: new[] { 4, 3, 2 },
+                flexibleColumn: 1));
             if (_results.Count > maxRows)
                 resultParts.Add(Ui.Muted($"Showing {maxRows} of {_results.Count} results"));
         }

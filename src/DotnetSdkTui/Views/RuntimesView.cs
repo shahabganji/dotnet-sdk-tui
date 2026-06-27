@@ -248,7 +248,10 @@ public sealed class RuntimesView : IView
 
         parts.Add(Ui.SelectableTable(
             new[] { "", "Component", "Version", "Channel", "Status", "Arch", "Support", "EOL" },
-            tableRows));
+            tableRows,
+            // EOL → Support → Arch → Channel → Component. Version + Status always stay.
+            dropOrder: new[] { 7, 6, 5, 3, 1 },
+            flexibleColumn: 2));
 
         if (focused && _selectedIndex < _rows.Count)
         {
