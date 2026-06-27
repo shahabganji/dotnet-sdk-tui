@@ -334,7 +334,7 @@ public sealed class App
         root["SearchInput"].Update(_searchView.RenderSearchInput());
         root["Results"].Update(_searchView.RenderResults());
         // Search is a focused context — no package-manager switching here, so omit F2/F3 hints.
-        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_searchView.GetStatusHints(), $"F6:Theme({ThemeManager.ThemeName})")));
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_searchView.GetStatusHints(), $"F1:Help  F6:Theme({ThemeManager.ThemeName})")));
 
         return new Padder(root, new Padding(2, 0, 2, 0));
     }
@@ -353,8 +353,8 @@ public sealed class App
         root["Body"].Update(_brewView.Render(true));
         // While the brew search view is open it's a focused context: drop the workspace-switch hints.
         string brewGlobal = _brewView.IsSearching
-            ? $"F6:Theme({ThemeManager.ThemeName})"
-            : $"F2:.NET  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit";
+            ? $"F1:Help  F6:Theme({ThemeManager.ThemeName})"
+            : $"F1:Help  F2:.NET  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit";
         root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_brewView.GetStatusHints(), brewGlobal)));
 
         return new Padder(root, new Padding(2, 0, 2, 0));
@@ -362,6 +362,13 @@ public sealed class App
 
     private async Task HandleKeyAsync(ConsoleKeyInfo key)
     {
+        // F1 opens the docs site, regardless of which screen is active.
+        if (key.Key == ConsoleKey.F1)
+        {
+            OpenUrl("https://sdk-manager.net");
+            return;
+        }
+
         if (_screen == Screen.Search)
         {
             await HandleSearchKeyAsync(key);
@@ -375,6 +382,42 @@ public sealed class App
         }
 
         await HandleMainKeyAsync(key);
+    }
+
+    /// <summary>
+    /// Launches the user's default browser pointing at <paramref name="url"/>. Cross-platform:
+    /// macOS uses <c>open</c>, Windows uses <c>cmd /c start</c>, Linux uses <c>xdg-open</c>.
+    /// Failures are silently swallowed because opening the docs is a best-effort convenience.
+    /// </summary>
+    private static void OpenUrl(string url)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            if (OperatingSystem.IsWindows())
+            {
+                psi.FileName = "cmd";
+                psi.Arguments = $"/c start \"\" \"{url}\"";
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                psi.FileName = "open";
+                psi.Arguments = url;
+            }
+            else
+            {
+                psi.FileName = "xdg-open";
+                psi.Arguments = url;
+            }
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch { /* best-effort */ }
     }
 
     private async Task HandleMainKeyAsync(ConsoleKeyInfo key)

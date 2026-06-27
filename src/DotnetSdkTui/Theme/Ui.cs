@@ -347,8 +347,8 @@ public static class Ui
     {
         // Homebrew is macOS-only, so only advertise the F2 workspace there.
         string globalText = globalOverride ?? (OperatingSystem.IsMacOS()
-            ? $"Tab:Switch  F2:Brew  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit"
-            : $"Tab:Switch  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit");
+            ? $"Tab:Switch  F1:Help  F2:Brew  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit"
+            : $"Tab:Switch  F1:Help  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit");
         string global = $"[{DarkGray}]{Markup.Escape(globalText)}[/]";
         string hintMarkup = $"[{Gold}]{hints}[/]";
         return new Markup($" {hintMarkup}  {global}");
