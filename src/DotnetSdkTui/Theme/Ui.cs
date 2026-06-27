@@ -399,8 +399,11 @@ public static class Ui
         var visible = new List<int>(total);
         for (int j = 0; j < total; j++) visible.Add(j);
 
-        // Default budget: leave 8 cells for App padding (2+2) and view-panel borders.
-        int budget = availableWidth ?? Math.Max(20, SafeWindowWidth() - 8);
+        // Default budget mirrors the actual content area inside a ViewPanel:
+        //   App outer Padder padding (2 + 2) + ViewPanel border (1 + 1) + Spectre Panel
+        //   internal padding (1 + 1) = 8, plus 2 cells of safety so a single off-by-one
+        //   doesn't trigger Spectre's wrap-to-next-line which destroys the table grid.
+        int budget = availableWidth ?? Math.Max(20, SafeWindowWidth() - 10);
 
         // Build truncated cell payloads on demand so the original `rows` list is untouched.
         var cellOverride = new Dictionary<(int row, int col), string>();

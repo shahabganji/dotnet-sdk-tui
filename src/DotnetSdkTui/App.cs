@@ -113,15 +113,23 @@ public sealed class App
 
         while (_running)
         {
-            try { Console.SetCursorPosition(0, 0); } catch (IOException) { }
-
-            // Clear once when a resize is detected so the previous geometry doesn't bleed through.
-            if (_resizeSignaled || TerminalSizeChanged())
+            // Resize handling. While the user is dragging the window edge SIGWINCH (or polled
+            // size changes) fire continuously; clearing + re-rendering on every burst causes
+            // visible flicker. Debounce: wait briefly until the size has stopped changing,
+            // then clear once (only when the terminal shrunk — growing leaves no stale chrome)
+            // and re-render.
+            bool resized = _resizeSignaled || TerminalSizeChanged();
+            if (resized)
             {
                 _resizeSignaled = false;
-                AnsiConsole.Clear();
+                await WaitForResizeToSettleAsync();
+                bool shrunk;
+                try { shrunk = Console.WindowWidth < _lastWidth || Console.WindowHeight < _lastHeight; }
+                catch { shrunk = true; }
+                if (shrunk) AnsiConsole.Clear();
             }
 
+            try { Console.SetCursorPosition(0, 0); } catch (IOException) { }
             RenderScreen();
             RememberTerminalSize();
 
@@ -165,6 +173,35 @@ public sealed class App
         _winchRegistration?.Dispose();
         try { Console.CursorVisible = true; } catch (IOException) { }
         Ui.RenderGoodbye();
+    }
+
+    /// <summary>
+    /// Waits until the terminal size stops changing (a quiet stretch of ~120 ms) or a 500 ms
+    /// budget elapses. Coalesces the SIGWINCH burst a window manager emits while the user
+    /// drags a window edge, so we render the final size once instead of every interim size.
+    /// </summary>
+    private async Task WaitForResizeToSettleAsync()
+    {
+        var hardDeadline = DateTime.UtcNow.AddMilliseconds(500);
+        int w = SafeWidth(), h = SafeHeight();
+        while (DateTime.UtcNow < hardDeadline)
+        {
+            _resizeSignaled = false;
+            await Task.Delay(120);
+            int nw = SafeWidth(), nh = SafeHeight();
+            if (!_resizeSignaled && nw == w && nh == h) return;
+            w = nw; h = nh;
+        }
+    }
+
+    private static int SafeWidth()
+    {
+        try { return Console.WindowWidth; } catch { return 80; }
+    }
+
+    private static int SafeHeight()
+    {
+        try { return Console.WindowHeight; } catch { return 24; }
     }
 
     private bool TerminalSizeChanged()
