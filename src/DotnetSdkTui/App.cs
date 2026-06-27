@@ -113,25 +113,26 @@ public sealed class App
 
         while (_running)
         {
-            // Resize handling. While the user is dragging the window edge SIGWINCH (or polled
-            // size changes) fire continuously; clearing + re-rendering on every burst causes
-            // visible flicker. Debounce: wait briefly until the size has stopped changing,
-            // then clear once (only when the terminal shrunk — growing leaves no stale chrome)
-            // and re-render.
-            bool resized = _resizeSignaled || TerminalSizeChanged();
+            // Resize handling — k9s-style. We never blank the whole screen on resize
+            // (AnsiConsole.Clear flashes). Instead, before drawing the new frame we wipe
+            // only the strip that's about to be left orphaned by a horizontal shrink, and
+            // after the draw we erase from the cursor down to handle a vertical shrink.
+            // Every other case (growing, or unchanged) needs no pre-wipe at all.
+            int width = SafeWidth();
+            int height = SafeHeight();
+            bool resized = _resizeSignaled || width != _lastWidth || height != _lastHeight;
             if (resized)
             {
                 _resizeSignaled = false;
-                await WaitForResizeToSettleAsync();
-                bool shrunk;
-                try { shrunk = Console.WindowWidth < _lastWidth || Console.WindowHeight < _lastHeight; }
-                catch { shrunk = true; }
-                if (shrunk) AnsiConsole.Clear();
+                if (_lastWidth > 0 && width < _lastWidth && _lastHeight > 0)
+                    EraseRightStrip(width, _lastWidth, Math.Min(_lastHeight, height));
             }
 
             try { Console.SetCursorPosition(0, 0); } catch (IOException) { }
             RenderScreen();
-            RememberTerminalSize();
+            EraseFromCursorToBottom();
+            _lastWidth = width;
+            _lastHeight = height;
 
             // Check for pending interactive commands from views
             if (await CheckPendingCommandsAsync())
@@ -176,22 +177,33 @@ public sealed class App
     }
 
     /// <summary>
-    /// Waits until the terminal size stops changing (a quiet stretch of ~120 ms) or a 500 ms
-    /// budget elapses. Coalesces the SIGWINCH burst a window manager emits while the user
-    /// drags a window edge, so we render the final size once instead of every interim size.
+    /// Wipes the vertical strip of cells <paramref name="newWidth"/>..<paramref name="oldWidth"/>
+    /// across the first <paramref name="rows"/> rows. Used when the terminal shrinks horizontally
+    /// so stale content from the previous (wider) frame doesn't peek out from behind the new
+    /// (narrower) frame. Painting only the orphaned strip — not the full screen — keeps the
+    /// repaint invisible to the eye instead of flashing.
     /// </summary>
-    private async Task WaitForResizeToSettleAsync()
+    private static void EraseRightStrip(int newWidth, int oldWidth, int rows)
     {
-        var hardDeadline = DateTime.UtcNow.AddMilliseconds(500);
-        int w = SafeWidth(), h = SafeHeight();
-        while (DateTime.UtcNow < hardDeadline)
+        if (rows <= 0 || oldWidth <= newWidth) return;
+        var sb = new System.Text.StringBuilder(rows * 12);
+        int stripCol = newWidth + 1; // 1-based for ANSI CUP
+        for (int row = 1; row <= rows; row++)
         {
-            _resizeSignaled = false;
-            await Task.Delay(120);
-            int nw = SafeWidth(), nh = SafeHeight();
-            if (!_resizeSignaled && nw == w && nh == h) return;
-            w = nw; h = nh;
+            // CUP (cursor position) then EL (erase in line, 0 = to end of line).
+            sb.Append('\x1B').Append('[').Append(row).Append(';').Append(stripCol).Append('H');
+            sb.Append('\x1B').Append('[').Append('K');
         }
+        try { Console.Write(sb.ToString()); } catch (IOException) { }
+    }
+
+    /// <summary>
+    /// Erases everything below the current cursor position (ANSI ED with parameter 0). Called
+    /// after each render so a vertical shrink doesn't leave stale rows below the new frame.
+    /// </summary>
+    private static void EraseFromCursorToBottom()
+    {
+        try { Console.Write("\x1B[0J"); } catch (IOException) { }
     }
 
     private static int SafeWidth()
@@ -211,16 +223,6 @@ public sealed class App
             return Console.WindowWidth != _lastWidth || Console.WindowHeight != _lastHeight;
         }
         catch { return false; }
-    }
-
-    private void RememberTerminalSize()
-    {
-        try
-        {
-            _lastWidth = Console.WindowWidth;
-            _lastHeight = Console.WindowHeight;
-        }
-        catch { }
     }
 
     private void RenderScreen()
