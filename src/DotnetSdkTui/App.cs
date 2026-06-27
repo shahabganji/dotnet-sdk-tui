@@ -121,16 +121,18 @@ public sealed class App
             int width = SafeWidth();
             int height = SafeHeight();
             bool resized = _resizeSignaled || width != _lastWidth || height != _lastHeight;
-            if (resized)
-            {
-                _resizeSignaled = false;
-                if (_lastWidth > 0 && width < _lastWidth && _lastHeight > 0)
-                    EraseRightStrip(width, _lastWidth, Math.Min(_lastHeight, height));
-            }
+            if (resized) _resizeSignaled = false;
 
             try { Console.SetCursorPosition(0, 0); } catch (IOException) { }
+            BeginSynchronizedOutput();
+            // If we just shrank horizontally, wipe the orphaned right strip before drawing
+            // the new frame. Doing this inside the synchronized region means the terminal
+            // never shows the half-erased intermediate state.
+            if (resized && _lastWidth > 0 && width < _lastWidth && _lastHeight > 0)
+                EraseRightStrip(width, _lastWidth, Math.Min(_lastHeight, height));
             RenderScreen();
             EraseFromCursorToBottom();
+            EndSynchronizedOutput();
             _lastWidth = width;
             _lastHeight = height;
 
@@ -150,7 +152,9 @@ public sealed class App
 
             // Always poll instead of doing a blocking ReadKey so SIGWINCH (or a Windows size
             // change picked up by TerminalSizeChanged) can interrupt the wait and re-render.
-            // Live-update screens use a tight 200 ms cycle; idle screens wake every ~1 s.
+            // Live-update screens use a tight 200 ms re-render cycle; idle screens wake every ~1 s.
+            // Polling resolution is 20 ms so a drag during resize never sees more than a one-frame
+            // (~50 Hz) lag between the kernel reporting SIGWINCH and us repainting.
             bool tight = _screen == Screen.Search || IsLiveUpdateNeeded();
             var deadline = DateTime.UtcNow.AddMilliseconds(tight ? 200 : 1000);
             while (DateTime.UtcNow < deadline && _running)
@@ -167,7 +171,7 @@ public sealed class App
                     }
                 }
                 catch (InvalidOperationException) { break; }
-                await Task.Delay(tight ? 30 : 80);
+                await Task.Delay(20);
             }
         }
 
@@ -204,6 +208,23 @@ public sealed class App
     private static void EraseFromCursorToBottom()
     {
         try { Console.Write("\x1B[0J"); } catch (IOException) { }
+    }
+
+    /// <summary>
+    /// Begin a synchronized-output region (DEC mode 2026). Modern terminals (iTerm2, Ghostty,
+    /// WezTerm, Kitty, Alacritty, recent Windows Terminal) buffer everything until the matching
+    /// "end" so the user sees the new frame appear atomically instead of watching it stream in
+    /// row by row — which is the actual source of perceived flicker during a resize burst.
+    /// Terminals that don't recognise the escape silently ignore it.
+    /// </summary>
+    private static void BeginSynchronizedOutput()
+    {
+        try { Console.Write("\x1B[?2026h"); } catch (IOException) { }
+    }
+
+    private static void EndSynchronizedOutput()
+    {
+        try { Console.Write("\x1B[?2026l"); } catch (IOException) { }
     }
 
     private static int SafeWidth()
