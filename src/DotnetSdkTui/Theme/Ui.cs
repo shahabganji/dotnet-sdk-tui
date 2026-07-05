@@ -296,6 +296,44 @@ public static class Ui
         return positions.ToArray();
     }
 
+    // ── Mascot palette (brand teal + lime, matches the SVG/PNG mascot) ─────
+    // Every colour is theme-adaptive so the rocket keeps enough contrast on both the
+    // navy dark-mode background and the cream light-mode one.
+
+    /// <summary>Main teal for the fuselage / body walls.</summary>
+    private static string MascotTeal =>
+        ThemeManager.Current == AppTheme.Dark ? "#1DB9A0" : "#0F7A68";
+
+    /// <summary>Deeper teal shadow (currently unused, kept for future accents).</summary>
+    private static string MascotShadow =>
+        ThemeManager.Current == AppTheme.Dark ? "#0F7A68" : "#062822";
+
+    /// <summary>Lime accent for the porthole, nose, and flame — darkened on light bg.</summary>
+    private static string MascotBandana =>
+        ThemeManager.Current == AppTheme.Dark ? "#C8E64D" : "#4E6E10";
+
+    /// <summary>Knot-tail / secondary lime shade — even darker for light mode contrast.</summary>
+    private static string MascotBandanaDk =>
+        ThemeManager.Current == AppTheme.Dark ? "#9BC02E" : "#2E4200";
+
+    /// <summary>
+    /// A compact 3-row Unicode block-art mascot: our brand rocket, matching the SVG/PNG
+    /// mascot in docs/images. A tiny nose sits atop a mechanical fuselage, and a wide flame
+    /// plume flares out at the base — the flaring exhaust is what stops the silhouette
+    /// reading as a person wearing a hat.
+    /// Colours flip between themes so the mascot stays legible on both dark and light backgrounds.
+    /// </summary>
+    public static IRenderable MascotArt()
+    {
+        // Row 1: nose cone with slanted shoulders that connect down into the body walls.
+        // Row 2: mechanical fuselage with heavy vertical walls and a lime porthole.
+        // Row 3: flame plume — flares OUT wider than the body, in bold lime.
+        string row1 = $" [{MascotTeal}]╱[/][{MascotBandana} bold]▲[/][{MascotTeal}]╲[/] ";
+        string row2 = $" [{MascotTeal}]║[/][{MascotBandana} bold]◉[/][{MascotTeal}]║[/] ";
+        string row3 = $"[{MascotBandana} bold]╲▓█▓╱[/]";
+        return new Markup($"{row1}\n{row2}\n{row3}");
+    }
+
     /// <summary>
     /// Renders the welcome info panel (right of the mascot in the top row). The panel body
     /// keeps the original single-line "made with ❤" tagline unchanged.

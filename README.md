@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/images/mascot.png" alt="dsm mascot" width="160" />
+
 # .NET SDK Manager
 
 **A cross-platform terminal UI for managing .NET SDKs and Runtimes**

@@ -82,7 +82,11 @@
       font-size: 1.1rem;
       color: var(--teal);
       text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
     }
+    nav .logo img { height: 28px; width: 28px; }
     nav .logo span { color: var(--text); font-weight: 400; }
     nav .nav-links { display: flex; gap: 1.5rem; align-items: center; }
     nav .nav-links a {
@@ -303,7 +307,7 @@
 <!-- Navigation -->
 <nav>
   <div class="nav-inner">
-    <a href="#" class="logo">.NET SDK <span>Manager</span></a>
+    <a href="#" class="logo"><img src="images/mascot.svg" alt="dsm mascot" />.NET SDK <span>Manager</span></a>
     <div class="nav-links">
       <a href="#features" class="hide-mobile">Features</a>
       <a href="#install">Install</a>
