@@ -42,8 +42,21 @@ public sealed class SearchView : IView
 
     public IRenderable Render(bool focused) => RenderSearchInput();
 
-    /// <summary>Renders the search input panel.</summary>
-    public IRenderable RenderSearchInput()
+    /// <summary>
+    /// Renders the search input + results as raw content (no outer panel) for use inside a
+    /// tabbed panel whose header contains the tab strip.
+    /// </summary>
+    public IRenderable RenderContent(bool focused)
+    {
+        var stack = new Rows(RenderInputLine(), new Text(""), RenderResultsContent());
+        // Inset the content so it doesn't hug the tabbed panel's border.
+        return new Padder(stack, new Padding(1, 1, 1, 0));
+    }
+
+    /// <summary>
+    /// Renders just the "/ Search: query|" input line as a Markup (no panel).
+    /// </summary>
+    public IRenderable RenderInputLine()
     {
         string cursor = _inputActive ? "|" : "";
         string inputDisplay = _searchQuery.Length > 0
@@ -51,14 +64,24 @@ public sealed class SearchView : IView
             : (_inputActive ? "" : "type to search...");
 
         string searchIcon = _searching ? "*" : "/";
-        var inputMarkup = new Markup(
+        return new Markup(
             $"[{Ui.Yellow} bold] {searchIcon} Search: [/][{Ui.White}]{Markup.Escape(inputDisplay)}{cursor}[/]");
+    }
 
-        return Ui.ViewPanel(Ui.IconSearch, "Search .NET SDKs & Runtimes", inputMarkup, _inputActive);
+    /// <summary>Renders the search input panel.</summary>
+    public IRenderable RenderSearchInput()
+    {
+        return Ui.ViewPanel(Ui.IconSearch, "Search .NET SDKs & Runtimes", RenderInputLine(), _inputActive);
     }
 
     /// <summary>Renders the search results panel.</summary>
     public IRenderable RenderResults()
+    {
+        return Ui.ViewPanel(Ui.IconResults, "Results", RenderResultsContent(), !_inputActive);
+    }
+
+    /// <summary>Renders just the results content (table or muted hint) without an outer panel.</summary>
+    public IRenderable RenderResultsContent()
     {
         var resultParts = new List<IRenderable>();
 
@@ -110,20 +133,20 @@ public sealed class SearchView : IView
         }
 
         string hint = _inputActive
-            ? $"[{Ui.Gray}]Tab/Down:Results  Esc:Back[/]"
-            : $"[{Ui.Gray}]up/down:Navigate  i:Install  Tab:Input  Esc:Back[/]";
+            ? $"[{Ui.Gray}]Down:Results  Esc:Clear[/]"
+            : $"[{Ui.Gray}]up/down:Navigate  i:Install  Esc:Clear[/]";
         resultParts.Add(new Markup($"\n {hint}"));
 
-        return Ui.ViewPanel(Ui.IconResults, "Results", new Rows(resultParts), !_inputActive);
+        return new Rows(resultParts);
     }
 
     public string GetStatusHints()
     {
         if (_searching) return "Searching...";
-        if (_inputActive) return "Type to search  Tab:Results  Esc:Back";
+        if (_inputActive) return "Type to search  Down:Results  Esc:Clear";
         return DotnetUpService.IsInstalled()
-            ? "up/down:Navigate  i:Install  Tab:Input  Esc:Back"
-            : "up/down:Navigate  Tab:Input  Esc:Back";
+            ? "up/down:Navigate  i:Install  Esc:Clear"
+            : "up/down:Navigate  Esc:Clear";
     }
 
     public async Task<KeyResult> HandleKeyAsync(ConsoleKeyInfo key)
@@ -139,7 +162,6 @@ public sealed class SearchView : IView
     {
         switch (key.Key)
         {
-            case ConsoleKey.Tab:
             case ConsoleKey.DownArrow:
                 if (_results.Count > 0)
                 {
@@ -161,7 +183,7 @@ public sealed class SearchView : IView
                 _results = [];
                 _error = null;
                 CancelSearch();
-                return KeyResult.Quit;
+                return KeyResult.Handled;
 
             default:
                 if (key.KeyChar is >= ' ' and <= '~')
@@ -180,16 +202,22 @@ public sealed class SearchView : IView
         {
             case ConsoleKey.UpArrow or ConsoleKey.K:
                 if (_results.Count > 0)
-                    _selectedIndex = Math.Max(0, _selectedIndex - 1);
+                {
+                    if (_selectedIndex == 0)
+                    {
+                        // Row 0 + Up returns focus to the input line — replaces the old Tab toggle.
+                        _inputActive = true;
+                    }
+                    else
+                    {
+                        _selectedIndex = Math.Max(0, _selectedIndex - 1);
+                    }
+                }
                 return KeyResult.Handled;
 
             case ConsoleKey.DownArrow or ConsoleKey.J:
                 if (_results.Count > 0)
                     _selectedIndex = Math.Min(Math.Min(_results.Count, 20) - 1, _selectedIndex + 1);
-                return KeyResult.Handled;
-
-            case ConsoleKey.Tab:
-                _inputActive = true;
                 return KeyResult.Handled;
 
             case ConsoleKey.Escape:
@@ -198,7 +226,7 @@ public sealed class SearchView : IView
                 _error = null;
                 _inputActive = true;
                 CancelSearch();
-                return KeyResult.Quit;
+                return KeyResult.Handled;
 
             case ConsoleKey.I:
                 RequestInstall();
