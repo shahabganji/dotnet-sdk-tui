@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/images/mascot.png" alt="dsm mascot" width="160" />
+
 # .NET SDK Manager
 
 **A cross-platform terminal UI for managing .NET SDKs and Runtimes**
@@ -16,9 +18,10 @@
 ## Features
 
 - **Animated startup banner** — Aspire-style block letter animation with a teal-lime shine sweep
-- **SDKs panel** — View installed SDKs alongside the latest available versions for active and preview channels. Install, uninstall, and update with a single keystroke
-- **Runtimes panel** — Same experience for .NET and ASP.NET Core runtimes
-- **Live search** — Non-blocking search with debounce and request cancellation. Type to search, results update as you go — the terminal never freezes
+- **Tabbed workspace** — Copilot-CLI-style tab strip switches between SDKs, Runtimes, and Search with a single `Tab` press
+- **SDKs tab** — View installed SDKs alongside the latest available versions for active and preview channels. Install, uninstall, and update with a single keystroke
+- **Runtimes tab** — Same experience for .NET and ASP.NET Core runtimes
+- **Live search tab** — Non-blocking search with debounce and request cancellation. Type to search, results update as you go — the terminal never freezes
 - **Setup panel** — Install and manage the `dotnetup` tool itself from within the app
 - **Dark / Light themes** — Press `F6` to toggle. The terminal background adapts via OSC 11
 - **Lifecycle icons** — At-a-glance status for each version: 🍀 Active, 🏭 Preview, 🚧 Maintenance, 👿 End of Life
@@ -31,13 +34,14 @@
 
 | Key | Action |
 |-----|--------|
+| `Tab` / `Shift+Tab` | Cycle tabs: SDKs → Runtimes → Search |
 | `↑` / `↓` or `j` / `k` | Navigate rows |
-| `Tab` | Cycle focus between panels |
 | `i` | Install selected SDK/Runtime |
 | `u` | Uninstall selected SDK/Runtime |
 | `p` | Update selected SDK/Runtime |
 | `r` | Refresh data |
-| `F3` | Open search |
+| `s` | Toggle focus on the Setup panel |
+| `Esc` | Clear search query (on the Search tab) |
 | `F6` | Toggle dark/light theme |
 | `q` or `Ctrl+C` | Quit |
 

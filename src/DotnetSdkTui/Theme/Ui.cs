@@ -181,7 +181,7 @@ public static class Ui
     {
         var elements = new List<IRenderable>
         {
-            new Markup($"[white]{Markup.Escape(partialWelcome)}[/]")
+            new Markup($"[{ThemeManager.Foreground}]{Markup.Escape(partialWelcome)}[/]")
         };
         for (int i = 0; i < BannerRowCount; i++)
             elements.Add(new Text(""));
@@ -193,7 +193,7 @@ public static class Ui
     {
         var elements = new List<IRenderable>
         {
-            new Markup($"[white]{Markup.Escape(welcomeText)}[/]")
+            new Markup($"[{ThemeManager.Foreground}]{Markup.Escape(welcomeText)}[/]")
         };
         foreach (var line in BannerLines)
         {
@@ -210,13 +210,13 @@ public static class Ui
     {
         var elements = new List<IRenderable>
         {
-            new Markup($"[white]{Markup.Escape(welcomeText)}[/]")
+            new Markup($"[{ThemeManager.Foreground}]{Markup.Escape(welcomeText)}[/]")
         };
         foreach (var line in BannerLines)
         {
             elements.Add(new Markup(BuildLineMarkup(line, shineCol)));
         }
-        elements.Add(new Markup($"[white]{new string(' ', versionPadding)}{Markup.Escape(versionText)}[/]"));
+        elements.Add(new Markup($"[{ThemeManager.Foreground}]{new string(' ', versionPadding)}{Markup.Escape(versionText)}[/]"));
         return new Rows(elements);
     }
 
@@ -296,8 +296,47 @@ public static class Ui
         return positions.ToArray();
     }
 
+    // ── Mascot palette (brand teal + lime, matches the SVG/PNG mascot) ─────
+    // Every colour is theme-adaptive so the rocket keeps enough contrast on both the
+    // navy dark-mode background and the cream light-mode one.
+
+    /// <summary>Main teal for the fuselage / body walls.</summary>
+    private static string MascotTeal =>
+        ThemeManager.Current == AppTheme.Dark ? "#1DB9A0" : "#0F7A68";
+
+    /// <summary>Deeper teal shadow (currently unused, kept for future accents).</summary>
+    private static string MascotShadow =>
+        ThemeManager.Current == AppTheme.Dark ? "#0F7A68" : "#062822";
+
+    /// <summary>Lime accent for the porthole, nose, and flame — darkened on light bg.</summary>
+    private static string MascotBandana =>
+        ThemeManager.Current == AppTheme.Dark ? "#C8E64D" : "#4E6E10";
+
+    /// <summary>Knot-tail / secondary lime shade — even darker for light mode contrast.</summary>
+    private static string MascotBandanaDk =>
+        ThemeManager.Current == AppTheme.Dark ? "#9BC02E" : "#2E4200";
+
     /// <summary>
-    /// Renders the welcome info panel (left side of header row).
+    /// A compact 3-row Unicode block-art mascot: our brand rocket, matching the SVG/PNG
+    /// mascot in docs/images. A tiny nose sits atop a mechanical fuselage, and a wide flame
+    /// plume flares out at the base — the flaring exhaust is what stops the silhouette
+    /// reading as a person wearing a hat.
+    /// Colours flip between themes so the mascot stays legible on both dark and light backgrounds.
+    /// </summary>
+    public static IRenderable MascotArt()
+    {
+        // Row 1: nose cone with slanted shoulders that connect down into the body walls.
+        // Row 2: mechanical fuselage with heavy vertical walls and a lime porthole.
+        // Row 3: flame plume — flares OUT wider than the body, in bold lime.
+        string row1 = $" [{MascotTeal}]╱[/][{MascotBandana} bold]▲[/][{MascotTeal}]╲[/] ";
+        string row2 = $" [{MascotTeal}]║[/][{MascotBandana} bold]◉[/][{MascotTeal}]║[/] ";
+        string row3 = $"[{MascotBandana} bold]╲▓█▓╱[/]";
+        return new Markup($"{row1}\n{row2}\n{row3}");
+    }
+
+    /// <summary>
+    /// Renders the welcome info panel (right of the mascot in the top row). The panel body
+    /// keeps the original single-line "made with ❤" tagline unchanged.
     /// </summary>
     public static IRenderable WelcomePanel()
     {
@@ -316,28 +355,65 @@ public static class Ui
     }
 
     /// <summary>
-    /// Renders a simple header for the search screen.
+    /// Renders a horizontal tab strip in the Copilot-CLI style: the active tab is drawn as a
+    /// solid pill (using the theme's selection-bar colours) and inactive tabs are dim labels.
+    /// Used standalone; for tabs that visually connect to the panel below, see <see cref="TabbedPanel"/>.
     /// </summary>
-    public static IRenderable SearchHeader(string? setupInfo)
+    /// <param name="labels">Tab labels, left-to-right.</param>
+    /// <param name="activeIndex">Index of the active tab.</param>
+    /// <param name="dimAll">When true (e.g. Setup is focused elsewhere) no tab is highlighted.</param>
+    public static IRenderable TabStrip(IReadOnlyList<string> labels, int activeIndex, bool dimAll = false)
     {
-        string version = Services.AppVersion.Current;
-        string title = $"[{Red} bold].NET SDK Manager[/] [{DarkGray}]v{version}[/]  [{DarkGray}]Made with[/] [{Red}]{IconHeart}[/] [{DarkGray}]by[/] [{Blue} italic underline link=https://shahab-the-guy.dev]Shahab the Guy[/]";
-        string setup = setupInfo is not null
-            ? $"[{Green} bold]dotnetup[/] [{White}]{Markup.Escape(setupInfo)}[/]"
-            : $"[{Green}]dotnetup[/]";
+        return new Markup(BuildTabStripMarkup(labels, activeIndex, dimAll));
+    }
 
-        var left = new Panel(new Markup(title))
-            .Border(BoxBorder.Rounded)
-            .BorderColor(ThemeManager.HeaderBorderColor)
+    private static string BuildTabStripMarkup(IReadOnlyList<string> labels, int activeIndex, bool dimAll)
+    {
+        var sb = new StringBuilder();
+        sb.Append(' ');
+        for (int i = 0; i < labels.Count; i++)
+        {
+            string label = Markup.Escape(labels[i]);
+            if (i == activeIndex && !dimAll)
+                sb.Append($"[{ThemeManager.SelectedRowText} on {ThemeManager.SelectedRowBg} bold] {label} [/]");
+            else
+                sb.Append($"[{DarkGray} dim] {label} [/]");
+            if (i < labels.Count - 1) sb.Append(' ');
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Wraps <paramref name="content"/> in a rounded/double-bordered panel whose <b>header
+    /// contains the tab strip</b> — so the tabs live inside the top edge of the panel and
+    /// visually "connect" to it, browser-tab style. Border and highlight colours follow the
+    /// active theme.
+    /// </summary>
+    /// <param name="labels">Tab labels, left-to-right.</param>
+    /// <param name="activeIndex">Index of the active tab.</param>
+    /// <param name="content">The active tab's body.</param>
+    /// <param name="focused">Whether the tab body currently receives keystrokes.</param>
+    /// <param name="dimAll">When true no tab is highlighted (e.g. Setup owns focus).</param>
+    public static IRenderable TabbedPanel(
+        IReadOnlyList<string> labels,
+        int activeIndex,
+        IRenderable content,
+        bool focused,
+        bool dimAll = false)
+    {
+        var borderStyle = focused && !dimAll
+            ? new Style(ThemeManager.FocusedBorderColor, decoration: Decoration.Bold)
+            : new Style(ThemeManager.UnfocusedBorderColor, decoration: Decoration.Dim);
+
+        // Tab strip becomes the panel header; a leading space keeps the first tab clear of the
+        // rounded corner. Justified left so the tabs sit at the top-left of the border.
+        string header = " " + BuildTabStripMarkup(labels, activeIndex, dimAll) + " ";
+
+        return new Panel(content)
+            .Header(header, Justify.Left)
+            .Border(focused && !dimAll ? BoxBorder.Double : BoxBorder.Rounded)
+            .BorderStyle(borderStyle)
             .Expand();
-
-        var right = new Panel(new Markup(setup))
-            .Header($"[{Yellow} bold]Setup[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(ThemeManager.TableBorderColor)
-            .Expand();
-
-        return new Columns(left, right);
     }
 
     /// <summary>
@@ -347,8 +423,8 @@ public static class Ui
     {
         // Homebrew is macOS-only, so only advertise the F2 workspace there.
         string globalText = globalOverride ?? (OperatingSystem.IsMacOS()
-            ? $"Tab:Switch  F1:Help  F2:Brew  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit"
-            : $"Tab:Switch  F1:Help  F3:Search  F6:Theme({ThemeManager.ThemeName})  q:Quit");
+            ? $"Tab:Next tab  s:Setup  F1:Help  F2:Brew  F6:Theme({ThemeManager.ThemeName})  q:Quit"
+            : $"Tab:Next tab  s:Setup  F1:Help  F6:Theme({ThemeManager.ThemeName})  q:Quit");
         string global = $"[{DarkGray}]{Markup.Escape(globalText)}[/]";
         string hintMarkup = $"[{Gold}]{hints}[/]";
         return new Markup($" {hintMarkup}  {global}");

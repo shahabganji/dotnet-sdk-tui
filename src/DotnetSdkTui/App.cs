@@ -9,8 +9,9 @@ namespace DotnetSdkTui;
 
 /// <summary>
 /// Main application with two screens:
-/// - Main: dotnetup status + SDKs panel + Runtimes panel
-/// - Search: full-screen search (activated by "/", Esc returns)
+/// - Main: Copilot-CLI-style tab strip (SDKs / Runtimes / Search) + Setup panel top-right.
+///   Only the active tab's body renders; Tab / Shift+Tab cycles tabs.
+/// - Brew: separate Homebrew workspace (F2, macOS only).
 /// Install/uninstall operations exit TUI to show real terminal output.
 /// </summary>
 public sealed class App
@@ -21,14 +22,17 @@ public sealed class App
     private readonly SetupView _setupView;
     private readonly BrewView _brewView;
 
-    private enum Screen { Main, Search, Brew }
+    private enum Screen { Main, Brew }
     private Screen _screen = Screen.Main;
 
-    // Focus on main screen: 0=SDKs, 1=Runtimes, 2=Setup
-    private int _mainFocus;
-    private const int FocusSdks = 0;
-    private const int FocusRuntimes = 1;
-    private const int FocusSetup = 2;
+    // Main-screen tabs, cycled by Tab / Shift+Tab.
+    private enum MainTab { Sdks, Runtimes, Search }
+    private MainTab _tab = MainTab.Sdks;
+    private static readonly MainTab[] TabOrder = [MainTab.Sdks, MainTab.Runtimes, MainTab.Search];
+
+    // Setup lives top-right, outside the tab cycle. Press `s` to route keys to it; Esc / `s`
+    // to return focus to the active tab.
+    private bool _setupFocused;
 
     private bool _running = true;
     private string _dotnetUpStatus = "checking...";
@@ -162,7 +166,7 @@ public sealed class App
             // Live-update screens use a tight 200 ms re-render cycle; idle screens wake every ~1 s.
             // Polling resolution is 20 ms so a drag during resize never sees more than a one-frame
             // (~50 Hz) lag between the kernel reporting SIGWINCH and us repainting.
-            bool tight = _screen == Screen.Search || IsLiveUpdateNeeded();
+            bool tight = (_screen == Screen.Main && _tab == MainTab.Search) || IsLiveUpdateNeeded();
             var deadline = DateTime.UtcNow.AddMilliseconds(tight ? 200 : 1000);
             while (DateTime.UtcNow < deadline && _running)
             {
@@ -226,6 +230,10 @@ public sealed class App
         // 1. Begin synchronized output (modern terminals buffer until end-marker; older ones
         //    silently ignore both escapes).
         sb.Append("\x1B[?2026h");
+        // 1b. Hide the cursor for the duration of the frame. Some terminals re-enable the
+        //     cursor when a program writes past its previous "hidden" state, so we assert
+        //     hidden on every frame — DECSET 25 low.
+        sb.Append("\x1B[?25l");
         // 2. On horizontal shrink, wipe the orphaned right strip BEFORE drawing the new frame
         //    so it never becomes visible (we're inside the sync region so this is invisible).
         if (resized && _lastWidth > width && _lastHeight > 0)
@@ -280,7 +288,6 @@ public sealed class App
 
     private IRenderable BuildScreen()
     {
-        if (_screen == Screen.Search) return BuildSearchScreen();
         if (_screen == Screen.Brew)   return BuildBrewScreen();
         return BuildMainScreen();
     }
@@ -291,52 +298,54 @@ public sealed class App
             .SplitRows(
                 new Layout("TopPad").Size(1),
                 new Layout("Top").Size(3),
+                new Layout("TabsPad").Size(1),
                 new Layout("Body").MinimumSize(10),
                 new Layout("Footer").Size(2));
 
         root["TopPad"].Update(new Text(""));
+        root["TabsPad"].Update(new Text(""));
 
-        // Top row: Welcome info (left) + Setup panel (right, interactive)
+        // Top row: mascot column + Welcome (left) + Setup panel (right).
+        // The mascot lives outside the Welcome panel so the panel's title stays on ONE line.
         root["Top"].SplitColumns(
+            new Layout("Mascot").Size(9),
             new Layout("Welcome"),
             new Layout("Setup"));
 
+        root["Top"]["Mascot"].Update(Ui.MascotArt());
         root["Top"]["Welcome"].Update(Ui.WelcomePanel());
-        root["Top"]["Setup"].Update(_setupView.Render(_mainFocus == FocusSetup));
+        root["Top"]["Setup"].Update(_setupView.Render(_setupFocused));
 
-        // Footer (with top padding line)
-        IView focusedView = GetFocusedMainView();
-        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(focusedView.GetStatusHints())));
+        // Body: a single tabbed panel — the tab strip lives inside the panel's top border so
+        // the tabs visually "connect" to the panel below.
+        root["Body"].Update(BuildTabbedBody());
 
-        // Body: SDKs and Runtimes
-        root["Body"].SplitRows(
-            new Layout("SDKs").MinimumSize(8),
-            new Layout("Runtimes").MinimumSize(5));
-
-        root["Body"]["SDKs"].Update(_sdksView.Render(_mainFocus == FocusSdks));
-        root["Body"]["Runtimes"].Update(_runtimesView.Render(_mainFocus == FocusRuntimes));
+        // Footer hints reflect whoever currently receives keystrokes.
+        IView keyedView = GetKeyedView();
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(keyedView.GetStatusHints())));
 
         return new Padder(root, new Padding(2, 0, 2, 0));
     }
 
-    private IRenderable BuildSearchScreen()
+    private IRenderable BuildTabbedBody()
     {
-        var root = new Layout("Root")
-            .SplitRows(
-                new Layout("TopPad").Size(1),
-                new Layout("Header").Size(3),
-                new Layout("SearchInput").Size(5),
-                new Layout("Results").MinimumSize(5),
-                new Layout("Footer").Size(2));
+        bool tabFocused = !_setupFocused;
 
-        root["TopPad"].Update(new Text(""));
-        root["Header"].Update(Ui.SearchHeader(_setupInfo));
-        root["SearchInput"].Update(_searchView.RenderSearchInput());
-        root["Results"].Update(_searchView.RenderResults());
-        // Search is a focused context — no package-manager switching here, so omit F2/F3 hints.
-        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_searchView.GetStatusHints(), $"F1:Help  F6:Theme({ThemeManager.ThemeName})")));
+        IRenderable content = _tab switch
+        {
+            MainTab.Sdks     => _sdksView.RenderContent(tabFocused),
+            MainTab.Runtimes => _runtimesView.RenderContent(tabFocused),
+            MainTab.Search   => _searchView.RenderContent(tabFocused),
+            _                => _sdksView.RenderContent(tabFocused),
+        };
 
-        return new Padder(root, new Padding(2, 0, 2, 0));
+        int activeTabIndex = Array.IndexOf(TabOrder, _tab);
+        return Ui.TabbedPanel(
+            [$"{Ui.IconSdks} SDKs", $"{Ui.IconRuntimes} Runtimes", $"{Ui.IconSearch} Search"],
+            activeTabIndex,
+            content,
+            focused: tabFocused,
+            dimAll: _setupFocused);
     }
 
     private IRenderable BuildBrewScreen()
@@ -366,12 +375,6 @@ public sealed class App
         if (key.Key == ConsoleKey.F1)
         {
             OpenUrl("https://sdk-manager.net");
-            return;
-        }
-
-        if (_screen == Screen.Search)
-        {
-            await HandleSearchKeyAsync(key);
             return;
         }
 
@@ -422,21 +425,15 @@ public sealed class App
 
     private async Task HandleMainKeyAsync(ConsoleKeyInfo key)
     {
-        // F2 opens the Homebrew workspace (macOS only)
-        if (key.Key == ConsoleKey.F2 && BrewService.IsSupported() && !GetFocusedMainView().IsTextInputActive)
+        IView activeView = GetActiveTabView();
+        IView keyedView = GetKeyedView();
+
+        // F2 opens the Homebrew workspace (macOS only). Ignore while a text input is active.
+        if (key.Key == ConsoleKey.F2 && BrewService.IsSupported() && !keyedView.IsTextInputActive)
         {
             _screen = Screen.Brew;
             AnsiConsole.Clear();
             await _brewView.ActivateAsync();
-            return;
-        }
-
-        // F3 opens search
-        if (key.Key == ConsoleKey.F3 && !GetFocusedMainView().IsTextInputActive)
-        {
-            _screen = Screen.Search;
-            AnsiConsole.Clear();
-            await _searchView.ActivateAsync();
             return;
         }
 
@@ -462,52 +459,55 @@ public sealed class App
             return;
         }
 
-        // Quit
-        if (key.Key == ConsoleKey.Q && !GetFocusedMainView().IsTextInputActive)
+        // Quit (never while a text input owns the keystrokes)
+        if (key.Key == ConsoleKey.Q && !keyedView.IsTextInputActive)
         {
             _running = false;
             return;
         }
 
-        // Tab cycles focus between SDKs, Runtimes, and Setup; Shift+Tab cycles backward.
-        if (key.Key == ConsoleKey.Tab && !GetFocusedMainView().IsTextInputActive)
+        // Tab / Shift+Tab cycles tabs. Since Tab is a global navigation gesture in the
+        // Copilot-CLI-style tab strip, we honour it even while a view's text input is active
+        // (Search reads printable characters, so Tab isn't lost as content).
+        if (key.Key == ConsoleKey.Tab)
         {
             int step = key.Modifiers.HasFlag(ConsoleModifiers.Shift) ? -1 : 1;
-            _mainFocus = (_mainFocus + step + 3) % 3;
+            int idx = Array.IndexOf(TabOrder, _tab);
+            _tab = TabOrder[(idx + step + TabOrder.Length) % TabOrder.Length];
+            // Leaving Setup — pull focus back onto the tab we just landed on.
+            _setupFocused = false;
+            // Fresh Search activation refreshes the debounce state.
+            if (_tab == MainTab.Search) await _searchView.ActivateAsync();
             return;
         }
 
-        // Shift+M: bulk-migrate all unmanaged SDKs into dotnetup (global, any focus).
+        // Shift+M: bulk-migrate all unmanaged SDKs into dotnetup (global, any tab).
         if (key.Key == ConsoleKey.M
             && (key.Modifiers.HasFlag(ConsoleModifiers.Shift) || key.KeyChar == 'M')
-            && !GetFocusedMainView().IsTextInputActive)
+            && !keyedView.IsTextInputActive)
         {
             if (DotnetUpService.IsInstalled() && _sdksView.HasUnmanaged)
                 _pendingBulkMigrate = _sdksView.GetUnmanagedMigrations();
             return;
         }
 
-        // Pass key to focused view
-        await GetFocusedMainView().HandleKeyAsync(key);
-    }
-
-    private async Task HandleSearchKeyAsync(ConsoleKeyInfo key)
-    {
-        // F5/F6 cycles theme even in search
-        if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
+        // 's' (lowercase) toggles Setup focus so its `i`/`u`/`r` keys can be reached. Skipped
+        // while a text input is active so the letter can be typed into the search box.
+        if (key.KeyChar == 's' && !keyedView.IsTextInputActive)
         {
-            ThemeManager.Cycle();
+            _setupFocused = !_setupFocused;
             return;
         }
 
-        var result = await _searchView.HandleKeyAsync(key);
-
-        // Quit from search means "go back to main"
-        if (result == KeyResult.Quit)
+        // Escape while Setup is focused returns to the active tab.
+        if (key.Key == ConsoleKey.Escape && _setupFocused)
         {
-            _screen = Screen.Main;
-            AnsiConsole.Clear();
+            _setupFocused = false;
+            return;
         }
+
+        // Route the key to whichever view currently owns the keystrokes.
+        await keyedView.HandleKeyAsync(key);
     }
 
     private async Task HandleBrewKeyAsync(ConsoleKeyInfo key)
@@ -698,13 +698,19 @@ public sealed class App
         return true;
     }
 
-    private IView GetFocusedMainView() => _mainFocus switch
+    private IView GetActiveTabView() => _tab switch
     {
-        FocusSdks => _sdksView,
-        FocusRuntimes => _runtimesView,
-        FocusSetup => _setupView,
-        _ => _sdksView
+        MainTab.Sdks     => _sdksView,
+        MainTab.Runtimes => _runtimesView,
+        MainTab.Search   => _searchView,
+        _                => _sdksView,
     };
+
+    /// <summary>
+    /// The view that currently receives keystrokes: Setup when it's focused, otherwise the
+    /// active tab's view.
+    /// </summary>
+    private IView GetKeyedView() => _setupFocused ? _setupView : GetActiveTabView();
 
     private bool IsLiveUpdateNeeded()
     {

@@ -183,14 +183,23 @@ public sealed class RuntimesView : IView
 
     public IRenderable Render(bool focused)
     {
+        return RenderPanel(focused, RenderContent(focused));
+    }
+
+    /// <summary>
+    /// Renders just the inner content (no outer view panel) so a caller can wrap it in a
+    /// custom chrome — e.g. a tabbed panel whose header contains the tab strip.
+    /// </summary>
+    public IRenderable RenderContent(bool focused)
+    {
         if (_loading)
-            return RenderPanel(focused, Ui.Info("Loading runtimes..."));
+            return Ui.Info("Loading runtimes...");
 
         if (_error is not null)
-            return RenderPanel(focused, Ui.Error(_error));
+            return Ui.Error(_error);
 
         if (_rows.Count == 0)
-            return RenderPanel(focused, Ui.Muted("No runtimes found."));
+            return Ui.Muted("No runtimes found.");
 
         var parts = new List<IRenderable>();
 
@@ -262,7 +271,7 @@ public sealed class RuntimesView : IView
         if (_statusMessage is not null)
             parts.Add(new Markup($"\n[{Ui.Gold}]{Markup.Escape(_statusMessage)}[/]"));
 
-        return RenderPanel(focused, new Rows(parts));
+        return new Rows(parts);
     }
 
     public string GetStatusHints()
