@@ -76,9 +76,7 @@ internal static class SdkSearchService
 
         // Find matching channels
         var matchingChannels = channels
-            .Where(c => c.ChannelVersion.StartsWith(prefixQuery, StringComparison.OrdinalIgnoreCase)
-                || (!string.IsNullOrWhiteSpace(c.LatestSdk) && c.LatestSdk.StartsWith(prefixQuery, StringComparison.OrdinalIgnoreCase))
-                || (!string.IsNullOrWhiteSpace(c.LatestRuntime) && c.LatestRuntime.StartsWith(prefixQuery, StringComparison.OrdinalIgnoreCase)))
+            .Where(c => MatchesChannel(c, prefixQuery))
             .ToList();
 
         if (matchingChannels.Count == 0)
@@ -108,6 +106,50 @@ internal static class SdkSearchService
         }
 
         return SortResults(results);
+    }
+
+    /// <summary>
+    /// Decides whether <paramref name="channel"/> is worth opening for a search
+    /// <paramref name="prefixQuery"/> (already trimmed of trailing dots). The check has two sides:
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Query as prefix of channel headline data</b> — the classic partial-typing shortcut. When
+    /// the user has typed less than a full version we peek at the small releases index and pick a
+    /// channel if its <see cref="ChannelInfo.ChannelVersion"/>, <see cref="ChannelInfo.LatestSdk"/>
+    /// or <see cref="ChannelInfo.LatestRuntime"/> begins with the query. This lets <c>"9.0.3"</c>
+    /// open channel 9.0 because <c>"9.0.315"</c> starts with it.
+    /// </para>
+    /// <para>
+    /// <b>Channel version as prefix of query</b> — required for older non-latest patches. Once the
+    /// query is more specific than <c>LatestSdk</c> (e.g. <c>"9.0.314"</c> when the latest is
+    /// <c>"9.0.315"</c>) the first check fails and dsm would never open channel 9.0's
+    /// <c>releases.json</c> to find the older patch. The trailing dot in <c>ChannelVersion + "."</c>
+    /// stops a one-digit query like <c>"9"</c> from matching a hypothetical <c>"90.0"</c> channel
+    /// while still letting <c>"9.0.314"</c> match <c>"9.0"</c>.
+    /// </para>
+    /// </remarks>
+    internal static bool MatchesChannel(ChannelInfo channel, string prefixQuery)
+    {
+        if (string.IsNullOrEmpty(prefixQuery) || string.IsNullOrEmpty(channel.ChannelVersion))
+            return false;
+
+        if (channel.ChannelVersion.StartsWith(prefixQuery, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Older-patch case: the query lives inside this channel's version namespace.
+        if (prefixQuery.StartsWith(channel.ChannelVersion + ".", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(channel.LatestSdk)
+            && channel.LatestSdk.StartsWith(prefixQuery, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(channel.LatestRuntime)
+            && channel.LatestRuntime.StartsWith(prefixQuery, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
     }
 
     /// <summary>
