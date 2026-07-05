@@ -230,6 +230,10 @@ public sealed class App
         // 1. Begin synchronized output (modern terminals buffer until end-marker; older ones
         //    silently ignore both escapes).
         sb.Append("\x1B[?2026h");
+        // 1b. Hide the cursor for the duration of the frame. Some terminals re-enable the
+        //     cursor when a program writes past its previous "hidden" state, so we assert
+        //     hidden on every frame — DECSET 25 low.
+        sb.Append("\x1B[?25l");
         // 2. On horizontal shrink, wipe the orphaned right strip BEFORE drawing the new frame
         //    so it never becomes visible (we're inside the sync region so this is invisible).
         if (resized && _lastWidth > width && _lastHeight > 0)
