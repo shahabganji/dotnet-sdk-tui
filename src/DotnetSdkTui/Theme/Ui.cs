@@ -181,7 +181,7 @@ public static class Ui
     {
         var elements = new List<IRenderable>
         {
-            new Markup($"[white]{Markup.Escape(partialWelcome)}[/]")
+            new Markup($"[{ThemeManager.Foreground}]{Markup.Escape(partialWelcome)}[/]")
         };
         for (int i = 0; i < BannerRowCount; i++)
             elements.Add(new Text(""));
@@ -193,7 +193,7 @@ public static class Ui
     {
         var elements = new List<IRenderable>
         {
-            new Markup($"[white]{Markup.Escape(welcomeText)}[/]")
+            new Markup($"[{ThemeManager.Foreground}]{Markup.Escape(welcomeText)}[/]")
         };
         foreach (var line in BannerLines)
         {
@@ -210,13 +210,13 @@ public static class Ui
     {
         var elements = new List<IRenderable>
         {
-            new Markup($"[white]{Markup.Escape(welcomeText)}[/]")
+            new Markup($"[{ThemeManager.Foreground}]{Markup.Escape(welcomeText)}[/]")
         };
         foreach (var line in BannerLines)
         {
             elements.Add(new Markup(BuildLineMarkup(line, shineCol)));
         }
-        elements.Add(new Markup($"[white]{new string(' ', versionPadding)}{Markup.Escape(versionText)}[/]"));
+        elements.Add(new Markup($"[{ThemeManager.Foreground}]{new string(' ', versionPadding)}{Markup.Escape(versionText)}[/]"));
         return new Rows(elements);
     }
 
