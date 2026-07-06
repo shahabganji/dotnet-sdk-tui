@@ -479,8 +479,9 @@ public sealed class App
         IView activeView = GetActiveTabView();
         IView keyedView = GetKeyedView();
 
-        // F2 opens the Homebrew workspace (macOS only). Ignore while a text input is active.
-        if (key.Key == ConsoleKey.F2 && BrewService.IsSupported() && !keyedView.IsTextInputActive)
+        // F2 opens the Homebrew workspace (macOS only). Always available — function keys
+        // never collide with a search box's text input.
+        if (key.Key == ConsoleKey.F2 && BrewService.IsSupported())
         {
             _screen = Screen.Brew;
             AnsiConsole.Clear();
