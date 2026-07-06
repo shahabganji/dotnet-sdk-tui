@@ -40,6 +40,15 @@ public sealed class SdksView : IView
     /// </summary>
     internal (string Command, string Args, string? Note)? PendingCommand { get; private set; }
 
+    /// <summary>
+    /// Set by the <c>w</c> key on an installed SDK row to signal App to open the
+    /// Workloads workspace scoped to that SDK. Carries the exact SDK version, which
+    /// <see cref="WorkloadsView.ActivateForSdkAsync"/> pins via a scratch <c>global.json</c>.
+    /// </summary>
+    internal string? PendingWorkloadsSdk { get; private set; }
+
+    internal void ClearPendingWorkloadsSdk() => PendingWorkloadsSdk = null;
+
     public bool NeedsLiveUpdate => _loading;
     public bool IsTextInputActive => false;
 
@@ -279,8 +288,10 @@ public sealed class SdksView : IView
 
         // Surface the migrate action only when the selected SDK is unmanaged.
         string hints = _selectedIndex < _rows.Count && _rows[_selectedIndex] is { IsInstalled: true, IsManaged: false }
-            ? "up/down:Navigate  m:Migrate to dotnetup  r:Refresh"
-            : "up/down:Navigate  i:Install  u:Uninstall  p:Update  r:Refresh";
+            ? "up/down:Navigate  m:Migrate to dotnetup  w:Workloads  r:Refresh"
+            : (_selectedIndex < _rows.Count && _rows[_selectedIndex].IsInstalled
+                ? "up/down:Navigate  i:Install  u:Uninstall  p:Update  w:Workloads  r:Refresh"
+                : "up/down:Navigate  i:Install  u:Uninstall  p:Update  r:Refresh");
 
         // Offer the bulk action whenever any unmanaged SDK is present.
         if (HasUnmanaged)
@@ -323,6 +334,10 @@ public sealed class SdksView : IView
             case ConsoleKey.M:
                 if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
                 RequestMigrate();
+                return KeyResult.Handled;
+
+            case ConsoleKey.W:
+                RequestWorkloads();
                 return KeyResult.Handled;
 
             case ConsoleKey.R:
@@ -447,6 +462,24 @@ public sealed class SdksView : IView
             "That location may hold other system-installed versions, so don't delete the whole folder.";
 
         PendingCommand = ("dotnetup", $"sdk install {row.Version}", note);
+    }
+
+    /// <summary>
+    /// Handles the <c>w</c> key: opens the Workloads workspace scoped to the selected SDK.
+    /// Only installed rows are eligible — Available rows show a status hint instead.
+    /// </summary>
+    private void RequestWorkloads()
+    {
+        if (_rows.Count == 0 || _selectedIndex >= _rows.Count) return;
+
+        SdkRow row = _rows[_selectedIndex];
+        if (!row.IsInstalled)
+        {
+            _statusMessage = $"{row.Version} is not installed. Press i to install it, then w to manage its workloads.";
+            return;
+        }
+
+        PendingWorkloadsSdk = row.Version;
     }
 
     /// <summary>Consistent status message shown when an action is attempted on an unmanaged SDK.</summary>

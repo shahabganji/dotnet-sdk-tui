@@ -21,8 +21,9 @@ public sealed class App
     private readonly SearchView _searchView;
     private readonly SetupView _setupView;
     private readonly BrewView _brewView;
+    private readonly WorkloadsView _workloadsView;
 
-    private enum Screen { Main, Brew }
+    private enum Screen { Main, Brew, Workloads }
     private Screen _screen = Screen.Main;
 
     // Main-screen tabs, cycled by Tab / Shift+Tab.
@@ -65,12 +66,20 @@ public sealed class App
         _searchView = new SearchView();
         _setupView = new SetupView();
         _brewView = new BrewView();
+        _workloadsView = new WorkloadsView();
     }
 
     public async Task RunAsync()
     {
         // Ensure dotnet and dotnetup are on PATH (covers dotnetup-managed installs)
         DotnetUpService.RefreshPath();
+
+        // Suppress the first-run experience and .NET logo banner in every child `dotnet`
+        // process we spawn — otherwise the multi-line welcome text leaks into single-line
+        // reads like `dotnet workload --version` and `dotnet workload config --update-mode`,
+        // which corrupts the Workloads panel header.
+        Environment.SetEnvironmentVariable("DOTNET_NOLOGO", "1");
+        Environment.SetEnvironmentVariable("DOTNET_SKIP_FIRST_TIME_EXPERIENCE", "1");
 
         // Ensure UTF-8 output for box-drawing characters on Windows
         if (OperatingSystem.IsWindows())
@@ -161,12 +170,28 @@ public sealed class App
                 continue;
             }
 
+            // Check for a pending workload update-mode toggle (Workloads panel `m`)
+            if (await CheckWorkloadModeToggleAsync())
+            {
+                AnsiConsole.Clear();
+                _lastFrame = null;
+                continue;
+            }
+
+            // Check for a pending workloads drill-in request (SDKs panel `w`)
+            if (await CheckWorkloadsDrillInAsync())
+            {
+                AnsiConsole.Clear();
+                _lastFrame = null;
+                continue;
+            }
+
             // Always poll instead of doing a blocking ReadKey so SIGWINCH (or a Windows size
             // change picked up by TerminalSizeChanged) can interrupt the wait and re-render.
             // Live-update screens use a tight 200 ms re-render cycle; idle screens wake every ~1 s.
             // Polling resolution is 20 ms so a drag during resize never sees more than a one-frame
             // (~50 Hz) lag between the kernel reporting SIGWINCH and us repainting.
-            bool tight = (_screen == Screen.Main && _tab == MainTab.Search) || IsLiveUpdateNeeded();
+            bool tight = (_screen == Screen.Main && _tab == MainTab.Search) || _screen == Screen.Workloads || IsLiveUpdateNeeded();
             var deadline = DateTime.UtcNow.AddMilliseconds(tight ? 200 : 1000);
             while (DateTime.UtcNow < deadline && _running)
             {
@@ -288,7 +313,8 @@ public sealed class App
 
     private IRenderable BuildScreen()
     {
-        if (_screen == Screen.Brew)   return BuildBrewScreen();
+        if (_screen == Screen.Brew)      return BuildBrewScreen();
+        if (_screen == Screen.Workloads) return BuildWorkloadsScreen();
         return BuildMainScreen();
     }
 
@@ -369,6 +395,25 @@ public sealed class App
         return new Padder(root, new Padding(2, 0, 2, 0));
     }
 
+    private IRenderable BuildWorkloadsScreen()
+    {
+        var root = new Layout("Root")
+            .SplitRows(
+                new Layout("TopPad").Size(1),
+                new Layout("Top").Size(3),
+                new Layout("Body").MinimumSize(10),
+                new Layout("Footer").Size(2));
+
+        root["TopPad"].Update(new Text(""));
+        root["Top"].Update(Ui.WelcomePanel());
+        root["Body"].Update(_workloadsView.Render(true));
+        // Workloads is a drill-in workspace; no cross-workspace shortcuts here except theme + help.
+        string wlGlobal = $"F1:Help  F6:Theme({ThemeManager.ThemeName})";
+        root["Footer"].Update(new Rows(new Text(""), Ui.Footer(_workloadsView.GetStatusHints(), wlGlobal)));
+
+        return new Padder(root, new Padding(2, 0, 2, 0));
+    }
+
     private async Task HandleKeyAsync(ConsoleKeyInfo key)
     {
         // F1 opens the docs site, regardless of which screen is active.
@@ -381,6 +426,12 @@ public sealed class App
         if (_screen == Screen.Brew)
         {
             await HandleBrewKeyAsync(key);
+            return;
+        }
+
+        if (_screen == Screen.Workloads)
+        {
+            await HandleWorkloadsKeyAsync(key);
             return;
         }
 
@@ -537,44 +588,74 @@ public sealed class App
         }
     }
 
+    private async Task HandleWorkloadsKeyAsync(ConsoleKeyInfo key)
+    {
+        // F5/F6 cycles theme even in the workloads workspace
+        if (key.Key is ConsoleKey.F5 or ConsoleKey.F6)
+        {
+            ThemeManager.Cycle();
+            return;
+        }
+
+        var result = await _workloadsView.HandleKeyAsync(key);
+
+        // Quit from the workloads workspace means "go back to main"
+        if (result == KeyResult.Quit)
+        {
+            _screen = Screen.Main;
+            AnsiConsole.Clear();
+        }
+    }
+
     /// <summary>
     /// Checks if any view has a pending interactive command.
     /// If so, exits TUI, runs the command with real terminal output, then resumes.
     /// </summary>
     private async Task<bool> CheckPendingCommandsAsync()
     {
-        (string cmd, string args, string? note)? pending = null;
+        (string cmd, string args, string? note, string? cwd)? pending = null;
 
         if (_sdksView.PendingCommand is not null)
         {
-            pending = _sdksView.PendingCommand;
+            var p = _sdksView.PendingCommand.Value;
+            pending = (p.Command, p.Args, p.Note, null);
             _sdksView.ClearPendingCommand();
         }
         else if (_searchView.PendingCommand is not null)
         {
-            pending = _searchView.PendingCommand;
+            var p = _searchView.PendingCommand.Value;
+            pending = (p.Command, p.Args, p.Note, null);
             _searchView.ClearPendingCommand();
         }
         else if (_runtimesView.PendingCommand is not null)
         {
-            pending = _runtimesView.PendingCommand;
+            var p = _runtimesView.PendingCommand.Value;
+            pending = (p.Command, p.Args, p.Note, null);
             _runtimesView.ClearPendingCommand();
         }
         else if (_setupView.PendingCommand is not null)
         {
-            pending = _setupView.PendingCommand;
+            var p = _setupView.PendingCommand.Value;
+            pending = (p.Command, p.Args, p.Note, null);
             _setupView.ClearPendingCommand();
         }
         else if (_brewView.PendingCommand is not null)
         {
-            pending = _brewView.PendingCommand;
+            var p = _brewView.PendingCommand.Value;
+            pending = (p.Command, p.Args, p.Note, null);
             _brewView.ClearPendingCommand();
+        }
+        else if (_workloadsView.PendingCommand is not null)
+        {
+            // Workloads carry a scratch-dir Cwd so the command resolves against the pinned SDK.
+            pending = _workloadsView.PendingCommand;
+            _workloadsView.ClearPendingCommand();
         }
 
         if (pending is null)
             return false;
 
-        await RunInteractiveAndRefreshAsync(pending.Value.cmd, pending.Value.args, pending.Value.note);
+        await RunInteractiveAndRefreshAsync(pending.Value.cmd, pending.Value.args, pending.Value.note, pending.Value.cwd);
         return true;
     }
 
@@ -582,7 +663,7 @@ public sealed class App
     /// Exits the TUI, runs an external command with real terminal output, optionally prints a
     /// follow-up note on success, then restores the TUI and refreshes all views.
     /// </summary>
-    private async Task RunInteractiveAndRefreshAsync(string cmd, string args, string? note)
+    private async Task RunInteractiveAndRefreshAsync(string cmd, string args, string? note, string? cwd = null)
     {
         // Exit TUI, restore terminal to original settings for the external command
         ThemeManager.ResetBackground();
@@ -595,7 +676,7 @@ public sealed class App
         // Brew commands run non-interactively (skip the "Ask mode" y/n prompt).
         IReadOnlyDictionary<string, string>? environment =
             cmd == "brew" ? BrewService.NonInteractiveEnv : null;
-        int exitCode = await ProcessRunner.RunInteractiveAsync(cmd, args, environment: environment);
+        int exitCode = await ProcessRunner.RunInteractiveAsync(cmd, args, workingDirectory: cwd, environment: environment);
 
         Console.WriteLine();
         Console.WriteLine(new string('-', 60));
@@ -629,6 +710,7 @@ public sealed class App
             _sdksView.Refresh();
             _runtimesView.Refresh();
             _setupView.Refresh();
+            _workloadsView.Refresh();
             _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
             _ = LoadSetupInfoAsync();
         }
@@ -645,8 +727,9 @@ public sealed class App
         if (plan is null || plan.Count == 0)
             return false;
 
-        // Leave the live TUI so we can render the dialog and read a confirmation.
-        ThemeManager.ResetBackground();
+        // Keep the theme's OSC 11 background in place while the popup shows — otherwise
+        // the terminal reverts to its default (usually dark) background and any light-theme
+        // foreground colours (near-black) become invisible.
         AnsiConsole.Clear();
         Console.CursorVisible = true;
 
@@ -658,22 +741,22 @@ public sealed class App
             summary.AddRow(Markup.Escape(m.Channel), Markup.Escape(m.CurrentVersion));
 
         var body = new Rows(
-            new Markup($"[bold]Migrate {plan.Count} unmanaged SDK(s) to dotnetup[/]"),
+            new Markup($"[{Ui.White} bold]Migrate {plan.Count} unmanaged SDK(s) to dotnetup[/]"),
             new Text(""),
             summary,
             new Text(""),
-            new Markup("[yellow]This will:[/]"),
-            new Markup("  • Migrate these system SDKs into dotnetup, updating each to the latest patch"),
-            new Markup("  • Possibly include other system installs dotnetup detects"),
-            new Markup("  • Leave your existing copies in place until you remove them yourself"),
-            new Markup("[grey]dsm keeps dotnetup's dotnet on your PATH. Downloads may be several hundred MB per SDK.[/]"));
+            new Markup($"[{Ui.Yellow}]This will:[/]"),
+            new Markup($"[{Ui.White}]  • Migrate these system SDKs into dotnetup, updating each to the latest patch[/]"),
+            new Markup($"[{Ui.White}]  • Possibly include other system installs dotnetup detects[/]"),
+            new Markup($"[{Ui.White}]  • Leave your existing copies in place until you remove them yourself[/]"),
+            new Markup($"[{Ui.Gray}]dsm keeps dotnetup's dotnet on your PATH. Downloads may be several hundred MB per SDK.[/]"));
 
         var dialog = new Panel(body)
-            .Header("[yellow bold] Bulk migrate [/]")
+            .Header($"[{Ui.Yellow} bold] Bulk migrate [/]")
             .Border(BoxBorder.Double)
             .BorderColor(ThemeManager.PanelBorderColor)
             .Padding(2, 1);
-        AnsiConsole.Write(new DropShadow(dialog, ThemeManager.ShadowColor));
+        AnsiConsole.Write(new DropShadow(dialog, ThemeManager.ShadowColor, ThemeManager.ModalBackgroundColor));
         AnsiConsole.WriteLine();
 
         bool confirmed = AnsiConsole.Prompt(
@@ -698,6 +781,118 @@ public sealed class App
         return true;
     }
 
+    /// <summary>
+    /// If the Workloads panel staged a machine-wide update-mode toggle (`m`), exits the TUI,
+    /// shows a confirmation dialog, and on confirm runs
+    /// <c>dotnet workload config --update-mode &lt;target&gt;</c>. The setting affects every
+    /// future workload update on this machine, from any tool — so the confirm is mandatory.
+    /// </summary>
+    private async Task<bool> CheckWorkloadModeToggleAsync()
+    {
+        string? target = _workloadsView.PendingModeToggle;
+        _workloadsView.ClearPendingModeToggle();
+        if (target is null) return false;
+
+        var (current, _) = _workloadsView.GetModeToggleSummary();
+
+        // Keep the theme's OSC 11 background in place while the popup shows — otherwise
+        // the terminal reverts to its default (usually dark) background and any light-theme
+        // foreground colours (near-black) become invisible.
+        AnsiConsole.Clear();
+        Console.CursorVisible = true;
+
+        // Keep the dialog compact: short bullet summaries + a small explicit width
+        // so the Panel hugs its content and the DropShadow falls fully outside the border.
+        // All colours route through Ui.* so the popup respects the active theme.
+        var body = new Rows(
+            new Markup($"[{Ui.White} bold]Change workload update mode[/]"),
+            new Text(""),
+            new Markup($"  [{Ui.White}]Current:[/]  [{Ui.White}]{Markup.Escape(current)}[/]"),
+            new Markup($"  [{Ui.White}]Target:[/]   [{Ui.Green}]{Markup.Escape(target)}[/]"),
+            new Text(""),
+            new Markup($"[{Ui.Yellow}]Machine-wide setting.[/]"),
+            new Markup($"[{Ui.White}]  • [b]workload-set[/] — manifests move together (recommended)[/]"),
+            new Markup($"[{Ui.White}]  • [b]manifests[/]    — each manifest updates independently[/]"),
+            new Text(""),
+            new Markup($"[{Ui.Gray}]Runs: dotnet workload config --update-mode {Markup.Escape(target)}[/]"));
+
+        var dialog = new Panel(body)
+            .Header($"[{Ui.Yellow} bold] Workload update mode [/]")
+            .Border(BoxBorder.Double)
+            .BorderColor(ThemeManager.PanelBorderColor)
+            .Expand();
+        // Top padding=1 gives breathing room under the header; bottom=0 makes the last content
+        // line sit on the row immediately above the border. What LOOKS like extra bottom
+        // padding in the rendered image is actually a font-metric artifact (box-drawing
+        // glyphs sit near the top of their cell, text baselines sit lower). Verified via
+        // SVG y-coordinates: text row and border row are exactly one cell (~18px) apart.
+        dialog.Padding = new Padding(2, 1, 2, 0);
+
+        int terminalWidth;
+        try { terminalWidth = Console.WindowWidth; } catch { terminalWidth = 80; }
+        // Cap the dialog to ~2/3 of the terminal (min 60, max 80) so the shadow never
+        // touches the edge and the border always hugs the content, then center it.
+        int dialogWidth = Math.Clamp(terminalWidth * 2 / 3, 60, 80);
+        // A single-column Grid of the chosen width lets Panel.Expand() fill exactly
+        // that column (not the whole terminal). The surrounding Grid centers the dialog
+        // horizontally by allocating equal-flex empty columns on either side.
+        var dialogGrid = new Grid().AddColumn(new GridColumn().Width(dialogWidth));
+        dialogGrid.AddRow(dialog);
+
+        int side = Math.Max(0, (terminalWidth - dialogWidth - 2) / 2);   // -2 leaves room for shadow
+        var centered = new Padder(new DropShadow(dialogGrid, ThemeManager.ShadowColor, ThemeManager.ModalBackgroundColor),
+                                  new Padding(side, 0, 0, 0));
+        AnsiConsole.Write(centered);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"[{Ui.White}]Change workload update mode to[/] [{Ui.Green}]'{Markup.Escape(target)}'[/] [{Ui.White}]now?[/] [{Ui.Gray}](y/N, Esc to cancel)[/]");
+
+        // Custom key loop so Esc cleanly cancels the change and returns to the Workloads panel.
+        // Spectre's built-in ConfirmationPrompt doesn't treat Esc as "no" — it just ignores it.
+        bool confirmed = false;
+        while (true)
+        {
+            ConsoleKeyInfo k;
+            try { k = Console.ReadKey(intercept: true); }
+            catch (InvalidOperationException) { break; }
+
+            if (k.Key is ConsoleKey.Escape or ConsoleKey.Enter || k.KeyChar is 'n' or 'N')
+                break;                            // cancel — return to workloads unchanged
+            if (k.KeyChar is 'y' or 'Y')
+            {
+                confirmed = true;
+                break;
+            }
+            // Ignore anything else and keep waiting.
+        }
+
+        if (!confirmed)
+        {
+            ThemeManager.ApplyBackground();
+            try { Console.CursorVisible = false; } catch (IOException) { }
+            return true;
+        }
+
+        var (cmd, args, note, cwd) = WorkloadService.BuildSetUpdateMode(target);
+        await RunInteractiveAndRefreshAsync(cmd, args, note, cwd);
+        return true;
+    }
+
+    /// <summary>
+    /// If the SDKs panel requested a workloads drill-in (via <c>w</c> on an installed row),
+    /// activates the Workloads workspace scoped to that SDK and switches screens.
+    /// </summary>
+    private async Task<bool> CheckWorkloadsDrillInAsync()
+    {
+        string? sdk = _sdksView.PendingWorkloadsSdk;
+        _sdksView.ClearPendingWorkloadsSdk();
+        if (sdk is null) return false;
+
+        _screen = Screen.Workloads;
+        AnsiConsole.Clear();
+        await _workloadsView.ActivateForSdkAsync(sdk);
+        return true;
+    }
+
     private IView GetActiveTabView() => _tab switch
     {
         MainTab.Sdks     => _sdksView,
@@ -718,6 +913,7 @@ public sealed class App
             || _runtimesView.NeedsLiveUpdate
             || _searchView.NeedsLiveUpdate
             || _brewView.NeedsLiveUpdate
+            || _workloadsView.NeedsLiveUpdate
             || AppVersion.CheckInProgress;
     }
 

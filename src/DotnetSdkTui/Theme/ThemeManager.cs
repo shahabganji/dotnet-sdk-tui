@@ -154,6 +154,14 @@ public static class ThemeManager
     /// </summary>
     public static Color ShadowColor => _current == AppTheme.Dark ? ParseHex("#08080C") : ParseHex("#BBB3A3");
 
+    /// <summary>
+    /// Modal dialog surface fill — a subtle offset from the terminal background so the popup
+    /// visually lifts off the base and its drop shadow reads as a real cast shadow.
+    /// Dark theme: a couple of steps lighter than the navy base. Light theme: a couple of
+    /// steps darker than the cream base.
+    /// </summary>
+    public static Color ModalBackgroundColor => _current == AppTheme.Dark ? ParseHex("#262640") : ParseHex("#E4DDCB");
+
     internal static Color ParseHex(string hex)
     {
         hex = hex.TrimStart('#');
