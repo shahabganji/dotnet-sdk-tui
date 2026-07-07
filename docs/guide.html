@@ -428,6 +428,7 @@
         <li><a href="#install-sdk">Install a .NET SDK</a></li>
         <li><a href="#search">Search for older versions</a></li>
         <li><a href="#install-search">Install from search</a></li>
+        <li><a href="#workloads">Manage workloads for an SDK</a></li>
         <li><a href="#uninstall">Uninstall an SDK</a></li>
       </ol>
     </nav>
@@ -601,8 +602,63 @@
   </section>
 
   <!-- Step 7 -->
+  <section class="step" id="workloads">
+    <div class="step-header"><span class="step-num">7</span><h2>Manage workloads for an SDK</h2></div>
+    <p class="lead">Workloads (MAUI, Android, iOS, wasm-tools, Aspire, …) live <em>inside</em> a specific SDK feature band. Back on the main screen, focus the <strong>SDKs</strong> panel, highlight an installed SDK, and press <kbd>w</kbd>.</p>
+    <figure>
+      <img src="images/15-workloads-list.png" alt="The Workloads workspace showing the SDK's workload catalog">
+      <figcaption>dsm opens the Workloads workspace scoped to that SDK. The header shows the exact SDK, its feature band, the workload manifest version, and the update mode. Preview workloads are marked with the 🏭 icon.</figcaption>
+    </figure>
+    <p>Highlight any row and act on it:</p>
+    <ul style="list-style:none;padding-left:0;display:flex;flex-wrap:wrap;gap:0.5rem;">
+      <li><kbd>i</kbd> install the selected workload</li>
+      <li><kbd>u</kbd> uninstall it</li>
+      <li><kbd>p</kbd> update all installed workloads</li>
+      <li><kbd>Shift</kbd>+<kbd>P</kbd> repair</li>
+      <li><kbd>/</kbd> live search the catalog</li>
+      <li><kbd>m</kbd> toggle the update mode (workload-set ↔ manifests, with confirm)</li>
+      <li><kbd>Esc</kbd> return to the SDKs panel</li>
+    </ul>
+    <figure>
+      <img src="images/16-workload-selected.png" alt="The maui workload selected in the Workloads workspace">
+      <figcaption>Selecting <code>maui</code> — pressing <kbd>i</kbd> runs <code>dotnet workload install maui</code> scoped to this SDK and streams the output.</figcaption>
+    </figure>
+    <div class="callout">
+      <div class="ctitle"><i class="bi bi-lightbulb"></i> Tip</div>
+      <p>Workloads are per <em>feature band</em>, not per exact SDK version. Drilling into <code>10.0.301</code> or <code>10.0.199</code> shows the same list (band <code>10.0.100</code>), while <code>8.0.422</code> gets its own independent net8 catalog — which is why <code>aspire</code> appears there but not on newer bands.</p>
+    </div>
+    <div class="callout">
+      <div class="ctitle"><i class="bi bi-lightbulb"></i> How dsm scopes the command</div>
+      <p>Under the hood, every <code>dotnet workload …</code> invocation runs from <code>~/.dsm/scratch/&lt;sdk&gt;/</code> where dsm has written a <code>global.json</code> pinning that exact SDK. Your shell state, PATH, and project files are never touched.</p>
+    </div>
+    <h3 style="margin: 2rem 0 0.5rem;"><kbd>m</kbd> — update-mode toggle</h3>
+    <p>Pressing <kbd>m</kbd> switches how <em>every future</em> <code>dotnet workload install</code> and <code>dotnet workload update</code> on this machine resolves versions. This is a <strong>machine-wide</strong> .NET setting (persisted by <code>dotnet workload config --update-mode</code>), so dsm always shows a confirmation prompt before changing it.</p>
+    <table>
+      <thead><tr><th>Mode</th><th>How updates work</th><th>When to use</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>workload-set</code><br><span style="color:var(--text-muted); font-size:0.85em;">(default on .NET 9+)</span></td>
+          <td>All manifests move together as one released, tested unit — the "workload set" version. Installing or updating any workload pulls in the corresponding pinned versions of every other manifest, so an <code>ios</code> update won't drag in an unrelated <code>maui</code> version bump you didn't ask for.</td>
+          <td>The safe default. Reproducible across machines, matches CI, matches the SDK's servicing releases.</td>
+        </tr>
+        <tr>
+          <td><code>manifests</code><br><span style="color:var(--text-muted); font-size:0.85em;">(legacy, .NET 7/8 behaviour)</span></td>
+          <td>Each manifest updates independently to its own latest published version. Faster to pick up individual fixes, but combinations aren't tested together.</td>
+          <td>You're intentionally cherry-picking a newer manifest that hasn't been rolled into a workload set yet, or you're on an older SDK band that predates workload sets.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <div class="ctitle"><i class="bi bi-exclamation-triangle"></i> Machine-wide effect</div>
+      <p>The mode is stored in <code>dotnet-workload-config.json</code> under the SDK install root and read by every tool that shells out to <code>dotnet workload</code> — Visual Studio, <code>dotnet</code> on the CLI, dsm, and CI. Toggle it once and every future install/update on this machine follows the new mode.</p>
+      <p style="margin-top: 0.5rem;">When you press <kbd>m</kbd>, dsm shows a full-screen confirmation dialog. Press <kbd>y</kbd> to apply the change, or <kbd>Esc</kbd> / <kbd>n</kbd> / <kbd>Enter</kbd> to cancel and return to the Workloads panel without touching your config.</p>
+    </div>
+    <p style="color: var(--text-muted); margin-top: 1rem;">For the full command reference, see the official Microsoft documentation: <a href="https://learn.microsoft.com/dotnet/core/tools/dotnet-workload" style="color: var(--teal);" target="_blank" rel="noopener"><code>dotnet workload</code> command</a>, <a href="https://learn.microsoft.com/dotnet/core/tools/dotnet-workload-config" style="color: var(--teal);" target="_blank" rel="noopener"><code>dotnet workload config</code></a>, and <a href="https://learn.microsoft.com/dotnet/core/tools/dotnet-workload-sets" style="color: var(--teal);" target="_blank" rel="noopener">workload sets overview</a>.</p>
+  </section>
+
+  <!-- Step 8 -->
   <section class="step" id="uninstall">
-    <div class="step-header"><span class="step-num">7</span><h2>Uninstall an SDK</h2></div>
+    <div class="step-header"><span class="step-num">8</span><h2>Uninstall an SDK</h2></div>
     <p class="lead">Back on the main screen, focus the <strong>SDKs</strong> panel, highlight an installed version, and press <kbd>u</kbd>.</p>
     <figure>
       <img src="images/11-sdk-selected-uninstall.png" alt="An installed SDK selected, ready to uninstall">

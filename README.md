@@ -21,6 +21,7 @@
 - **Tabbed workspace** — Copilot-CLI-style tab strip switches between SDKs, Runtimes, and Search with a single `Tab` press
 - **SDKs tab** — View installed SDKs alongside the latest available versions for active and preview channels. Install, uninstall, and update with a single keystroke
 - **Runtimes tab** — Same experience for .NET and ASP.NET Core runtimes
+- **Workloads workspace** — Press `w` on any installed SDK row to manage its workloads (MAUI, Android, iOS, wasm-tools, Aspire, …). Wraps the native `dotnet workload` CLI and scopes every command to that SDK's feature band via a scratch `global.json` — so multi-band installs are cleanly isolated
 - **Live search tab** — Non-blocking search with debounce and request cancellation. Type to search, results update as you go — the terminal never freezes
 - **Setup panel** — Install and manage the `dotnetup` tool itself from within the app
 - **Dark / Light themes** — Press `F6` to toggle. The terminal background adapts via OSC 11
@@ -36,13 +37,17 @@
 |-----|--------|
 | `Tab` / `Shift+Tab` | Cycle tabs: SDKs → Runtimes → Search |
 | `↑` / `↓` or `j` / `k` | Navigate rows |
-| `i` | Install selected SDK/Runtime |
-| `u` | Uninstall selected SDK/Runtime |
-| `p` | Update selected SDK/Runtime |
+| `i` | Install selected SDK / Runtime / Workload |
+| `u` | Uninstall selected SDK / Runtime / Workload |
+| `p` | Update selected SDK / Runtime, or all workloads in the Workloads workspace |
+| `w` | Open the Workloads workspace for the selected installed SDK |
+| `Shift+P` | Repair workloads (Workloads workspace) |
+| `m` | Toggle workload update-mode `manifests` ↔ `workload-set` (with confirm) |
 | `r` | Refresh data |
 | `s` | Toggle focus on the Setup panel |
 | `Esc` | Clear search query (on the Search tab) |
 | `F6` | Toggle dark/light theme |
+| `Esc` | Return to main screen from a workspace |
 | `q` or `Ctrl+C` | Quit |
 
 ## Installation
