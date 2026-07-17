@@ -421,6 +421,45 @@ public static class Ui
             .Expand();
     }
 
+    /// <summary>A clickable column span (1-based, end-exclusive) for a single tab in the strip.</summary>
+    public readonly record struct TabHitRegion(int Start, int EndExclusive);
+
+    /// <summary>
+    /// Computes the 1-based screen column ranges of each tab in the <see cref="TabbedPanel"/> header,
+    /// so clicks can be mapped back to a tab. Mirrors the header geometry drawn on the main screen:
+    /// the outer <see cref="Padder"/> adds <paramref name="leftPad"/> columns, then the panel's border
+    /// corner + a single dash + a space precede the (left-trimmed) tab strip. Each tab renders as
+    /// <c>" {label} "</c> with a one-space separator between them; the strip's leading space is trimmed
+    /// so the first tab loses its leading pad. Regions are contiguous so a click anywhere on the strip
+    /// resolves to the nearest tab.
+    /// </summary>
+    public static IReadOnlyList<TabHitRegion> ComputeTabHitRegions(IReadOnlyList<string> labels, int leftPad = 2)
+    {
+        // First tab content column (1-based): leftPad + border corner (1) + dash (1) + space (1).
+        int pillStart = leftPad + 3 + 1;
+
+        var starts = new int[labels.Count];
+        for (int i = 0; i < labels.Count; i++)
+        {
+            starts[i] = pillStart;
+            // Pill width: label + trailing space, plus a leading space for every tab except the
+            // first (whose leading space is trimmed as the strip's leading whitespace). A single
+            // separator space then precedes the next pill.
+            int pad = i == 0 ? 1 : 2;
+            pillStart += VisibleWidth(labels[i]) + pad + 1;
+        }
+
+        var regions = new TabHitRegion[labels.Count];
+        for (int i = 0; i < labels.Count; i++)
+        {
+            int end = i < labels.Count - 1
+                ? starts[i + 1]
+                : pillStart; // last region runs to just past the final separator
+            regions[i] = new TabHitRegion(starts[i], end);
+        }
+        return regions;
+    }
+
     /// <summary>
     /// Renders the footer with view-specific hints and global shortcuts.
     /// </summary>
