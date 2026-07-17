@@ -42,6 +42,12 @@ public sealed class App
     private int _tabRow = MainTabRow;
     private string _tabStripProbe = "SDKs";
 
+    // Setup panel rectangle in the latest rendered frame (1-based). Recomputed each frame so clicks
+    // track resize/compression and focus Setup from any point inside its panel.
+    private int _setupTopRow = 2;
+    private int _setupBottomRow = 2;
+    private Ui.TabHitRegion _setupHitRegion = new(1, 1);
+
     // Clickable column ranges for each tab, refreshed whenever the main screen is built.
     private IReadOnlyList<Ui.TabHitRegion> _tabHitRegions = [];
 
@@ -283,7 +289,15 @@ public sealed class App
         // advances one row from cursor-home (row 1), and Spectre may compress the rows above the tab
         // strip on short windows — so we read the row back from the frame we just built.
         if (_screen == Screen.Main)
+        {
             _tabRow = FindTabRow(bodyText);
+            if (TryFindSetupHitRegion(bodyText, out int setupTopRow, out int setupBottomRow, out Ui.TabHitRegion setupRegion))
+            {
+                _setupTopRow = setupTopRow;
+                _setupBottomRow = setupBottomRow;
+                _setupHitRegion = setupRegion;
+            }
+        }
 
         var sb = new StringBuilder(bodyText.Length + 256);
         // 1. Begin synchronized output (modern terminals buffer until end-marker; older ones
@@ -528,22 +542,29 @@ public sealed class App
     }
 
     /// <summary>
-    /// Routes a mouse report. Only a left-button press on the main screen's tab-strip row switches
-    /// tabs; every other event is ignored.
+    /// Routes mouse reports on the main screen. Left-clicking a tab switches tabs; left-clicking the
+    /// Setup panel header gives Setup keyboard focus.
     /// </summary>
     private async Task HandleMouseAsync(MouseInput.MouseEvent m)
     {
-        if (!m.IsLeftPress || _screen != Screen.Main || m.Row != _tabRow) return;
+        if (!m.IsLeftPress || _screen != Screen.Main) return;
 
-        for (int i = 0; i < _tabHitRegions.Count && i < TabOrder.Length; i++)
+        if (m.Row == _tabRow)
         {
-            var region = _tabHitRegions[i];
-            if (m.Column >= region.Start && m.Column < region.EndExclusive)
+            for (int i = 0; i < _tabHitRegions.Count && i < TabOrder.Length; i++)
             {
-                await SwitchToTabAsync(TabOrder[i]);
-                return;
+                var region = _tabHitRegions[i];
+                if (m.Column >= region.Start && m.Column < region.EndExclusive)
+                {
+                    await SwitchToTabAsync(TabOrder[i]);
+                    return;
+                }
             }
         }
+
+        if (m.Row >= _setupTopRow && m.Row <= _setupBottomRow
+            && m.Column >= _setupHitRegion.Start && m.Column < _setupHitRegion.EndExclusive)
+            _setupFocused = true;
     }
 
     /// <summary>
@@ -628,6 +649,137 @@ public sealed class App
             row++;
         }
         return MainTabRow;
+    }
+
+    private static readonly char[] SetupLeftBorders = ['╭', '╔', '┌', '+'];
+    private static readonly char[] SetupRightBorders = ['╮', '╗', '┐', '+'];
+    private static readonly char[] SetupBottomLeftBorders = ['╰', '╚', '└', '+'];
+
+    private static bool TryFindSetupHitRegion(string bodyText, out int topRow, out int bottomRow, out Ui.TabHitRegion region)
+    {
+        const string setupProbe = "Setup";
+        topRow = 1;
+        bottomRow = 1;
+        int start = 0;
+        while (true)
+        {
+            int nl = bodyText.IndexOf('\n', start);
+            string rawLine = nl < 0 ? bodyText[start..] : bodyText[start..nl];
+            string line = StripAnsi(rawLine);
+
+            int setup = line.IndexOf(setupProbe, StringComparison.Ordinal);
+            if (setup >= 0)
+            {
+                int left = FindLastAny(line, setup, SetupLeftBorders);
+                int right = FindFirstAny(line, setup + setupProbe.Length, SetupRightBorders);
+                int leftIndex = left >= 0 ? left : setup;
+                int rightIndex = right >= 0 ? right : setup + setupProbe.Length - 1;
+
+                int colStart = Ui.VisibleWidth(line[..leftIndex]) + 1;
+                int colEndExclusive = Ui.VisibleWidth(line[..(rightIndex + 1)]) + 1;
+
+                bottomRow = FindSetupBottomRow(bodyText, topRow, colStart);
+                region = new Ui.TabHitRegion(colStart, colEndExclusive);
+                return true;
+            }
+
+            if (nl < 0) break;
+            start = nl + 1;
+            topRow++;
+        }
+
+        region = default;
+        return false;
+    }
+
+    private static int FindSetupBottomRow(string bodyText, int setupTopRow, int setupLeftCol)
+    {
+        int row = 1;
+        int start = 0;
+        while (row <= setupTopRow)
+        {
+            int nl = bodyText.IndexOf('\n', start);
+            if (nl < 0) return setupTopRow;
+            start = nl + 1;
+            row++;
+        }
+
+        int probeLimit = setupTopRow + 8;
+        while (row <= probeLimit)
+        {
+            int nl = bodyText.IndexOf('\n', start);
+            string rawLine = nl < 0 ? bodyText[start..] : bodyText[start..nl];
+            string line = StripAnsi(rawLine);
+
+            int leftIndex = FindNthColumnIndex(line, setupLeftCol);
+            if (leftIndex >= 0 && IsAny(line[leftIndex], SetupBottomLeftBorders))
+                return row;
+
+            if (nl < 0) break;
+            start = nl + 1;
+            row++;
+        }
+
+        return setupTopRow + 2;
+    }
+
+    private static int FindLastAny(string line, int endExclusive, IReadOnlyList<char> chars)
+    {
+        for (int i = Math.Min(endExclusive, line.Length) - 1; i >= 0; i--)
+            if (IsAny(line[i], chars)) return i;
+        return -1;
+    }
+
+    private static int FindFirstAny(string line, int start, IReadOnlyList<char> chars)
+    {
+        for (int i = Math.Max(start, 0); i < line.Length; i++)
+            if (IsAny(line[i], chars)) return i;
+        return -1;
+    }
+
+    private static bool IsAny(char c, IReadOnlyList<char> chars)
+    {
+        for (int i = 0; i < chars.Count; i++)
+            if (chars[i] == c) return true;
+        return false;
+    }
+
+    private static int FindNthColumnIndex(string line, int column1Based)
+    {
+        if (column1Based <= 0) return -1;
+        int col = 1;
+        for (int i = 0; i < line.Length; i++)
+        {
+            if (col == column1Based) return i;
+            col += Ui.VisibleWidth(line[i].ToString());
+        }
+        return -1;
+    }
+
+    private static string StripAnsi(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+
+        var sb = new StringBuilder(text.Length);
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (c == '\x1B' && i + 1 < text.Length && text[i + 1] == '[')
+            {
+                i += 2;
+                while (i < text.Length)
+                {
+                    char ch = text[i];
+                    if (ch >= '@' && ch <= '~') break;
+                    i++;
+                }
+                continue;
+            }
+
+            sb.Append(c);
+        }
+
+        return sb.ToString();
     }
 
     private async Task HandleMainKeyAsync(ConsoleKeyInfo key)

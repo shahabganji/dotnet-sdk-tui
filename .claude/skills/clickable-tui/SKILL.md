@@ -67,7 +67,9 @@ the row with a `FindTabRow`-style scan and cache it (like `_tabRow`). Recompute 
 never hardcode a row; it moves with window size.
 
 **4. Hit-test in `HandleMouseAsync`.** Gate on `m.IsLeftPress`, the correct `Screen`, and the
-cached row, then map `m.Column` to your region and act:
+cached row, then map `m.Column` to your region and act. **Act means the same state transition
+keyboard navigation would do** (switch tab, set focus owner, select row, queue command), not
+just "a click was detected":
 
 ```csharp
 if (!m.IsLeftPress || _screen != Screen.Main || m.Row != _tabRow) return;
@@ -118,6 +120,12 @@ every region after the first emoji. Never hand-count label widths.
 ### Only act on left presses
 Gate on `IsLeftPress`. The terminal also sends a release (`m`) and, with motion tracking, moves
 and wheel events — acting on those double-fires or misfires.
+
+### Activation semantics: hit-testing is not enough
+A correct hit-test that doesn't update app state will still feel broken. Make the click perform
+the same "active/focused" transition as keyboard flow (for example, clicking Setup should set
+`_setupFocused = true`, clicking a tab should call `SwitchToTabAsync`). When a click "lands" but
+nothing changes, check the action mapping before reworking geometry.
 
 ### Terminal support varies
 Ghostty and iTerm2 send SGR (1006) which works end to end. **Terminal.app** uses legacy X10
