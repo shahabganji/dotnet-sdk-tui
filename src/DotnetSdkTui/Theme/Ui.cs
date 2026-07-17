@@ -666,16 +666,19 @@ public static class Ui
                     : (cell.IsMarkup ? cell.Text : Markup.Escape(cell.Text));
                 
                 // Add selection symbol (▶) to first visible cell only when using accessible theme and row is selected
+                // Only add if there's enough room in the column
+                string symbol = string.Empty;
                 if (selected && useAccessibleTheme && j == 0)
                 {
-                    disp = $"▶ {disp}";
+                    symbol = "▶ ";
                 }
                 
-                int rightFill = Math.Max(0, col[j] - CellPad - VisibleWidth(disp));
+                int displayWidth = VisibleWidth(symbol + disp);
+                int rightFill = Math.Max(0, col[j] - CellPad - displayWidth);
 
                 // The cell body sits on the highlight bar when selected; the column divider stays
                 // visible on the bar (border color over the selection background).
-                string body = $"{leftPad}{(selected || cell.IsMarkup ? disp : $"[{cell.Color}]{disp}[/]")}{new string(' ', rightFill)}";
+                string body = $"{leftPad}{symbol}{(selected || cell.IsMarkup ? disp : $"[{cell.Color}]{disp}[/]")}{new string(' ', rightFill)}";
                 sb.Append(selected ? $"[{Selected}]{body}[/]" : body);
 
                 if (j < n - 1) sb.Append(selected ? selDivider : vbar);
