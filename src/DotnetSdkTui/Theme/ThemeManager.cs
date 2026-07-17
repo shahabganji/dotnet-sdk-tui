@@ -29,13 +29,14 @@ public readonly record struct ThemeDef(string Name, AppTheme Base, string BarBg,
 /// </summary>
 public static class ThemeManager
 {
-    // Two dark-based and two light-based themes; F6 cycles through them in order.
+    // Two dark-based, two light-based, and one colorblind-accessible theme; F6 cycles through them in order.
     private static readonly ThemeDef[] Themes =
     [
         new("Teal",     AppTheme.Dark,  "#0E4F47", "#C8E64D", "#1DB9A0"),
         new("Indigo",   AppTheme.Dark,  "#312A5E", "#FFD700", "#7A6AD9"),
         new("Mint",     AppTheme.Light, "#CDE8CF", "#14532D", "#2E9D6E"),
         new("Lavender", AppTheme.Light, "#DAD2EC", "#4A2E7A", "#6E57B0"),
+        new("Accessible", AppTheme.Dark, "#332288", "#DDCC77", "#8A7CE6"), // Okabe-Ito palette for colorblind accessibility; border is the indigo bar hue lightened to read on the dark base
     ];
 
     private static int _index;
@@ -43,6 +44,12 @@ public static class ThemeManager
 
     /// <summary>Gets the active light/dark base (drives backgrounds, borders and text).</summary>
     public static AppTheme Current => _current;
+
+    /// <summary>
+    /// Whether the colorblind-accessible theme is active. When true, every semantic colour below
+    /// resolves to the colourblind-safe palette so the UI never relies on a red/green distinction.
+    /// </summary>
+    public static bool IsAccessible => Themes[_index].Name == "Accessible";
 
     /// <summary>Short label of the active theme (for footer/status display).</summary>
     public static string ThemeName => Themes[_index].Name;
@@ -57,11 +64,13 @@ public static class ThemeManager
     public static void Restore()
     {
         _settings = Services.SettingsStore.Load();
+        int index = 0;
         if (_settings.Theme is not null)
         {
             int i = Array.FindIndex(Themes, t => t.Name == _settings.Theme);
-            if (i >= 0) _index = i;
+            if (i >= 0) index = i;
         }
+        _index = index;
         _current = Themes[_index].Base;
         ApplyBackground();
     }
@@ -101,39 +110,59 @@ public static class ThemeManager
     public const string MarioGold = "#FFD700";
     public const string MarioBrown = "#C84C09";
 
+    // ── Colorblind-safe palette (Okabe-Ito) ─────────────────────────────
+    // Used whenever the Accessible theme is active. These hues stay mutually distinguishable
+    // under deuteranopia, protanopia and tritanopia, so status, borders and branding never
+    // rely on a red/green contrast alone.
+    private const string AccGreen  = "#009E73"; // bluish green — success / installed / active
+    private const string AccBlue   = "#56B4E9"; // sky blue — info / available
+    private const string AccYellow = "#F0E442"; // yellow — section titles / headers
+    private const string AccOrange = "#E69F00"; // orange — accent / unmanaged / warnings
+    private const string AccRed    = "#D55E00"; // vermillion — errors / brand red (reads distinct from green)
+    private const string AccFg     = "#F5F5F5"; // near-white primary text
+    private const string AccMuted  = "#B4B4B4"; // secondary text
+    private const string AccDim    = "#7C7C7C"; // tertiary text
+
+    // Brand logo/mascot ramp: teal → lime normally; a colourblind-safe blue → yellow ramp
+    // when the Accessible theme is active (see Ui banner + mascot).
+    public static string BrandRed        => IsAccessible ? AccRed    : MarioRed;
+    public static string BrandPrimary    => IsAccessible ? AccBlue   : "#1DB9A0";
+    public static string BrandPrimaryDark => IsAccessible ? "#0072B2" : "#148F7B";
+    public static string BrandShine      => IsAccessible ? AccYellow : "#C8E64D";
+
     // ── Theme-adaptive colors ──────────────────────────────────────────
     //
     //   Dark:  bright/vivid on dark terminal backgrounds
     //   Light: deeper/muted so they stay readable on white/light backgrounds
 
-    public static string Foreground    => _current == AppTheme.Dark ? "#E0E0E0" : "#1E1E1E";
+    public static string Foreground    => IsAccessible ? AccFg   : _current == AppTheme.Dark ? "#E0E0E0" : "#1E1E1E";
     public static string Background    => _current == AppTheme.Dark ? "#1A1A2E" : "default";
-    public static string Muted         => _current == AppTheme.Dark ? "#888888" : "#6B7280";
-    public static string DimText       => _current == AppTheme.Dark ? "#555555" : "#9CA3AF";
-    public static string PanelBorder   => _current == AppTheme.Dark ? "#43B047" : "#15803D";
-    public static string TableBorder   => _current == AppTheme.Dark ? "#C84C09" : "#92400E";
-    public static string HeaderBorder  => _current == AppTheme.Dark ? "#E52521" : "#B91C1C";
-    public static string SelectedRow   => _current == AppTheme.Dark ? "#FBD000" : "#A16207";
+    public static string Muted         => IsAccessible ? AccMuted : _current == AppTheme.Dark ? "#888888" : "#6B7280";
+    public static string DimText       => IsAccessible ? AccDim   : _current == AppTheme.Dark ? "#555555" : "#9CA3AF";
+    public static string PanelBorder   => IsAccessible ? AccGreen : _current == AppTheme.Dark ? "#43B047" : "#15803D";
+    public static string TableBorder   => IsAccessible ? AccOrange : _current == AppTheme.Dark ? "#C84C09" : "#92400E";
+    public static string HeaderBorder  => IsAccessible ? AccBlue  : _current == AppTheme.Dark ? "#E52521" : "#B91C1C";
+    public static string SelectedRow   => IsAccessible ? AccYellow : _current == AppTheme.Dark ? "#FBD000" : "#A16207";
     // Selection highlight bar: a colored row background with a contrasting text color replaces the
     // old ">" pointer. The pair comes from the active theme (see Themes).
     public static string SelectedRowText => Themes[_index].BarText;
     public static string SelectedRowBg   => Themes[_index].BarBg;
-    public static string InstalledColor => _current == AppTheme.Dark ? "#43B047" : "#15803D";
-    public static string AvailableColor => _current == AppTheme.Dark ? "#049CD8" : "#0369A1";
-    public static string ErrorColor    => _current == AppTheme.Dark ? "#E52521" : "#B91C1C";
-    public static string SuccessColor  => _current == AppTheme.Dark ? "#43B047" : "#15803D";
-    public static string InfoColor     => _current == AppTheme.Dark ? "#049CD8" : "#0369A1";
-    public static string AccentColor   => _current == AppTheme.Dark ? "#FFD700" : "#B45309";
-    public static string SectionTitle  => _current == AppTheme.Dark ? "#FBD000" : "#9A3412";
+    public static string InstalledColor => IsAccessible ? AccGreen  : _current == AppTheme.Dark ? "#43B047" : "#15803D";
+    public static string AvailableColor => IsAccessible ? AccBlue   : _current == AppTheme.Dark ? "#049CD8" : "#0369A1";
+    public static string ErrorColor    => IsAccessible ? AccRed    : _current == AppTheme.Dark ? "#E52521" : "#B91C1C";
+    public static string SuccessColor  => IsAccessible ? AccGreen  : _current == AppTheme.Dark ? "#43B047" : "#15803D";
+    public static string InfoColor     => IsAccessible ? AccBlue   : _current == AppTheme.Dark ? "#049CD8" : "#0369A1";
+    public static string AccentColor   => IsAccessible ? AccOrange : _current == AppTheme.Dark ? "#FFD700" : "#B45309";
+    public static string SectionTitle  => IsAccessible ? AccYellow : _current == AppTheme.Dark ? "#FBD000" : "#9A3412";
     public static string InputBg       => _current == AppTheme.Dark ? "#2A2A4E" : "default";
-    public static string OutputText    => _current == AppTheme.Dark ? "#AAAAAA" : "#4B5563";
-    public static string OutputError   => _current == AppTheme.Dark ? "#FF6B6B" : "#DC2626";
+    public static string OutputText    => IsAccessible ? AccMuted : _current == AppTheme.Dark ? "#AAAAAA" : "#4B5563";
+    public static string OutputError   => IsAccessible ? AccRed   : _current == AppTheme.Dark ? "#FF6B6B" : "#DC2626";
 
-    public static Color ForegroundColor   => _current == AppTheme.Dark ? ParseHex("#E0E0E0") : ParseHex("#1E1E1E");
-    public static Color PanelBorderColor  => _current == AppTheme.Dark ? ParseHex("#43B047") : ParseHex("#15803D");
-    public static Color TableBorderColor  => _current == AppTheme.Dark ? ParseHex("#C84C09") : ParseHex("#92400E");
-    public static Color HeaderBorderColor => _current == AppTheme.Dark ? ParseHex("#E52521") : ParseHex("#B91C1C");
-    public static Color SelectedRowColor  => _current == AppTheme.Dark ? ParseHex("#FBD000") : ParseHex("#A16207");
+    public static Color ForegroundColor   => IsAccessible ? ParseHex(AccFg)    : _current == AppTheme.Dark ? ParseHex("#E0E0E0") : ParseHex("#1E1E1E");
+    public static Color PanelBorderColor  => IsAccessible ? ParseHex(AccGreen)  : _current == AppTheme.Dark ? ParseHex("#43B047") : ParseHex("#15803D");
+    public static Color TableBorderColor  => IsAccessible ? ParseHex(AccOrange) : _current == AppTheme.Dark ? ParseHex("#C84C09") : ParseHex("#92400E");
+    public static Color HeaderBorderColor => IsAccessible ? ParseHex(AccBlue)   : _current == AppTheme.Dark ? ParseHex("#E52521") : ParseHex("#B91C1C");
+    public static Color SelectedRowColor  => IsAccessible ? ParseHex(AccYellow) : _current == AppTheme.Dark ? ParseHex("#FBD000") : ParseHex("#A16207");
 
     // ── Focus-adaptive view borders ─────────────────────────────────────
     //

@@ -26,7 +26,7 @@ public static class Ui
 
     // Convenience accessors that delegate to ThemeManager
     /// <summary>Red accent color.</summary>
-    public static string Red => ThemeManager.MarioRed;
+    public static string Red => ThemeManager.BrandRed;
 
     /// <summary>Blue info color, adapts to theme.</summary>
     public static string Blue => ThemeManager.InfoColor;
@@ -67,10 +67,11 @@ public static class Ui
     public static string IconMaint    => SupportsEmoji ? "🚧" : $"[{Yellow}]\u25b3[/]";
     public static string IconEol      => SupportsEmoji ? "👿" : $"[{Red}]\u2717[/]";
 
-    // Teal-to-lime gradient inspired by shahab-the-guy.dev banner
-    private const string BannerPrimary = "#1DB9A0";   // Full blocks █ (teal)
-    private const string BannerDark = "#148F7B";       // Half blocks ▀ (darker teal shadow)
-    private const string BannerShine = "#C8E64D";      // Shine sweep highlight (lime-yellow)
+    // Teal-to-lime gradient inspired by shahab-the-guy.dev banner. Both shades flip to a
+    // colourblind-safe blue-to-yellow ramp when the Accessible theme is active (via ThemeManager).
+    private static string BannerPrimary => ThemeManager.BrandPrimary;     // Full blocks █
+    private static string BannerDark => ThemeManager.BrandPrimaryDark;    // Half blocks ▀ (darker shadow)
+    private static string BannerShine => ThemeManager.BrandShine;         // Shine sweep highlight
     private const int BannerRowCount = 6;
 
     // Block letter definitions: each letter is 6 rows with ▀ shadow for 3D depth.
@@ -302,19 +303,23 @@ public static class Ui
 
     /// <summary>Main teal for the fuselage / body walls.</summary>
     private static string MascotTeal =>
-        ThemeManager.Current == AppTheme.Dark ? "#1DB9A0" : "#0F7A68";
+        ThemeManager.IsAccessible ? "#56B4E9"
+        : ThemeManager.Current == AppTheme.Dark ? "#1DB9A0" : "#0F7A68";
 
     /// <summary>Deeper teal shadow (currently unused, kept for future accents).</summary>
     private static string MascotShadow =>
-        ThemeManager.Current == AppTheme.Dark ? "#0F7A68" : "#062822";
+        ThemeManager.IsAccessible ? "#0072B2"
+        : ThemeManager.Current == AppTheme.Dark ? "#0F7A68" : "#062822";
 
     /// <summary>Lime accent for the porthole, nose, and flame — darkened on light bg.</summary>
     private static string MascotBandana =>
-        ThemeManager.Current == AppTheme.Dark ? "#C8E64D" : "#4E6E10";
+        ThemeManager.IsAccessible ? "#F0E442"
+        : ThemeManager.Current == AppTheme.Dark ? "#C8E64D" : "#4E6E10";
 
     /// <summary>Knot-tail / secondary lime shade — even darker for light mode contrast.</summary>
     private static string MascotBandanaDk =>
-        ThemeManager.Current == AppTheme.Dark ? "#9BC02E" : "#2E4200";
+        ThemeManager.IsAccessible ? "#E69F00"
+        : ThemeManager.Current == AppTheme.Dark ? "#9BC02E" : "#2E4200";
 
     /// <summary>
     /// A compact 3-row Unicode block-art mascot: our brand rocket, matching the SVG/PNG
@@ -450,6 +455,12 @@ public static class Ui
     /// <summary>Horizontal padding inside each column cell (matches <see cref="StyledTable"/>).</summary>
     private const int CellPad = 1;
 
+    // Colorblind selection indicator shown in the first column of the selected row when the
+    // Accessible theme is active. Its width is reserved on the first column for every row (see
+    // ComputeCols) so non-selected rows render an equal-width blank placeholder and the column
+    // dividers stay aligned regardless of selection.
+    private const string SelectionSymbol = "▶ ";
+
     /// <summary>
     /// Renders a rounded, fully-bordered table (matching <see cref="StyledTable"/>'s frame, header and
     /// column dividers) in which the selected row is drawn as a single solid Norton Commander-style
@@ -505,6 +516,10 @@ public static class Ui
                 }
             }
             for (int j = 0; j < n; j++) c[j] += 2 * CellPad;
+            // Reserve room for the selection symbol on the first column so selected and
+            // non-selected rows share the same width and dividers stay aligned.
+            if (n > 0 && ThemeManager.ThemeName == "Accessible")
+                c[0] += VisibleWidth(SelectionSymbol);
             return c;
         }
 
@@ -652,6 +667,7 @@ public static class Ui
         lines.Add(new Markup(Rule('├', '┼', '┤')));
 
         // Data rows.
+        bool useAccessibleTheme = ThemeManager.ThemeName == "Accessible";
         for (int r = 0; r < rows.Count; r++)
         {
             var (cells, selected) = rows[r];
@@ -663,11 +679,24 @@ public static class Ui
                 string disp = cellOverride.TryGetValue((r, src), out string? ov)
                     ? ov
                     : (cell.IsMarkup ? cell.Text : Markup.Escape(cell.Text));
-                int rightFill = Math.Max(0, col[j] - CellPad - VisibleWidth(disp));
+                
+                // In the Accessible theme the first column reserves space for a selection symbol
+                // (see ComputeCols). Consume that reserved width on EVERY row so all rows are the
+                // same width: the selected row shows the symbol, others show an equal-width blank.
+                string symbol = string.Empty;
+                int symbolWidth = 0;
+                if (useAccessibleTheme && j == 0)
+                {
+                    symbolWidth = VisibleWidth(SelectionSymbol);
+                    symbol = selected ? SelectionSymbol : new string(' ', symbolWidth);
+                }
+                
+                int displayWidth = VisibleWidth(disp);
+                int rightFill = Math.Max(0, col[j] - CellPad - symbolWidth - displayWidth);
 
                 // The cell body sits on the highlight bar when selected; the column divider stays
                 // visible on the bar (border color over the selection background).
-                string body = $"{leftPad}{(selected || cell.IsMarkup ? disp : $"[{cell.Color}]{disp}[/]")}{new string(' ', rightFill)}";
+                string body = $"{leftPad}{symbol}{(selected || cell.IsMarkup ? disp : $"[{cell.Color}]{disp}[/]")}{new string(' ', rightFill)}";
                 sb.Append(selected ? $"[{Selected}]{body}[/]" : body);
 
                 if (j < n - 1) sb.Append(selected ? selDivider : vbar);
