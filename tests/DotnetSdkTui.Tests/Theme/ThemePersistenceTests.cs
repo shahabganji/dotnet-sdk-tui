@@ -100,7 +100,7 @@ public class ThemePersistenceTests : IDisposable
     }
 
     [Fact]
-    public void Cycle_WrapsThroughAllFourThemes()
+    public void Cycle_WrapsThroughAllThemes()
     {
         SettingsStore.Save(new UserSettings { Theme = "Teal" });
         ThemeManager.Restore();
@@ -108,7 +108,8 @@ public class ThemePersistenceTests : IDisposable
         ThemeManager.Cycle();   // Indigo
         ThemeManager.Cycle();   // Mint
         ThemeManager.Cycle();   // Lavender
-        Assert.Equal("Lavender", ThemeManager.ThemeName);
+        ThemeManager.Cycle();   // Accessible
+        Assert.Equal("Accessible", ThemeManager.ThemeName);
 
         ThemeManager.Cycle();   // wraps back to Teal
         Assert.Equal("Teal", ThemeManager.ThemeName);

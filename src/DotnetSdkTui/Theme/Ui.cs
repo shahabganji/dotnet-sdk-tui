@@ -26,7 +26,7 @@ public static class Ui
 
     // Convenience accessors that delegate to ThemeManager
     /// <summary>Red accent color.</summary>
-    public static string Red => ThemeManager.MarioRed;
+    public static string Red => ThemeManager.BrandRed;
 
     /// <summary>Blue info color, adapts to theme.</summary>
     public static string Blue => ThemeManager.InfoColor;
@@ -67,10 +67,11 @@ public static class Ui
     public static string IconMaint    => SupportsEmoji ? "🚧" : $"[{Yellow}]\u25b3[/]";
     public static string IconEol      => SupportsEmoji ? "👿" : $"[{Red}]\u2717[/]";
 
-    // Teal-to-lime gradient inspired by shahab-the-guy.dev banner
-    private const string BannerPrimary = "#1DB9A0";   // Full blocks █ (teal)
-    private const string BannerDark = "#148F7B";       // Half blocks ▀ (darker teal shadow)
-    private const string BannerShine = "#C8E64D";      // Shine sweep highlight (lime-yellow)
+    // Teal-to-lime gradient inspired by shahab-the-guy.dev banner. Both shades flip to a
+    // colourblind-safe blue-to-yellow ramp when the Accessible theme is active (via ThemeManager).
+    private static string BannerPrimary => ThemeManager.BrandPrimary;     // Full blocks █
+    private static string BannerDark => ThemeManager.BrandPrimaryDark;    // Half blocks ▀ (darker shadow)
+    private static string BannerShine => ThemeManager.BrandShine;         // Shine sweep highlight
     private const int BannerRowCount = 6;
 
     // Block letter definitions: each letter is 6 rows with ▀ shadow for 3D depth.
@@ -302,19 +303,23 @@ public static class Ui
 
     /// <summary>Main teal for the fuselage / body walls.</summary>
     private static string MascotTeal =>
-        ThemeManager.Current == AppTheme.Dark ? "#1DB9A0" : "#0F7A68";
+        ThemeManager.IsAccessible ? "#56B4E9"
+        : ThemeManager.Current == AppTheme.Dark ? "#1DB9A0" : "#0F7A68";
 
     /// <summary>Deeper teal shadow (currently unused, kept for future accents).</summary>
     private static string MascotShadow =>
-        ThemeManager.Current == AppTheme.Dark ? "#0F7A68" : "#062822";
+        ThemeManager.IsAccessible ? "#0072B2"
+        : ThemeManager.Current == AppTheme.Dark ? "#0F7A68" : "#062822";
 
     /// <summary>Lime accent for the porthole, nose, and flame — darkened on light bg.</summary>
     private static string MascotBandana =>
-        ThemeManager.Current == AppTheme.Dark ? "#C8E64D" : "#4E6E10";
+        ThemeManager.IsAccessible ? "#F0E442"
+        : ThemeManager.Current == AppTheme.Dark ? "#C8E64D" : "#4E6E10";
 
     /// <summary>Knot-tail / secondary lime shade — even darker for light mode contrast.</summary>
     private static string MascotBandanaDk =>
-        ThemeManager.Current == AppTheme.Dark ? "#9BC02E" : "#2E4200";
+        ThemeManager.IsAccessible ? "#E69F00"
+        : ThemeManager.Current == AppTheme.Dark ? "#9BC02E" : "#2E4200";
 
     /// <summary>
     /// A compact 3-row Unicode block-art mascot: our brand rocket, matching the SVG/PNG
