@@ -450,6 +450,12 @@ public static class Ui
     /// <summary>Horizontal padding inside each column cell (matches <see cref="StyledTable"/>).</summary>
     private const int CellPad = 1;
 
+    // Colorblind selection indicator shown in the first column of the selected row when the
+    // Accessible theme is active. Its width is reserved on the first column for every row (see
+    // ComputeCols) so non-selected rows render an equal-width blank placeholder and the column
+    // dividers stay aligned regardless of selection.
+    private const string SelectionSymbol = "▶ ";
+
     /// <summary>
     /// Renders a rounded, fully-bordered table (matching <see cref="StyledTable"/>'s frame, header and
     /// column dividers) in which the selected row is drawn as a single solid Norton Commander-style
@@ -505,6 +511,10 @@ public static class Ui
                 }
             }
             for (int j = 0; j < n; j++) c[j] += 2 * CellPad;
+            // Reserve room for the selection symbol on the first column so selected and
+            // non-selected rows share the same width and dividers stay aligned.
+            if (n > 0 && ThemeManager.ThemeName == "Accessible")
+                c[0] += VisibleWidth(SelectionSymbol);
             return c;
         }
 
@@ -665,14 +675,15 @@ public static class Ui
                     ? ov
                     : (cell.IsMarkup ? cell.Text : Markup.Escape(cell.Text));
                 
-                // Add selection symbol (▶) to first visible cell only when using accessible theme and row is selected.
-                // To prevent column misalignment, the symbol replaces padding instead of adding to cell width.
+                // In the Accessible theme the first column reserves space for a selection symbol
+                // (see ComputeCols). Consume that reserved width on EVERY row so all rows are the
+                // same width: the selected row shows the symbol, others show an equal-width blank.
                 string symbol = string.Empty;
                 int symbolWidth = 0;
-                if (selected && useAccessibleTheme && j == 0)
+                if (useAccessibleTheme && j == 0)
                 {
-                    symbol = "▶ ";
-                    symbolWidth = VisibleWidth(symbol);
+                    symbolWidth = VisibleWidth(SelectionSymbol);
+                    symbol = selected ? SelectionSymbol : new string(' ', symbolWidth);
                 }
                 
                 int displayWidth = VisibleWidth(disp);
