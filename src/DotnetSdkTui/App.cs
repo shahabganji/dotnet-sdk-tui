@@ -31,6 +31,20 @@ public sealed class App
     private MainTab _tab = MainTab.Sdks;
     private static readonly MainTab[] TabOrder = [MainTab.Sdks, MainTab.Runtimes, MainTab.Search];
 
+    // Nominal screen row (1-based) of the tab strip when the window is tall enough for the layout to
+    // render at full size: TopPad(1) + Top(3) + TabsPad(1) puts the Body panel's top border — where
+    // the tabs live — on row 6. Spectre compresses the top rows on short/resized windows, so the real
+    // row is detected per-frame in EmitFrame (see _tabRow) and this is only the fallback.
+    private const int MainTabRow = 6;
+
+    // Actual screen row of the tab strip in the most recently rendered frame, and the plain-text token
+    // used to locate it. Recomputed each frame so hit-testing tracks window resizes/compression.
+    private int _tabRow = MainTabRow;
+    private string _tabStripProbe = "SDKs";
+
+    // Clickable column ranges for each tab, refreshed whenever the main screen is built.
+    private IReadOnlyList<Ui.TabHitRegion> _tabHitRegions = [];
+
     // Setup lives top-right, outside the tab cycle. Press `s` to route keys to it; Esc / `s`
     // to return focus to the active tab.
     private bool _setupFocused;
@@ -139,6 +153,9 @@ public sealed class App
         await prefetch;
 
         AnsiConsole.Clear();
+        // Turn on mouse reporting so the tab strip is clickable. Wrapped in try/catch because
+        // redirected or dumb terminals may reject the escape; failure just leaves tabs keyboard-only.
+        try { Console.Write(MouseInput.EnableSequence); } catch (IOException) { }
 
         while (_running)
         {
@@ -201,8 +218,11 @@ public sealed class App
                 {
                     if (Console.KeyAvailable)
                     {
-                        var key = Console.ReadKey(true);
-                        await HandleKeyAsync(key);
+                        if (TryReadInput(out var key, out var mouse))
+                        {
+                            if (mouse is { } m) await HandleMouseAsync(m);
+                            else await HandleKeyAsync(key);
+                        }
                         break;
                     }
                 }
@@ -212,6 +232,7 @@ public sealed class App
         }
 
         _winchRegistration?.Dispose();
+        try { Console.Write(MouseInput.DisableSequence); } catch (IOException) { }
         try { Console.CursorVisible = true; } catch (IOException) { }
         Ui.RenderGoodbye();
     }
@@ -250,6 +271,19 @@ public sealed class App
         body.Clear();
         _renderConsole.Write(renderable);
         string bodyText = body.ToString();
+
+        // Spectre terminates its render with a trailing newline. Writing that newline while the
+        // cursor sits on the terminal's last row scrolls the whole screen up by one line, which
+        // (a) shifts every row up relative to the frame we think we drew — breaking absolute-row
+        // mouse hit-testing on the tab strip — and (b) needlessly churns the scrollback. Drop a
+        // single trailing newline so the frame occupies exactly its rows and never scrolls.
+        if (bodyText.EndsWith('\n')) bodyText = bodyText[..^1];
+
+        // Locate the tab strip's real screen row for click hit-testing. Each '\n' in the emitted body
+        // advances one row from cursor-home (row 1), and Spectre may compress the rows above the tab
+        // strip on short windows — so we read the row back from the frame we just built.
+        if (_screen == Screen.Main)
+            _tabRow = FindTabRow(bodyText);
 
         var sb = new StringBuilder(bodyText.Length + 256);
         // 1. Begin synchronized output (modern terminals buffer until end-marker; older ones
@@ -365,9 +399,15 @@ public sealed class App
             _                => _sdksView.RenderContent(tabFocused),
         };
 
+        string[] labels = [$"{Ui.IconSdks} SDKs", $"{Ui.IconRuntimes} Runtimes", $"{Ui.IconSearch} Search"];
+        _tabHitRegions = Ui.ComputeTabHitRegions(labels);
+        // Plain-text token (the word after the icon) used to locate the tab strip row in the rendered
+        // frame — the first tab's label, e.g. "SDKs".
+        _tabStripProbe = labels[0][(labels[0].LastIndexOf(' ') + 1)..];
+
         int activeTabIndex = Array.IndexOf(TabOrder, _tab);
         return Ui.TabbedPanel(
-            [$"{Ui.IconSdks} SDKs", $"{Ui.IconRuntimes} Runtimes", $"{Ui.IconSearch} Search"],
+            labels,
             activeTabIndex,
             content,
             focused: tabFocused,
@@ -474,6 +514,122 @@ public sealed class App
         catch { /* best-effort */ }
     }
 
+    /// <summary>
+    /// Switches to <paramref name="tab"/> and returns keystroke focus to the tab body (pulling it
+    /// away from Setup if needed). Shared by the Tab key and the clickable tab strip.
+    /// </summary>
+    private async Task SwitchToTabAsync(MainTab tab)
+    {
+        _tab = tab;
+        // Leaving Setup — pull focus back onto the tab we just landed on.
+        _setupFocused = false;
+        // Fresh Search activation refreshes the debounce state.
+        if (_tab == MainTab.Search) await _searchView.ActivateAsync();
+    }
+
+    /// <summary>
+    /// Routes a mouse report. Only a left-button press on the main screen's tab-strip row switches
+    /// tabs; every other event is ignored.
+    /// </summary>
+    private async Task HandleMouseAsync(MouseInput.MouseEvent m)
+    {
+        if (!m.IsLeftPress || _screen != Screen.Main || m.Row != _tabRow) return;
+
+        for (int i = 0; i < _tabHitRegions.Count && i < TabOrder.Length; i++)
+        {
+            var region = _tabHitRegions[i];
+            if (m.Column >= region.Start && m.Column < region.EndExclusive)
+            {
+                await SwitchToTabAsync(TabOrder[i]);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads the next input. Most keys pass straight through, but a mouse report — either SGR
+    /// (<c>ESC [ &lt; Cb ; Cx ; Cy M|m</c>) or legacy X10 (<c>ESC [ M b x y</c>) — is decoded into
+    /// <paramref name="mouse"/> (see <see cref="MouseInput"/>). A lone Escape or an unrecognised escape
+    /// sequence is returned as the Escape key. Returns <c>false</c> only when no input was pending.
+    /// </summary>
+    private static bool TryReadInput(out ConsoleKeyInfo key, out MouseInput.MouseEvent? mouse)
+    {
+        key = default;
+        mouse = null;
+
+        if (!Console.KeyAvailable) return false;
+
+        ConsoleKeyInfo first = Console.ReadKey(true);
+        if (first.Key != ConsoleKey.Escape)
+        {
+            key = first;
+            return true;
+        }
+
+        // Possible mouse sequence. The continuation bytes usually arrive in the same terminal write
+        // as the ESC, but we wait briefly for each so a split read doesn't misfire a lone Escape.
+        if (!TryReadCharWithin(40, out char c1)) { key = first; return true; }
+        if (c1 != '[') { key = first; return true; }
+
+        if (!TryReadCharWithin(40, out char c2)) { key = first; return true; }
+
+        if (c2 == '<')
+        {
+            // SGR (1006) extended encoding.
+            var body = new StringBuilder();
+            while (TryReadCharWithin(40, out char c))
+            {
+                body.Append(c);
+                if (c is 'M' or 'm') break;
+            }
+            mouse = MouseInput.ParseSgr(body.ToString());
+        }
+        else if (c2 == 'M')
+        {
+            // Legacy X10 encoding: exactly three bytes follow.
+            var body = new StringBuilder();
+            for (int i = 0; i < 3 && TryReadCharWithin(40, out char c); i++) body.Append(c);
+            mouse = MouseInput.ParseX10(body.ToString());
+        }
+
+        if (mouse is null) key = first; // not a mouse report — treat the leading ESC as a plain key
+        return true;
+    }
+
+    /// <summary>Reads the next key's character within <paramref name="ms"/> milliseconds, if one arrives.</summary>
+    private static bool TryReadCharWithin(int ms, out char ch)
+    {
+        ch = '\0';
+        DateTime end = DateTime.UtcNow.AddMilliseconds(ms);
+        while (DateTime.UtcNow < end)
+        {
+            if (Console.KeyAvailable) { ch = Console.ReadKey(true).KeyChar; return true; }
+            System.Threading.Thread.Sleep(1);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Returns the 1-based screen row of the tab strip in a freshly rendered <paramref name="bodyText"/>
+    /// frame. Each newline advances one row from cursor-home (row 1); the tab strip is the first row
+    /// containing the first tab's label token. Falls back to <see cref="MainTabRow"/> if not found.
+    /// </summary>
+    private int FindTabRow(string bodyText)
+    {
+        int row = 1;
+        int start = 0;
+        while (true)
+        {
+            int nl = bodyText.IndexOf('\n', start);
+            string line = nl < 0 ? bodyText[start..] : bodyText[start..nl];
+            if (line.Contains(_tabStripProbe, StringComparison.Ordinal)) return row;
+            if (nl < 0) break;
+            start = nl + 1;
+            row++;
+        }
+        return MainTabRow;
+    }
+
     private async Task HandleMainKeyAsync(ConsoleKeyInfo key)
     {
         IView activeView = GetActiveTabView();
@@ -525,11 +681,7 @@ public sealed class App
         {
             int step = key.Modifiers.HasFlag(ConsoleModifiers.Shift) ? -1 : 1;
             int idx = Array.IndexOf(TabOrder, _tab);
-            _tab = TabOrder[(idx + step + TabOrder.Length) % TabOrder.Length];
-            // Leaving Setup — pull focus back onto the tab we just landed on.
-            _setupFocused = false;
-            // Fresh Search activation refreshes the debounce state.
-            if (_tab == MainTab.Search) await _searchView.ActivateAsync();
+            await SwitchToTabAsync(TabOrder[(idx + step + TabOrder.Length) % TabOrder.Length]);
             return;
         }
 
@@ -668,6 +820,7 @@ public sealed class App
     {
         // Exit TUI, restore terminal to original settings for the external command
         ThemeManager.ResetBackground();
+        try { Console.Write(MouseInput.DisableSequence); } catch (IOException) { }
         AnsiConsole.Clear();
         Console.CursorVisible = true;
 
@@ -694,6 +847,8 @@ public sealed class App
 
         try { Console.ReadKey(true); } catch (InvalidOperationException) { }
         try { Console.CursorVisible = false; } catch (IOException) { }
+        // Back to the TUI — re-arm mouse reporting for the clickable tab strip.
+        try { Console.Write(MouseInput.EnableSequence); } catch (IOException) { }
 
         // Re-apply theme background before returning to TUI
         ThemeManager.ApplyBackground();
