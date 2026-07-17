@@ -29,13 +29,14 @@ public readonly record struct ThemeDef(string Name, AppTheme Base, string BarBg,
 /// </summary>
 public static class ThemeManager
 {
-    // Two dark-based and two light-based themes; F6 cycles through them in order.
+    // Two dark-based, two light-based, and one colorblind-accessible theme; F6 cycles through them in order.
     private static readonly ThemeDef[] Themes =
     [
         new("Teal",     AppTheme.Dark,  "#0E4F47", "#C8E64D", "#1DB9A0"),
         new("Indigo",   AppTheme.Dark,  "#312A5E", "#FFD700", "#7A6AD9"),
         new("Mint",     AppTheme.Light, "#CDE8CF", "#14532D", "#2E9D6E"),
         new("Lavender", AppTheme.Light, "#DAD2EC", "#4A2E7A", "#6E57B0"),
+        new("Accessible", AppTheme.Dark, "#332288", "#DDCC77", "#117733"), // Okabe-Ito palette for colorblind accessibility
     ];
 
     private static int _index;

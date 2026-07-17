@@ -652,6 +652,7 @@ public static class Ui
         lines.Add(new Markup(Rule('├', '┼', '┤')));
 
         // Data rows.
+        bool useAccessibleTheme = ThemeManager.ThemeName == "Accessible";
         for (int r = 0; r < rows.Count; r++)
         {
             var (cells, selected) = rows[r];
@@ -663,6 +664,13 @@ public static class Ui
                 string disp = cellOverride.TryGetValue((r, src), out string? ov)
                     ? ov
                     : (cell.IsMarkup ? cell.Text : Markup.Escape(cell.Text));
+                
+                // Add selection symbol (▶) to first visible cell only when using accessible theme and row is selected
+                if (selected && useAccessibleTheme && j == 0)
+                {
+                    disp = $"▶ {disp}";
+                }
+                
                 int rightFill = Math.Max(0, col[j] - CellPad - VisibleWidth(disp));
 
                 // The cell body sits on the highlight bar when selected; the column divider stays
