@@ -665,16 +665,18 @@ public static class Ui
                     ? ov
                     : (cell.IsMarkup ? cell.Text : Markup.Escape(cell.Text));
                 
-                // Add selection symbol (▶) to first visible cell only when using accessible theme and row is selected
-                // Only add if there's enough room in the column
+                // Add selection symbol (▶) to first visible cell only when using accessible theme and row is selected.
+                // To prevent column misalignment, the symbol replaces padding instead of adding to cell width.
                 string symbol = string.Empty;
+                int symbolWidth = 0;
                 if (selected && useAccessibleTheme && j == 0)
                 {
                     symbol = "▶ ";
+                    symbolWidth = VisibleWidth(symbol);
                 }
                 
-                int displayWidth = VisibleWidth(symbol + disp);
-                int rightFill = Math.Max(0, col[j] - CellPad - displayWidth);
+                int displayWidth = VisibleWidth(disp);
+                int rightFill = Math.Max(0, col[j] - CellPad - symbolWidth - displayWidth);
 
                 // The cell body sits on the highlight bar when selected; the column divider stays
                 // visible on the bar (border color over the selection background).
