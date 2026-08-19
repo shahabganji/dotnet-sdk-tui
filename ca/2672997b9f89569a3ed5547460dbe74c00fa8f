@@ -1,0 +1,21 @@
+tests/DotnetSdkTui.Tests/Services/InstallLocationServiceTests.cs
+  s_e3786d23d55ca0::t_cd1f589d625202 173-186
+src/DotnetSdkTui/Services/InstallLocationService.cs
+  s_e3786d23d55ca0::t_767c6467327b38 77-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ca2672997b9f89569a3ed5547460dbe74c00fa8f",
+  "prompts": {},
+  "sessions": {
+    "s_e3786d23d55ca0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a5e20e6-5693-48f1-8aa4-63e8320a4aeb",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shahab Ganji <shahabganji@gmail.com>"
+    }
+  }
+}
