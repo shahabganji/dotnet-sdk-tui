@@ -1,0 +1,28 @@
+src/DotnetSdkTui/Services/DotnetUpService.cs
+  s_e3786d23d55ca0::t_e4abd377f772d6 116,118-121
+src/DotnetSdkTui/App.cs
+  s_e3786d23d55ca0::t_e5152c971cb068 973-975
+tests/DotnetSdkTui.Tests/Services/InstallLocationServiceTests.cs
+  s_e3786d23d55ca0::t_df41963e17012c 82-83,85,88-89,97,100-113
+  s_e3786d23d55ca0::t_e11bb1002f5846 1-81,84,86-87,90-96,98-99,114-145,149,151-152,155-184
+  s_e3786d23d55ca0::t_e2030325293dfc 146-148,150,153-154
+src/DotnetSdkTui/Services/InstallLocationService.cs
+  s_e3786d23d55ca0::t_2636412479fcb6 1-48,53-62,66-74,76-79,87-145
+  s_e3786d23d55ca0::t_b0f1d70339b020 49-52,63-65,75,80-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "4f6065a8cb443b97a57caa4467d50afab7fe8755",
+  "prompts": {},
+  "sessions": {
+    "s_e3786d23d55ca0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a5e20e6-5693-48f1-8aa4-63e8320a4aeb",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shahab Ganji <shahabganji@gmail.com>"
+    }
+  }
+}
