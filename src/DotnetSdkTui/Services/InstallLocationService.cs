@@ -9,18 +9,22 @@ namespace DotnetSdkTui.Services;
 /// <c>~/Library/Application Support/dotnetup/dotnet</c>). When PATH/DOTNET_ROOT point at a
 /// different root, those installs are invisible to the active <c>dotnet</c>. dsm therefore pins
 /// installs to the active root via <c>--install-path</c> when a user-writable one exists, and
-/// otherwise lets dotnetup use its default; <c>--set-default-install</c> keeps the environment
-/// wiring (PATH/DOTNET_ROOT) in sync either way.
+/// otherwise lets dotnetup use its default; in both cases <c>--set-default-install</c> keeps the
+/// environment wiring (PATH/DOTNET_ROOT) in sync. Arguments that already carry an explicit
+/// <c>--install-path</c> are passed through completely untouched — dsm does not second-guess an
+/// explicitly located install, not even to add <c>--set-default-install</c>.
 /// </remarks>
 public static class InstallLocationService
 {
     /// <summary>
     /// Appends <c>--install-path</c> and <c>--set-default-install</c> to dotnetup
     /// <c>sdk install</c>/<c>runtime install</c> arguments; returns every other command's
-    /// arguments unchanged. Arguments that already carry <c>--install-path</c> are respected.
+    /// arguments unchanged, and arguments that already carry <c>--install-path</c> untouched.
     /// </summary>
     public static string AugmentInstallArgs(string command, string arguments) =>
-        AugmentInstallArgs(command, arguments, GetActiveInstallRoot());
+        ShouldAugment(command, arguments)
+            ? AugmentInstallArgs(command, arguments, GetActiveInstallRoot())
+            : arguments;
 
     /// <summary>
     /// Core of <see cref="AugmentInstallArgs(string,string)"/> with an explicit install root.
@@ -28,13 +32,7 @@ public static class InstallLocationService
     /// </summary>
     public static string AugmentInstallArgs(string command, string arguments, string? installRoot)
     {
-        if (!command.Equals("dotnetup", StringComparison.OrdinalIgnoreCase))
-            return arguments;
-
-        if (!IsInstallCommand(arguments))
-            return arguments;
-
-        if (arguments.Contains("--install-path", StringComparison.OrdinalIgnoreCase))
+        if (!ShouldAugment(command, arguments))
             return arguments;
 
         string result = arguments;
@@ -105,6 +103,15 @@ public static class InstallLocationService
         return underHome ? root : null;
     }
 
+    /// <summary>
+    /// True when the command is a dotnetup install whose arguments carry no explicit
+    /// <c>--install-path</c> — the only case augmentation (and the install-root probe) applies to.
+    /// </summary>
+    private static bool ShouldAugment(string command, string arguments) =>
+        command.Equals("dotnetup", StringComparison.OrdinalIgnoreCase)
+        && IsInstallCommand(arguments)
+        && !arguments.Contains("--install-path", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Matches <c>sdk install</c> and <c>runtime install</c> at the start of the arguments.</summary>
     private static bool IsInstallCommand(string arguments)
     {
@@ -141,8 +148,11 @@ public static class InstallLocationService
             {
                 return File.ResolveLinkTarget(candidate, returnFinalTarget: true)?.FullName ?? candidate;
             }
-            catch (IOException)
+            catch (Exception)
             {
+                // Best-effort probe: any failure to resolve the link (permissions, hostile PATH
+                // entry, exotic filesystem) must degrade to the unresolved path, never propagate
+                // into command execution.
                 return candidate;
             }
         }

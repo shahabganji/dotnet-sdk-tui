@@ -45,6 +45,9 @@ public class InstallLocationServiceTests
         Assert.Equal($"sdk install 9.0 --migrate-from-system --install-path \"{ActiveRoot}\" --set-default-install", args);
     }
 
+    // Deliberate contract: an explicit --install-path means the caller located the install
+    // themselves, so dsm passes the arguments through completely untouched — appending
+    // --set-default-install would silently repoint the user's global default.
     [Fact]
     public void AugmentInstallArgs_ExplicitInstallPath_IsLeftUntouched()
     {
