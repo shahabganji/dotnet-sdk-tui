@@ -74,9 +74,16 @@ public static class InstallLocationService
 
         if (!string.IsNullOrWhiteSpace(muxerPath))
         {
-            string muxerDir = Normalize(Path.GetDirectoryName(muxerPath));
-            if (muxerDir.Length > 0 && directoryExists(muxerDir))
-                root = muxerDir;
+            // Path.GetDirectoryName would rewrite separators to the host platform's; trim to
+            // the last separator instead so the root keeps the muxer path's own separators.
+            ReadOnlySpan<char> muxer = muxerPath.AsSpan().Trim();
+            int lastSeparator = muxer.LastIndexOfAny('/', '\\');
+            if (lastSeparator > 0)
+            {
+                string muxerDir = Normalize(muxer[..lastSeparator].ToString());
+                if (muxerDir.Length > 0 && directoryExists(muxerDir))
+                    root = muxerDir;
+            }
         }
 
         if (root is null)

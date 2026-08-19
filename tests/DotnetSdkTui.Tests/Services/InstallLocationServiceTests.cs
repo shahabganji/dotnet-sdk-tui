@@ -170,6 +170,20 @@ public class InstallLocationServiceTests
         Assert.Equal(ActiveRoot, root);
     }
 
+    // The muxer's parent directory must be computed without rewriting separators to the host
+    // platform's, so resolution behaves identically on every OS.
+    [Fact]
+    public void ResolveActiveInstallRoot_WindowsStyleMuxerPath_ResolvesRoot()
+    {
+        string? root = InstallLocationService.ResolveActiveInstallRoot(
+            dotnetRootEnv: null,
+            muxerPath: @"C:\Users\jane\AppData\Local\dotnet\dotnet.exe",
+            userHome: @"C:\Users\jane",
+            directoryExists: _ => true);
+
+        Assert.Equal(@"C:\Users\jane\AppData\Local\dotnet", root);
+    }
+
     [Fact]
     public void ResolveActiveInstallRoot_RootEqualToHome_IsAllowed()
     {
