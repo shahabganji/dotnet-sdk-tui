@@ -127,18 +127,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          current="${GITHUB_REF_NAME}"
-          # Previous version by semver order (robust when several tags share one commit,
-          # which git-describe-by-ancestry would mislabel).
-          previous=$(git tag --sort=-v:refname | awk -v c="$current" 'p==1{print;exit} $0==c{p=1}')
-          echo "current=$current previous=${previous:-<none>}"
-          if [ -n "$previous" ]; then
-            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-              -f tag_name="$current" -f previous_tag_name="$previous" --jq .body > notes.md
-          else
-            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-              -f tag_name="$current" --jq .body > notes.md
-          fi
+          bash .github/scripts/generate_release_notes.sh notes.md
           cat notes.md
 
       - name: Create GitHub Release

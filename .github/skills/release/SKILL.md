@@ -7,7 +7,7 @@ description: Cut and publish a new versioned release of this project. Infers the
 
 This repo releases entirely through an **annotated `vX.Y.Z` tag**. Pushing a tag that matches `v*` triggers
 `.github/workflows/release.yml`, which builds the six platform binaries (NativeAOT) and publishes a GitHub
-Release whose notes are auto-generated against the previous tag. There is **no manual release step** — your job
+Release whose notes are generated against the previous tag. There is **no manual release step** — your job
 is to get `main` into the right state and push a correct tag.
 
 Because a tag push is effectively irreversible (it kicks off a public release), the guiding principle is:
@@ -50,7 +50,7 @@ to release.
 Use the bundled script so the logic is deterministic and matches what the evals check:
 
 ```bash
-.claude/skills/release/scripts/next_version.sh origin/main
+.github/skills/release/scripts/next_version.sh origin/main
 ```
 
 It prints `current=`, `bump=`, and `next=`. The bump comes from conventional-commit prefixes since the last
@@ -66,6 +66,11 @@ Show the user, concisely:
 - the exact **commands** you'll run.
 
 Then wait for their OK. This single gate is the safety valve before any mutating action.
+
+Also state the release-notes style that will be published:
+- concise, user-facing sections (not a raw commit dump),
+- no always-on collapsible technical section,
+- full compare link retained for deep technical detail.
 
 **Tag message format** (matches this repo's history):
 
@@ -105,7 +110,18 @@ Confirm the pipeline started and report — don't block waiting for it to finish
 
 - `gh run list --workflow Release --limit 1`
 - Tell the user the tag is pushed, link the triggered run, and note the GitHub Release (with platform binaries
-  and notes comparing against the previous tag) will publish shortly. Offer to watch it if they want.
+  and structured notes plus compare link) will publish shortly. Offer to watch it if they want.
+
+## Release-note quality guardrails
+
+The workflow's generator script (`.github/scripts/generate_release_notes.sh`) should produce:
+- **Highlights** (user-facing features only, when present),
+- **Fixes & Improvements** (mainline user-impacting fixes),
+- **Maintenance** (docs/chore/test/build/ci as a compact section),
+- **Breaking Changes / Upgrade Notes** only when applicable,
+- and a **Full Changelog** compare link.
+
+If categorization yields no useful items, fallback to GitHub's generated notes is acceptable.
 
 ## Safety rails (summary)
 
