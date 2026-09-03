@@ -26,6 +26,31 @@ public class InstallLocationServiceTests
         Assert.Equal($"runtime install 9.0 --install-path \"{ActiveRoot}\" --set-default-install", args);
     }
 
+    [Fact]
+    public void AugmentInstallArgs_SdkUninstallWithActiveRoot_AppendsInstallPathOnly()
+    {
+        string args = InstallLocationService.AugmentInstallArgs("dotnetup", "sdk uninstall 6.0.428 --source all", ActiveRoot);
+
+        Assert.Equal($"sdk uninstall 6.0.428 --source all --install-path \"{ActiveRoot}\"", args);
+    }
+
+    [Fact]
+    public void AugmentInstallArgs_RuntimeUninstallWithActiveRoot_AppendsInstallPathOnly()
+    {
+        string args = InstallLocationService.AugmentInstallArgs("dotnetup", "runtime uninstall 9.0 --source all", ActiveRoot);
+
+        Assert.Equal($"runtime uninstall 9.0 --source all --install-path \"{ActiveRoot}\"", args);
+    }
+
+    [Fact]
+    public void AugmentInstallArgs_UninstallWithoutActiveRoot_IsLeftUntouched()
+    {
+        const string command = "sdk uninstall 6.0.428 --source all";
+        string args = InstallLocationService.AugmentInstallArgs("dotnetup", command, installRoot: null);
+
+        Assert.Equal(command, args);
+    }
+
     // Backward compatibility: no previous installation → let dotnetup pick its default path,
     // but still make it the default install so PATH/DOTNET_ROOT get wired up.
     [Fact]
@@ -57,6 +82,14 @@ public class InstallLocationServiceTests
     }
 
     [Fact]
+    public void AugmentInstallArgs_UninstallWithExplicitInstallPath_IsLeftUntouched()
+    {
+        const string explicitArgs = "sdk uninstall 8.0 --source all --install-path \"/custom/root\"";
+
+        Assert.Equal(explicitArgs, InstallLocationService.AugmentInstallArgs("dotnetup", explicitArgs, ActiveRoot));
+    }
+
+    [Fact]
     public void AugmentInstallArgs_ExistingSetDefaultInstall_IsNotDuplicated()
     {
         string args = InstallLocationService.AugmentInstallArgs("dotnetup", "sdk install 8.0 --set-default-install", installRoot: null);
@@ -65,7 +98,6 @@ public class InstallLocationServiceTests
     }
 
     [Theory]
-    [InlineData("sdk uninstall 6.0.428")]
     [InlineData("sdk update")]
     [InlineData("update")]
     [InlineData("list --format Json")]

@@ -1,30 +1,35 @@
 namespace DotnetSdkTui.Services;
 
 /// <summary>
-/// Decides where dotnetup should place new SDK/runtime installs so they land in the root the
-/// active <c>dotnet</c> CLI reads, keeping them visible to <c>dotnet --list-sdks</c>.
+/// Decides when dotnetup SDK/runtime commands need install-root pinning so they target the same
+/// root the active <c>dotnet</c> CLI reads.
 /// </summary>
 /// <remarks>
 /// dotnetup 0.2.0+ defaults new installs to its own root (e.g.
 /// <c>~/Library/Application Support/dotnetup/dotnet</c>). When PATH/DOTNET_ROOT point at a
 /// different root, those installs are invisible to the active <c>dotnet</c>. dsm therefore pins
-/// installs to the active root via <c>--install-path</c> when a user-writable one exists, and
-/// otherwise lets dotnetup use its default; in both cases <c>--set-default-install</c> keeps the
-/// environment wiring (PATH/DOTNET_ROOT) in sync. Arguments that already carry an explicit
-/// <c>--install-path</c> are passed through completely untouched — dsm does not second-guess an
-/// explicitly located install, not even to add <c>--set-default-install</c>.
+/// install/uninstall commands to the active root via <c>--install-path</c> when a user-writable
+/// one exists. For installs, <c>--set-default-install</c> is also added so PATH/DOTNET_ROOT stay
+/// in sync. Arguments that already carry an explicit <c>--install-path</c> are passed through
+/// untouched — dsm does not second-guess an explicitly located command.
 /// </remarks>
 public static class InstallLocationService
 {
     /// <summary>
-    /// Appends <c>--install-path</c> and <c>--set-default-install</c> to dotnetup
-    /// <c>sdk install</c>/<c>runtime install</c> arguments; returns every other command's
-    /// arguments unchanged, and arguments that already carry <c>--install-path</c> untouched.
+    /// Appends install-root flags for dotnetup SDK/runtime commands:
+    /// <list type="bullet">
+    /// <item><description><c>sdk/runtime install</c>: adds <c>--install-path</c> and <c>--set-default-install</c></description></item>
+    /// <item><description><c>sdk/runtime uninstall</c>: adds <c>--install-path</c> only</description></item>
+    /// </list>
+    /// Returns every other command's arguments unchanged, and any arguments that already carry
+    /// <c>--install-path</c> untouched.
     /// </summary>
     public static string AugmentInstallArgs(string command, string arguments) =>
-        ShouldAugment(command, arguments)
+        ShouldAugmentInstall(command, arguments)
             ? AugmentInstallArgs(command, arguments, GetActiveInstallRoot())
-            : arguments;
+            : ShouldAugmentUninstall(command, arguments)
+                ? AugmentUninstallArgs(arguments, GetActiveInstallRoot())
+                : arguments;
 
     /// <summary>
     /// Core of <see cref="AugmentInstallArgs(string,string)"/> with an explicit install root.
@@ -32,7 +37,9 @@ public static class InstallLocationService
     /// </summary>
     public static string AugmentInstallArgs(string command, string arguments, string? installRoot)
     {
-        if (!ShouldAugment(command, arguments))
+        if (ShouldAugmentUninstall(command, arguments))
+            return AugmentUninstallArgs(arguments, installRoot);
+        if (!ShouldAugmentInstall(command, arguments))
             return arguments;
 
         string result = arguments;
@@ -41,6 +48,20 @@ public static class InstallLocationService
         if (!result.Contains("--set-default-install", StringComparison.OrdinalIgnoreCase))
             result += " --set-default-install";
         return result;
+    }
+
+    /// <summary>
+    /// Core uninstall augmentation with an explicit install root. A null root leaves uninstall
+    /// arguments untouched so dotnetup can fall back to its own resolution.
+    /// </summary>
+    public static string AugmentUninstallArgs(string arguments, string? installRoot)
+    {
+        if (!IsUninstallCommand(arguments)
+            || arguments.Contains("--install-path", StringComparison.OrdinalIgnoreCase)
+            || installRoot is null)
+            return arguments;
+
+        return $"{arguments} --install-path \"{installRoot}\"";
     }
 
     /// <summary>
@@ -107,9 +128,18 @@ public static class InstallLocationService
     /// True when the command is a dotnetup install whose arguments carry no explicit
     /// <c>--install-path</c> — the only case augmentation (and the install-root probe) applies to.
     /// </summary>
-    private static bool ShouldAugment(string command, string arguments) =>
+    private static bool ShouldAugmentInstall(string command, string arguments) =>
         command.Equals("dotnetup", StringComparison.OrdinalIgnoreCase)
         && IsInstallCommand(arguments)
+        && !arguments.Contains("--install-path", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True when the command is a dotnetup uninstall whose arguments carry no explicit
+    /// <c>--install-path</c>.
+    /// </summary>
+    private static bool ShouldAugmentUninstall(string command, string arguments) =>
+        command.Equals("dotnetup", StringComparison.OrdinalIgnoreCase)
+        && IsUninstallCommand(arguments)
         && !arguments.Contains("--install-path", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Matches <c>sdk install</c> and <c>runtime install</c> at the start of the arguments.</summary>
@@ -117,6 +147,19 @@ public static class InstallLocationService
     {
         ReadOnlySpan<char> args = arguments.AsSpan().TrimStart();
         foreach (string verb in (ReadOnlySpan<string>)["sdk install", "runtime install"])
+        {
+            if (args.StartsWith(verb, StringComparison.OrdinalIgnoreCase)
+                && (args.Length == verb.Length || char.IsWhiteSpace(args[verb.Length])))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>Matches <c>sdk uninstall</c> and <c>runtime uninstall</c> at the start of the arguments.</summary>
+    private static bool IsUninstallCommand(string arguments)
+    {
+        ReadOnlySpan<char> args = arguments.AsSpan().TrimStart();
+        foreach (string verb in (ReadOnlySpan<string>)["sdk uninstall", "runtime uninstall"])
         {
             if (args.StartsWith(verb, StringComparison.OrdinalIgnoreCase)
                 && (args.Length == verb.Length || char.IsWhiteSpace(args[verb.Length])))
