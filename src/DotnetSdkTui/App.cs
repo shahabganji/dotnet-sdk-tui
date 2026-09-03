@@ -970,6 +970,9 @@ public sealed class App
     /// </summary>
     private async Task RunInteractiveAndRefreshAsync(string cmd, string args, string? note, string? cwd = null)
     {
+        // Pin dotnetup installs to the active dotnet root so they show up in `dotnet --list-sdks`.
+        args = InstallLocationService.AugmentInstallArgs(cmd, args);
+
         // Exit TUI, restore terminal to original settings for the external command
         ThemeManager.ResetBackground();
         try { Console.Write(MouseInput.DisableSequence); } catch (IOException) { }

@@ -113,9 +113,12 @@ public static class DotnetUpService
     private static ReadOnlySpan<char> NormalizeRoot(string path) =>
         path.AsSpan().Trim().TrimEnd("/\\");
 
-    /// <summary>Installs an SDK channel via <c>dotnetup sdk install</c>.</summary>
+    /// <summary>Installs an SDK channel via <c>dotnetup sdk install</c>, pinned to the active dotnet root.</summary>
     public static Task<ProcessResult> InstallSdkAsync(string channel, CancellationToken ct = default) =>
-        ProcessRunner.RunWithCallbackAsync("dotnetup", $"sdk install {channel}", null, null, null, ct);
+        ProcessRunner.RunWithCallbackAsync(
+            "dotnetup",
+            InstallLocationService.AugmentInstallArgs("dotnetup", $"sdk install {channel}"),
+            null, null, null, ct);
 
     /// <summary>Uninstalls an SDK channel via <c>dotnetup sdk uninstall</c>.</summary>
     public static Task<ProcessResult> UninstallSdkAsync(string channel, CancellationToken ct = default) =>
