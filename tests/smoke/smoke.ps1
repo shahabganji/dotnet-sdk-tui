@@ -101,7 +101,23 @@ function Invoke-Install {
     Write-Host "SMOKE_HOME=$($env:SMOKE_HOME)"
 }
 
+function Stop-LeftoverDsm {
+    # Terminals stopped by the E2E tests can leave dsm.exe exiting in the background; a running
+    # exe is locked, so give it a moment, then force it — otherwise uninstall fails with access denied.
+    for ($i = 0; $i -lt 20; $i++) {
+        $running = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -ieq $binary })
+        if ($running.Count -eq 0) { return }
+        if ($i -eq 10) {
+            Write-Host "Stopping leftover dsm process(es): $($running.Id -join ', ')"
+            $running | Stop-Process -Force -ErrorAction SilentlyContinue
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    Fail "dsm.exe is still running from $binary"
+}
+
 function Invoke-Uninstall {
+    Stop-LeftoverDsm
     Invoke-InstallScript 'uninstall.ps1' | Out-Null
     if (Test-Path -LiteralPath $binary) { Fail "$binary still exists" }
     if (Test-UserPathHas $installDir) { Fail "user PATH still contains $installDir" }
