@@ -27,19 +27,42 @@ public static class BrewService
 
     /// <summary>
     /// Lists installed formulae via <c>brew list --versions --formula</c>.
-    /// Each line has the format: <c>NAME VERSION [VERSION...]</c>.
+    /// Throws <see cref="InvalidOperationException"/> when brew fails, so the view can show
+    /// the reason instead of an empty list.
     /// </summary>
     public static async Task<List<BrewPackage>> ListInstalledAsync(CancellationToken ct = default)
     {
         ProcessResult result = await ProcessRunner.RunAsync("brew", "list --versions --formula", ct: ct);
-        if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.Output))
+        if (result.ExitCode != 0)
+            throw new InvalidOperationException(DescribeFailure("brew list", result));
+        if (string.IsNullOrWhiteSpace(result.Output))
             return [];
 
         // Latest-available versions for formulae that have an update pending.
         Dictionary<string, string> outdated = await GetOutdatedAsync(ct);
+        return ParseInstalled(result.Output, outdated);
+    }
 
+    /// <summary>A one-line explanation of a failed brew run, for display in the view.</summary>
+    internal static string DescribeFailure(string what, ProcessResult result)
+    {
+        string? detail = (result.Error + "\n" + result.Output)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault(l => l.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+            ?? result.Error.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).LastOrDefault();
+
+        string message = $"{what} failed (exit code {result.ExitCode})";
+        string reason = detail is null ? message : $"{message}: {detail}";
+        return $"{reason} (press r to retry)";
+    }
+
+    /// <summary>
+    /// Parses <c>brew list --versions --formula</c> output (<c>NAME VERSION [VERSION...]</c> per line).
+    /// </summary>
+    internal static List<BrewPackage> ParseInstalled(string output, IReadOnlyDictionary<string, string> outdated)
+    {
         var packages = new List<BrewPackage>();
-        foreach (string rawLine in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             string[] parts = rawLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0)
