@@ -100,6 +100,13 @@ jobs:
           if ($env:VERSION) { $a.ExpectVersion = $env:VERSION }
           ./tests/smoke/smoke.ps1 @a
 
+      # macOS images ship an untracked .NET in ~/.dotnet, which dsm would pick as the install root
+      # (and dotnetup refuses to install into). Hide it before `dotnet tool restore` recreates
+      # ~/.dotnet/toolResolverCache, which `dotnet hex1b` needs.
+      - name: Hide preinstalled user-level .NET
+        if: runner.os != 'Windows'
+        run: if [ -x "$HOME/.dotnet/dotnet" ]; then mv "$HOME/.dotnet" "$HOME/.dotnet-preinstalled"; fi
+
       - name: Build tests
         shell: bash
         run: |
@@ -130,11 +137,7 @@ jobs:
         env:
           DSM_E2E: '1'
           DSM_E2E_FULL: '1'
-        run: |
-          # macOS images ship an untracked .NET in ~/.dotnet, which dsm would pick as the install
-          # root (and dotnetup refuses to install into). Hide it so dsm sees a fresh machine.
-          if [ -d "$HOME/.dotnet" ]; then mv "$HOME/.dotnet" "$HOME/.dotnet-preinstalled"; fi
-          tests/smoke/run-tests.sh FullFlow
+        run: tests/smoke/run-tests.sh FullFlow
 
       - name: Uninstall (bash)
         if: always() && steps.install.outcome == 'success'

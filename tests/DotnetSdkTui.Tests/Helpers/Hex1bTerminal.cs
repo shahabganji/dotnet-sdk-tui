@@ -229,7 +229,8 @@ public sealed class Hex1bTerminal : IAsyncDisposable
             throw new Hex1bCommandException(
                 $"hex1b {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {error}{output}");
         }
-        return output.Trim();
+        // Only drop the final newline: leading/trailing blank rows matter in screen captures.
+        return output.TrimEnd('\r', '\n');
     }
 
     private static async Task PumpAsync(StreamReader reader, StringBuilder sink)
