@@ -53,16 +53,37 @@
 ## Installation
 
 ```bash
-# macOS / Linux
+# macOS / Linux (glibc; Alpine/musl isn't supported yet)
 curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | bash
 ```
 
+```powershell
+# Windows (PowerShell 7+ or Windows PowerShell 5.1)
+irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex
+```
+
 Running the install script again will update `dsm` to the latest release.
+
+Installer options (environment variables work with both one-liners; `install.sh` also accepts `--install-dir`, `--version`, `--archive`):
+
+| Variable | Purpose |
+|----------|---------|
+| `DSM_INSTALL_DIR` | Install location (default `~/.local/bin`, Windows `%LOCALAPPDATA%\dsm`) |
+| `DSM_VERSION` | Install a specific release, e.g. `v0.9.3` (default: latest) |
+| `DSM_ARCHIVE` | Install from a local release archive instead of downloading |
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | DSM_VERSION=v0.9.3 bash
+```
 
 ### Uninstall
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | bash
+```
+
+```powershell
+irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | iex
 ```
 
 ### CLI
@@ -117,7 +138,28 @@ dotnet publish src/DotnetSdkTui -c Release -r osx-arm64
 dotnet test
 ```
 
-Tests use [hex1b](https://hex1b.dev/guide/cli) for TUI screenshot assertions in a headless virtual terminal.
+Tests use [hex1b](https://hex1b.dev/guide/cli) for TUI screenshot assertions in a headless virtual terminal. The TUI tests are opt-in:
+
+```bash
+dotnet tool restore
+# Drive the TUI (against `dotnet run`, or a published binary via DSM_E2E_BINARY)
+DSM_E2E=1 dotnet test tests/DotnetSdkTui.Tests --filter Category=E2E
+# Install the real install scripts into a sandbox HOME, check `dsm --version`, uninstall
+tests/smoke/smoke.sh all --archive dotnet-sdk-tui-osx-arm64.tar.gz
+```
+
+`Category=FullFlow` (`DSM_E2E_FULL=1`) installs dotnetup and a .NET runtime into your user profile through dsm — it's meant for CI runners.
+
+### How releases are verified
+
+Every PR and release builds the NativeAOT archives for all six RIDs (`publish.yml`; Linux binaries are linked in .NET's cross-build containers against an Ubuntu 18.04 sysroot, and the build fails if they require glibc newer than 2.27), then `smoke.yml` runs them **natively** on each OS/arch — Linux x64/arm64, Windows x64/arm64 (PowerShell 7 and Windows PowerShell 5.1), macOS arm64/x64:
+
+1. install through the real `install.sh`/`install.ps1` (fresh install, re-install, PATH entry), `dsm --version`;
+2. drive the installed binary's TUI with hex1b (tabs, search, theme, quit) and save screenshots as artifacts;
+3. on releases: install dotnetup and a .NET runtime **through dsm**, verify it's listed, uninstall it;
+4. uninstall dsm and verify the binary and PATH entry are gone.
+
+It also installs on Debian 12, Ubuntu 22.04, Fedora and Rocky Linux 9 containers (glibc compatibility) and checks that Alpine is rejected with a clear message. Pushing a `v*` tag only publishes the GitHub Release if all of this passes; afterwards the public one-liners are re-checked against the published assets. Run **Release → Run workflow** on any branch for a dry run (no release is created).
 
 ## Tech stack
 

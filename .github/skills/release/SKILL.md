@@ -6,8 +6,9 @@ description: Cut and publish a new versioned release of this project. Infers the
 # Release a new version
 
 This repo releases entirely through an **annotated `vX.Y.Z` tag**. Pushing a tag that matches `v*` triggers
-`.github/workflows/release.yml`, which builds the six platform binaries (NativeAOT) and publishes a GitHub
-Release whose notes are generated against the previous tag. There is **no manual release step** — your job
+`.github/workflows/release.yml`, which builds the six platform binaries (NativeAOT, `publish.yml`), smoke-tests
+them on every OS/arch (`smoke.yml`: real install scripts, TUI driven by hex1b, a real runtime install/uninstall
+through dsm), and only then publishes a GitHub Release whose notes are generated against the previous tag. There is **no manual release step** — your job
 is to get `main` into the right state and push a correct tag.
 
 Because a tag push is effectively irreversible (it kicks off a public release), the guiding principle is:
@@ -110,7 +111,14 @@ Confirm the pipeline started and report — don't block waiting for it to finish
 
 - `gh run list --workflow Release --limit 1`
 - Tell the user the tag is pushed, link the triggered run, and note the GitHub Release (with platform binaries
-  and structured notes plus compare link) will publish shortly. Offer to watch it if they want.
+  and structured notes plus compare link) will publish once the smoke tests pass. Offer to watch it if they want.
+
+If the run fails in **smoke**, no release was created: open the failing job (`gh run view <id> --log-failed`) and
+download its `smoke-*` artifact for hex1b screenshots. Fix on a branch, rehearse with a dry run
+(`gh workflow run release.yml --ref <branch> -f version=X.Y.Z` — builds + smoke-tests, never publishes), merge,
+then release the next patch version (never move the failed tag).
+A failure in **verify-release** happens after publishing: the public one-liners are broken for that release —
+tell the user immediately.
 
 ## Release-note quality guardrails
 

@@ -18,19 +18,24 @@ permissions:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    # Linux builds link against an old glibc sysroot (Ubuntu 18.04, glibc 2.27) in .NET's
+    # cross-build images, so the binaries run on older distros than the runner's own.
+    # See dotnet/runtime src/coreclr/nativeaot/docs/containers.md.
+    container: ${{ matrix.container }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Pinned (not ubuntu-latest): the arm64 apt sources below target noble, and the
-          # build host's glibc sets the minimum glibc of the published Linux binaries.
           - os: ubuntu-24.04
             rid: linux-x64
             artifact: dotnet-sdk-tui-linux-x64.tar.gz
+            container: mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net10.0-cross-amd64
+            sysroot: /crossrootfs/x64
           - os: ubuntu-24.04
             rid: linux-arm64
             artifact: dotnet-sdk-tui-linux-arm64.tar.gz
-            cross: true
+            container: mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net10.0-cross-arm64
+            sysroot: /crossrootfs/arm64
           - os: macos-latest
             rid: osx-arm64
             artifact: dotnet-sdk-tui-osx-arm64.tar.gz
@@ -51,36 +56,26 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Install cross-compilation toolchain (Linux ARM64)
-        if: matrix.cross
-        run: |
-          sudo dpkg --add-architecture arm64
-          # Configure arm64 sources alongside amd64 (Ubuntu 24.04 DEB822 format)
-          cat <<'SOURCES' | sudo tee /etc/apt/sources.list.d/arm64-ports.sources
-          Types: deb
-          URIs: http://ports.ubuntu.com/ubuntu-ports/
-          Suites: noble noble-updates
-          Components: main restricted universe
-          Architectures: arm64
-          SOURCES
-          # Restrict existing sources to amd64 only
-          for f in /etc/apt/sources.list.d/*.sources; do
-            [ "$f" = "/etc/apt/sources.list.d/arm64-ports.sources" ] && continue
-            if ! grep -q 'Architectures:' "$f" 2>/dev/null; then
-              sudo sed -i '/^Types:/a Architectures: amd64' "$f" || true
-            fi
-          done
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu zlib1g-dev:arm64
-
       - name: Publish NativeAOT
+        shell: bash
         run: >
           dotnet publish src/DotnetSdkTui/DotnetSdkTui.csproj
           --configuration Release
           --runtime ${{ matrix.rid }}
           --output publish/${{ matrix.rid }}
-          /p:Version=${{ inputs.version }}
-          ${{ matrix.cross && '/p:ObjCopyName=aarch64-linux-gnu-objcopy' || '' }}
+          -p:Version=${{ inputs.version }}
+          ${{ matrix.sysroot && format('-p:SysRoot={0} -p:LinkerFlavor=lld', matrix.sysroot) || '' }}
+
+      - name: Check glibc floor (Linux)
+        if: matrix.sysroot
+        shell: bash
+        run: |
+          # Fail if the binary needs a newer glibc than the Ubuntu 18.04 sysroot (2.27).
+          max=$(readelf --dyn-syms -W publish/${{ matrix.rid }}/dotnet-sdk-tui | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          echo "Highest required glibc symbol: $max"
+          [ "$(printf '%s\n' "$max" GLIBC_2.27 | sort -V | tail -1)" = GLIBC_2.27 ] \
+            || { echo "::error::binary requires $max"; exit 1; }
+
       - name: Sign binary (macOS)
         if: runner.os == 'macOS'
         run: codesign --force --sign - publish/${{ matrix.rid }}/dotnet-sdk-tui

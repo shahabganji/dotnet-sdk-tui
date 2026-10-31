@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace DotnetSdkTui.Tests.Helpers;
@@ -21,6 +22,14 @@ public sealed class Hex1bTerminal : IAsyncDisposable
 
     /// <summary>Path of the binary under test, or null to run from source.</summary>
     public static string? Binary => Environment.GetEnvironmentVariable("DSM_E2E_BINARY") is { Length: > 0 } b ? b : null;
+
+    /// <summary>
+    /// Optional hex1b apphost (<c>dotnet tool install hex1b.tool --tool-path DIR</c>). Required on Windows:
+    /// under <c>dotnet hex1b</c> the tool mistakes <c>dotnet.exe</c> for its own apphost and fails to spawn
+    /// its terminal host. Unset = <c>dotnet hex1b</c> via the repo's local tool manifest.
+    /// </summary>
+    private static string? Hex1bExecutable =>
+        Environment.GetEnvironmentVariable("DSM_E2E_HEX1B") is { Length: > 0 } h ? h : null;
 
     /// <summary>Starts dsm. <paramref name="environment"/> overrides the inherited env; a null value removes a variable.</summary>
     public static async Task<Hex1bTerminal> LaunchAsync(
@@ -79,6 +88,15 @@ public sealed class Hex1bTerminal : IAsyncDisposable
                 || name.StartsWith("MSBuild", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("DOTNET_HOST_PATH", StringComparison.OrdinalIgnoreCase))
                 env[name] = null;
+        }
+
+        // A hex1b apphost still needs to find its runtime; the arch-specific variable takes precedence
+        // for apphosts while dsm (and dotnetup) only look at DOTNET_ROOT.
+        if (Hex1bExecutable is not null
+            && Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
+            && Path.GetDirectoryName(host) is { } privateRoot)
+        {
+            env[$"DOTNET_ROOT_{RuntimeInformation.ProcessArchitecture.ToString().ToUpperInvariant()}"] = privateRoot;
         }
         return env;
     }
@@ -162,14 +180,16 @@ public sealed class Hex1bTerminal : IAsyncDisposable
         {
             // `dotnet test` exports DOTNET_HOST_PATH; invoking the muxer by full path keeps hex1b working
             // even when the environment handed to dsm has dotnet stripped from PATH.
-            FileName = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host ? host : "dotnet",
+            FileName = Hex1bExecutable
+                ?? (Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host ? host : "dotnet"),
             WorkingDirectory = RepoRoot, // resolves the hex1b local tool from .config/dotnet-tools.json
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        psi.ArgumentList.Add("hex1b");
+        if (Hex1bExecutable is null)
+            psi.ArgumentList.Add("hex1b");
         foreach (string arg in arguments)
             psi.ArgumentList.Add(arg);
         if (environment is not null)
@@ -192,13 +212,13 @@ public sealed class Hex1bTerminal : IAsyncDisposable
         catch (OperationCanceledException)
         {
             try { process.Kill(entireProcessTree: true); } catch { }
-            throw new Hex1bCommandException($"hex1b {string.Join(' ', psi.ArgumentList.Skip(1))} timed out after {timeoutSec}s");
+            throw new Hex1bCommandException($"hex1b {string.Join(' ', arguments)} timed out after {timeoutSec}s");
         }
 
         string output = await stdout;
         if (process.ExitCode != 0)
             throw new Hex1bCommandException(
-                $"hex1b {string.Join(' ', psi.ArgumentList.Skip(1))} failed (exit {process.ExitCode}): {await stderr}{output}");
+                $"hex1b {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {await stderr}{output}");
         return output.Trim();
     }
 

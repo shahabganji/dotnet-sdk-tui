@@ -106,6 +106,17 @@ jobs:
           dotnet tool restore
           dotnet build tests/DotnetSdkTui.Tests --configuration Release
 
+      # hex1b 0.164 only recognises `dotnet` (not `dotnet.exe`) as the muxer, so on Windows
+      # `dotnet hex1b terminal start` cannot spawn its host. Its apphost works everywhere.
+      - name: Install hex1b apphost (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (Get-Content .config/dotnet-tools.json -Raw | ConvertFrom-Json).tools.'hex1b.tool'.version
+          $dir = Join-Path $env:RUNNER_TEMP hex1b
+          dotnet tool install hex1b.tool --version $version --tool-path $dir
+          "DSM_E2E_HEX1B=$(Join-Path $dir hex1b.exe)" >> $env:GITHUB_ENV
+
       - name: TUI tests (installed binary)
         shell: bash
         env:
