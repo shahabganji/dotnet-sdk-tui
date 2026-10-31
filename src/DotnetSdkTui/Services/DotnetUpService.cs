@@ -133,6 +133,22 @@ public static class DotnetUpService
         ProcessRunner.RunWithCallbackAsync("dotnetup", "sdk update", null, null, null, ct);
 
     /// <summary>
+    /// The command that downloads and runs dotnetup's bootstrap script (installs or updates dotnetup).
+    /// </summary>
+    internal static (string Command, string Args) BootstrapCommand()
+    {
+        if (!OperatingSystem.IsWindows())
+            return ("bash", "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"");
+
+        // dotnetup's install script requires pwsh (PowerShell 7+) — it uses
+        // RuntimeInformation.OSArchitecture which doesn't exist in Windows PowerShell 5.1.
+        // -UseBasicParsing: without it, patched Windows PowerShell stops at an interactive
+        // "Script Execution Risk" prompt before downloading anything.
+        string shell = ProcessRunner.IsCommandAvailable("pwsh") ? "pwsh" : "powershell.exe";
+        return (shell, "-NoProfile -ExecutionPolicy Bypass -Command \"iwr -UseBasicParsing https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
+    }
+
+    /// <summary>
     /// Installs the dotnetup tool itself using the platform-specific bootstrap script.
     /// </summary>
     public static async Task<ProcessResult> InstallDotnetUpAsync(CancellationToken ct = default)
@@ -140,19 +156,13 @@ public static class DotnetUpService
         // Use RunInteractiveAsync on Windows (UseShellExecute=true avoids Access Denied)
         if (OperatingSystem.IsWindows())
         {
-            // dotnetup's install script requires pwsh (PowerShell 7+) — it uses
-            // RuntimeInformation.OSArchitecture which doesn't exist in Windows PowerShell 5.1
-            string shell = ProcessRunner.IsCommandAvailable("pwsh") ? "pwsh" : "powershell.exe";
-            int exitCode = await ProcessRunner.RunInteractiveAsync(
-                shell,
-                "-ExecutionPolicy Bypass -Command \"iwr -UseBasicParsing https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
+            var (shell, args) = BootstrapCommand();
+            int exitCode = await ProcessRunner.RunInteractiveAsync(shell, args);
             return new ProcessResult(exitCode, "", "", TimeSpan.Zero);
         }
 
-        var result = await ProcessRunner.RunWithCallbackAsync(
-            "bash",
-            "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"",
-            null, null, null, ct);
+        var (command, arguments) = BootstrapCommand();
+        var result = await ProcessRunner.RunWithCallbackAsync(command, arguments, null, null, null, ct);
 
         // Auto-add dotnetup and dotnet to PATH on macOS/Linux
         if (result.ExitCode == 0)

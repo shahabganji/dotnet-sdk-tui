@@ -170,4 +170,17 @@ public class DotnetUpServiceTests
 
         Assert.Same(path, updated);
     }
+
+    [Fact]
+    public void BootstrapCommand_OnWindows_AvoidsInteractiveWebRequestPrompt()
+    {
+        var (_, args) = DotnetUpService.BootstrapCommand();
+
+        // Windows PowerShell prompts ("Script Execution Risk") on iwr without -UseBasicParsing,
+        // which hangs the Setup panel's install.
+        if (OperatingSystem.IsWindows())
+            Assert.Contains("iwr -UseBasicParsing", args);
+        else
+            Assert.Contains("curl -fsSL", args);
+    }
 }
