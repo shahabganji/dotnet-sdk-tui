@@ -985,7 +985,18 @@ public sealed class App
         // Brew commands run non-interactively (skip the "Ask mode" y/n prompt).
         IReadOnlyDictionary<string, string>? environment =
             cmd == "brew" ? BrewService.NonInteractiveEnv : null;
-        int exitCode = await ProcessRunner.RunInteractiveAsync(cmd, args, workingDirectory: cwd, environment: environment);
+        int exitCode = cmd == "dotnetup"
+            // Pin other installs first so dotnetup's garbage collection can't remove them.
+            ? await InstallGuard.RunGuardedAsync(
+                args,
+                run: a => ProcessRunner.RunInteractiveAsync(cmd, a, workingDirectory: cwd),
+                readListJson: async () =>
+                {
+                    ProcessResult list = await ProcessRunner.RunAsync(cmd, "list --format Json");
+                    return list.ExitCode == 0 ? list.Output : null;
+                },
+                log: Console.WriteLine)
+            : await ProcessRunner.RunInteractiveAsync(cmd, args, workingDirectory: cwd, environment: environment);
 
         Console.WriteLine();
         Console.WriteLine(new string('-', 60));

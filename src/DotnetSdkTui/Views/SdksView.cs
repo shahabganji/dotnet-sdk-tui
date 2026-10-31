@@ -323,7 +323,7 @@ public sealed class SdksView : IView
 
             case ConsoleKey.U:
                 if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
-                await RequestUninstallAsync();
+                RequestUninstall();
                 return KeyResult.Handled;
 
             case ConsoleKey.P:
@@ -371,7 +371,7 @@ public sealed class SdksView : IView
         PendingCommand = ("dotnetup", $"sdk install {row.Channel}", null);
     }
 
-    private async Task RequestUninstallAsync()
+    private void RequestUninstall()
     {
         if (_rows.Count == 0 || _selectedIndex >= _rows.Count) return;
 
@@ -394,8 +394,9 @@ public sealed class SdksView : IView
             return;
         }
 
-        string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, "SDK");
-        PendingCommand = ("dotnetup", $"sdk uninstall {spec} --source all", null);
+        // The exact version, not a channel: InstallGuard expands it into removing only the specs that
+        // keep this version, so no other SDK is garbage-collected along with it.
+        PendingCommand = ("dotnetup", $"sdk uninstall {row.Version}", null);
     }
 
     private void RequestUpdate()
