@@ -132,6 +132,8 @@ dotnet publish src/DotnetSdkTui -c Release -r osx-arm64
 | Linux (x64) | `linux-x64` |
 | Linux (ARM) | `linux-arm64` |
 
+Linux binaries need glibc 2.27 or newer (Ubuntu 18.04+, Debian 10+, RHEL 8+); Alpine/musl isn't supported. On Windows, dsm shows symbols instead of emoji icons. Every platform above is installed and exercised in CI before a release — see [How releases are verified](#how-releases-are-verified).
+
 ## Testing
 
 ```bash
