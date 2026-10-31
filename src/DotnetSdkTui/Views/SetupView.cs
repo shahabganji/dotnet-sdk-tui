@@ -144,19 +144,14 @@ public sealed class SetupView : IView
         }
     }
 
-    private void RequestInstall()
-    {
-        if (OperatingSystem.IsWindows())
-            PendingCommand = ("powershell", "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"", null);
-        else
-            PendingCommand = ("bash", "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"", null);
-    }
+    // Installing and updating dotnetup both re-run its bootstrap script.
+    private void RequestInstall() => RequestBootstrap();
 
-    private void RequestUpdate()
+    private void RequestUpdate() => RequestBootstrap();
+
+    private void RequestBootstrap()
     {
-        if (OperatingSystem.IsWindows())
-            PendingCommand = ("powershell", "-Command \"iwr https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"", null);
-        else
-            PendingCommand = ("bash", "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"", null);
+        var (command, args) = DotnetUpService.BootstrapCommand();
+        PendingCommand = (command, args, null);
     }
 }

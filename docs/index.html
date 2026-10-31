@@ -392,6 +392,17 @@
       <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | <span class="cmd">bash</span></pre>
     </div>
 
+    <div class="install-card">
+      <div class="card-header"><i class="bi bi-windows icon" style="font-size:2.8rem;color:var(--icon)"></i></div>
+      <p style="color: var(--text-muted); margin-bottom: 0.75rem;">PowerShell 7+ or Windows PowerShell 5.1. Installs to <code>%LOCALAPPDATA%\dsm</code> and adds it to your user PATH.</p>
+      <p style="font-size: 0.8rem; color: var(--teal); margin-bottom: 0.3rem;">Install or update:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | <span class="cmd">iex</span></pre>
+      <p style="font-size: 0.8rem; color: var(--icon); margin-bottom: 0.3rem;">Uninstall:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | <span class="cmd">iex</span></pre>
+    </div>
+
+    <p style="color: var(--text-muted); margin-top: 1.5rem;">Native builds for macOS, Linux and Windows on both x64 and ARM64. Linux builds need glibc 2.27 or newer (Ubuntu 18.04+, Debian 10+, RHEL 8+, Fedora…); Alpine/musl isn't supported yet. On Windows, dsm shows symbols instead of emoji icons. Set <code>DSM_VERSION=v0.9.3</code> to install a specific release.</p>
+
     <p style="color: var(--text-muted); margin-top: 1.5rem;">After installation, open a new terminal and run <code>dsm</code>. The app will notify you when updates are available — press <code>Ctrl+U</code> to self-update.</p>
 
     <h3 style="margin: 2rem 0 0.5rem;">Troubleshooting</h3>
@@ -404,7 +415,7 @@
     <h3 style="margin: 2rem 0 0.5rem;">Prerequisites</h3>
     <div class="feature-card" style="margin-top: 0.5rem;">
       <div class="card-header"><i class="bi bi-box-arrow-up-right icon"></i><h3>dotnetup</h3></div>
-      <p style="color: var(--text-muted);">dsm uses <strong>dotnetup</strong>, the official .NET SDK acquisition tool, for installing and managing SDKs and runtimes. You can install dotnetup from within dsm (press <code>i</code> in the Setup panel), or set it up manually by following the <a href="https://github.com/dotnet/sdk/tree/release/dnup/documentation/general/dotnetup" style="color: var(--teal);">dotnetup documentation</a>.</p>
+      <p style="color: var(--text-muted);">dsm uses <strong>dotnetup</strong>, the official .NET SDK acquisition tool, for installing and managing SDKs and runtimes. You can install dotnetup from within dsm (press <code>i</code> in the Setup panel; on Windows this runs dotnetup's installer with PowerShell 7 when it's installed, otherwise Windows PowerShell), or set it up manually by following the <a href="https://github.com/dotnet/sdk/tree/release/dnup/documentation/general/dotnetup" style="color: var(--teal);">dotnetup documentation</a>.</p>
     </div>
   </div>
 </section>

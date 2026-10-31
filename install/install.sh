@@ -4,7 +4,11 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | bash
 #   ./install.sh --install-dir /opt/dsm
-#   ./install.sh --runtime-id linux-musl-x64
+#   ./install.sh --version v1.2.3
+#   ./install.sh --archive ./dotnet-sdk-tui-linux-x64.tar.gz
+#
+# Environment overrides (useful with `curl | bash`):
+#   DSM_INSTALL_DIR, DSM_VERSION, DSM_ARCHIVE
 
 set -euo pipefail
 
@@ -12,8 +16,10 @@ readonly BINARY_NAME="dsm"
 readonly ARCHIVE_NAME="dotnet-sdk-tui"
 readonly REPO_OWNER="shahabganji"
 readonly REPO_NAME="dotnet-sdk-tui"
-INSTALL_DIR="${HOME}/.local/bin"
+INSTALL_DIR="${DSM_INSTALL_DIR:-${HOME}/.local/bin}"
 RUNTIME_ID=""
+VERSION="${DSM_VERSION:-}"
+ARCHIVE="${DSM_ARCHIVE:-}"
 
 # --- Colors ---
 if [ -t 1 ]; then
@@ -33,6 +39,8 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --install-dir)  INSTALL_DIR="$2"; shift 2 ;;
         --runtime-id)   RUNTIME_ID="$2"; shift 2 ;;
+        --version)      VERSION="$2"; shift 2 ;;
+        --archive)      ARCHIVE="$2"; shift 2 ;;
         --help|-h)
             cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
@@ -41,7 +49,11 @@ Install or update .NET SDK Manager (dsm).
 
 Options:
   --install-dir DIR     Installation directory (default: ~/.local/bin)
-  --runtime-id RID      Override OS/architecture detection (e.g. linux-musl-x64, osx-arm64)
+  --runtime-id RID      Override OS/architecture detection (e.g. linux-arm64, osx-arm64)
+  --version TAG         Install a specific release (e.g. v1.2.3; default: latest)
+  --archive PATH        Install from a local release archive instead of downloading
+
+Environment: DSM_INSTALL_DIR, DSM_VERSION and DSM_ARCHIVE mirror the options above.
   --help, -h            Show this help message
 EOF
             exit 0
@@ -61,7 +73,7 @@ if command -v curl &>/dev/null; then
     DOWNLOADER="curl"
 elif command -v wget &>/dev/null; then
     DOWNLOADER="wget"
-else
+elif [ -z "$ARCHIVE" ]; then
     err "Neither 'curl' nor 'wget' was found. One is required."
     exit 1
 fi
@@ -89,7 +101,14 @@ detect_rid() {
 
     local os arch
     case "$(uname -s)" in
-        Linux)  os=$(is_musl && echo "linux-musl" || echo "linux") ;;
+        Linux)
+            if is_musl; then
+                err "musl-based Linux (e.g. Alpine) isn't supported yet: dsm only ships glibc builds."
+                err "Use a glibc distro (Debian, Ubuntu, Fedora, ...) or build from source:"
+                err "  https://github.com/${REPO_OWNER}/${REPO_NAME}#build-from-source"
+                exit 1
+            fi
+            os="linux" ;;
         Darwin) os="osx" ;;
         *)      err "Unsupported OS: $(uname -s). Use --runtime-id."; exit 1 ;;
     esac
@@ -116,9 +135,15 @@ trap cleanup EXIT
 
 # --- Main ---
 main() {
-    local rid download_url
+    local rid download_url release_path
     rid="$(detect_rid)"
-    download_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/${ARCHIVE_NAME}-${rid}.tar.gz"
+    if [ -n "$VERSION" ]; then
+        [[ "$VERSION" == v* ]] || VERSION="v${VERSION}"
+        release_path="download/${VERSION}"
+    else
+        release_path="latest/download"
+    fi
+    download_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/${release_path}/${ARCHIVE_NAME}-${rid}.tar.gz"
 
     local target_path="${INSTALL_DIR}/${BINARY_NAME}"
     local action="Installing"
@@ -133,11 +158,17 @@ main() {
     local archive_path="${TEMP_DIR}/${ARCHIVE_NAME}.tar.gz"
     mkdir -p "$INSTALL_DIR"
 
-    info "Downloading latest release"
-    if ! download "$download_url" "$archive_path"; then
-        err "Download failed: ${download_url}"
-        err "Available RIDs: osx-x64, osx-arm64, linux-x64, linux-arm64"
-        exit 1
+    if [ -n "$ARCHIVE" ]; then
+        [ -f "$ARCHIVE" ] || { err "Archive not found: ${ARCHIVE}"; exit 1; }
+        info "Using local archive ${ARCHIVE}"
+        cp "$ARCHIVE" "$archive_path"
+    else
+        info "Downloading ${VERSION:-latest} release"
+        if ! download "$download_url" "$archive_path"; then
+            err "Download failed: ${download_url}"
+            err "Available RIDs: osx-x64, osx-arm64, linux-x64, linux-arm64"
+            exit 1
+        fi
     fi
 
     info "Extracting"
@@ -185,16 +216,23 @@ main() {
             *)     profile="$HOME/.bashrc" ;;
         esac
 
-        # Auto-add to shell profile
+        # Auto-add to shell profile (once — re-runs/updates must not duplicate it)
+        local path_line
         if [ "$shell_name" = "fish" ]; then
-            echo "fish_add_path \"$INSTALL_DIR\"" >> "$profile"
+            path_line="fish_add_path \"$INSTALL_DIR\""
         else
-            echo "export PATH=\"$INSTALL_DIR:\$PATH\"" >> "$profile"
+            path_line="export PATH=\"$INSTALL_DIR:\$PATH\""
+        fi
+        if [ -f "$profile" ] && grep -qxF "$path_line" "$profile"; then
+            ok "${INSTALL_DIR} is already in ${profile}."
+        else
+            mkdir -p "$(dirname "$profile")"
+            echo "$path_line" >> "$profile"
+            ok "Added ${INSTALL_DIR} to ${profile}."
         fi
 
         # Also set for current session
         export PATH="$INSTALL_DIR:$PATH"
-        ok "Added ${INSTALL_DIR} to ${profile}."
         ok "To use dsm now, run:  source ${profile}"
         ok "Or open a new terminal and run 'dsm'."
     fi

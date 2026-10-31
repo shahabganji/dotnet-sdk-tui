@@ -3,6 +3,11 @@
 #
 # Usage:
 #   irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | iex
+#
+# Environment overrides (parameters don't work with `irm | iex`):
+#   DSM_INSTALL_DIR  Installation directory (default: %LOCALAPPDATA%\dsm)
+#   DSM_VERSION      Release tag to install, e.g. v1.2.3 (default: latest)
+#   DSM_ARCHIVE      Path to a local release .zip to install instead of downloading
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -11,7 +16,9 @@ $BinaryBaseName = 'dsm'
 $ArchiveName = 'dotnet-sdk-tui'
 $RepoOwner = 'shahabganji'
 $RepoName = 'dotnet-sdk-tui'
-$InstallDir = Join-Path $env:LOCALAPPDATA $BinaryBaseName
+$InstallDir = if ($env:DSM_INSTALL_DIR) { $env:DSM_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA $BinaryBaseName }
+$Version = $env:DSM_VERSION
+$LocalArchive = $env:DSM_ARCHIVE
 $StagingDir = Join-Path $InstallDir '.install-staging'
 
 Write-Host ''
@@ -42,7 +49,12 @@ function Test-PathEntryPresent {
 }
 
 $rid = Get-Rid
-$downloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/latest/download/$ArchiveName-$rid.zip"
+$releasePath = 'latest/download'
+if ($Version) {
+    if (-not $Version.StartsWith('v')) { $Version = "v$Version" }
+    $releasePath = "download/$Version"
+}
+$downloadUrl = "https://github.com/$RepoOwner/$RepoName/releases/$releasePath/$ArchiveName-$rid.zip"
 $archivePath = Join-Path $StagingDir "$ArchiveName-$rid.zip"
 $targetPath = Join-Path $InstallDir "$BinaryBaseName.exe"
 
@@ -58,8 +70,18 @@ if (Test-Path -LiteralPath $StagingDir) {
 New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
 
 try {
-    Write-Host '==> Downloading latest release'
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath
+    if ($LocalArchive) {
+        if (-not (Test-Path -LiteralPath $LocalArchive -PathType Leaf)) { throw "Archive not found: $LocalArchive" }
+        Write-Host "==> Using local archive $LocalArchive"
+        Copy-Item -LiteralPath $LocalArchive -Destination $archivePath -Force
+    } else {
+        $label = if ($Version) { $Version } else { 'latest' }
+        Write-Host "==> Downloading $label release"
+        # Windows PowerShell 5.1 defaults to TLS 1.0/1.1, which GitHub rejects.
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath -UseBasicParsing
+    }
 
     Write-Host '==> Extracting'
     Expand-Archive -LiteralPath $archivePath -DestinationPath $StagingDir -Force

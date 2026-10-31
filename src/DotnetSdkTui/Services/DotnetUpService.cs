@@ -133,6 +133,22 @@ public static class DotnetUpService
         ProcessRunner.RunWithCallbackAsync("dotnetup", "sdk update", null, null, null, ct);
 
     /// <summary>
+    /// The command that downloads and runs dotnetup's bootstrap script (installs or updates dotnetup).
+    /// </summary>
+    internal static (string Command, string Args) BootstrapCommand()
+    {
+        if (!OperatingSystem.IsWindows())
+            return ("bash", "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"");
+
+        // dotnetup's install script requires pwsh (PowerShell 7+) — it uses
+        // RuntimeInformation.OSArchitecture which doesn't exist in Windows PowerShell 5.1.
+        // -UseBasicParsing: without it, patched Windows PowerShell stops at an interactive
+        // "Script Execution Risk" prompt before downloading anything.
+        string shell = ProcessRunner.IsCommandAvailable("pwsh") ? "pwsh" : "powershell.exe";
+        return (shell, "-NoProfile -ExecutionPolicy Bypass -Command \"iwr -UseBasicParsing https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
+    }
+
+    /// <summary>
     /// Installs the dotnetup tool itself using the platform-specific bootstrap script.
     /// </summary>
     public static async Task<ProcessResult> InstallDotnetUpAsync(CancellationToken ct = default)
@@ -140,19 +156,13 @@ public static class DotnetUpService
         // Use RunInteractiveAsync on Windows (UseShellExecute=true avoids Access Denied)
         if (OperatingSystem.IsWindows())
         {
-            // dotnetup's install script requires pwsh (PowerShell 7+) — it uses
-            // RuntimeInformation.OSArchitecture which doesn't exist in Windows PowerShell 5.1
-            string shell = ProcessRunner.IsCommandAvailable("pwsh") ? "pwsh" : "powershell.exe";
-            int exitCode = await ProcessRunner.RunInteractiveAsync(
-                shell,
-                "-ExecutionPolicy Bypass -Command \"iwr -UseBasicParsing https://aka.ms/dotnetup/get-dotnetup.ps1 | iex\"");
+            var (shell, args) = BootstrapCommand();
+            int exitCode = await ProcessRunner.RunInteractiveAsync(shell, args);
             return new ProcessResult(exitCode, "", "", TimeSpan.Zero);
         }
 
-        var result = await ProcessRunner.RunWithCallbackAsync(
-            "bash",
-            "-c \"curl -fsSL https://aka.ms/dotnetup/get-dotnetup.sh | bash\"",
-            null, null, null, ct);
+        var (command, arguments) = BootstrapCommand();
+        var result = await ProcessRunner.RunWithCallbackAsync(command, arguments, null, null, null, ct);
 
         // Auto-add dotnetup and dotnet to PATH on macOS/Linux
         if (result.ExitCode == 0)
@@ -231,33 +241,83 @@ public static class DotnetUpService
     /// </summary>
     public static void RefreshPath()
     {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        // Only when dsm lets dotnetup pick its default root (no user-level active root, see
+        // InstallLocationService) — otherwise installs are pinned to the active root and PATH
+        // must keep pointing at it.
+        bool includeDotnetUpRoot = InstallLocationService.GetActiveInstallRoot() is null;
+        IReadOnlyList<string> candidates = GetPathCandidates(
+            home,
+            Environment.GetEnvironmentVariable("XDG_DATA_HOME"),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            OperatingSystem.IsWindows(),
+            OperatingSystem.IsMacOS(),
+            includeDotnetUpRoot);
+
         string currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-        var dirsToAdd = new List<string>();
+        string updated = PrependMissingDirs(currentPath, candidates, Directory.Exists, Path.PathSeparator);
+        if (!ReferenceEquals(updated, currentPath))
+            Environment.SetEnvironmentVariable("PATH", updated);
+    }
 
-        // dotnetup tool
-        string dotnetupDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnetup");
-        if (Directory.Exists(dotnetupDir) && !currentPath.Contains(dotnetupDir))
-            dirsToAdd.Add(dotnetupDir);
+    /// <summary>
+    /// dotnetup's default .NET installation root — where it installs when no
+    /// <c>--install-path</c> is given (e.g. on a machine without a user-level dotnet):
+    /// <c>%LOCALAPPDATA%\dotnetup\dotnet</c>, <c>~/Library/Application Support/dotnetup/dotnet</c>,
+    /// or <c>$XDG_DATA_HOME/dotnetup/dotnet</c> (default <c>~/.local/share/dotnetup/dotnet</c>).
+    /// </summary>
+    internal static string GetDotnetUpDefaultInstallRoot(
+        string home, string? xdgDataHome, string localAppData, bool isWindows, bool isMacOS)
+    {
+        string dataDir = isWindows ? localAppData
+            : isMacOS ? Path.Combine(home, "Library", "Application Support")
+            : !string.IsNullOrWhiteSpace(xdgDataHome) ? xdgDataHome
+            : Path.Combine(home, ".local", "share");
+        return Path.Combine(dataDir, "dotnetup", "dotnet");
+    }
 
-        // dotnet managed by dotnetup (macOS/Linux)
-        if (!OperatingSystem.IsWindows())
+    /// <summary>
+    /// Directories that hold <c>dotnetup</c> or a user-level <c>dotnet</c>, in PATH priority order.
+    /// The dotnetup default root (when included) comes first: installs made there with
+    /// <c>--set-default-install</c> become the user's default dotnet in new shells, so dsm must
+    /// see them immediately too.
+    /// </summary>
+    internal static IReadOnlyList<string> GetPathCandidates(
+        string home, string? xdgDataHome, string localAppData, bool isWindows, bool isMacOS,
+        bool includeDotnetUpRoot)
+    {
+        var dirs = new List<string> { Path.Combine(home, ".dotnetup") };
+        if (includeDotnetUpRoot)
+            dirs.Add(GetDotnetUpDefaultInstallRoot(home, xdgDataHome, localAppData, isWindows, isMacOS));
+        if (!isWindows)
         {
-            string dotnetDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "Library", "Application Support", "dotnet");
-            if (Directory.Exists(dotnetDir) && !currentPath.Contains(dotnetDir))
-                dirsToAdd.Add(dotnetDir);
-
-            // Linux default
-            string linuxDotnet = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnet");
-            if (Directory.Exists(linuxDotnet) && !currentPath.Contains(linuxDotnet))
-                dirsToAdd.Add(linuxDotnet);
+            // Pre-0.2.0 dotnetup roots and the dotnet-install script default.
+            dirs.Add(Path.Combine(home, "Library", "Application Support", "dotnet"));
+            dirs.Add(Path.Combine(home, ".dotnet"));
         }
+        return dirs;
+    }
 
-        if (dirsToAdd.Count > 0)
-        {
-            string sep = OperatingSystem.IsWindows() ? ";" : ":";
-            Environment.SetEnvironmentVariable("PATH", string.Join(sep, dirsToAdd) + sep + currentPath);
-        }
+    /// <summary>
+    /// Prepends each existing directory not already on <paramref name="path"/> (compared entry by
+    /// entry, ignoring trailing separators). Returns the same instance when nothing changes.
+    /// </summary>
+    internal static string PrependMissingDirs(
+        string path, IEnumerable<string> dirs, Func<string, bool> directoryExists, char separator)
+    {
+        StringComparison comparison = separator == ';' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var entries = path.Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(e => e.TrimEnd('/', '\\'))
+            .ToList();
+
+        var toAdd = dirs
+            .Where(d => directoryExists(d)
+                && !entries.Any(e => e.Equals(d.TrimEnd('/', '\\'), comparison)))
+            .ToList();
+
+        return toAdd.Count == 0
+            ? path
+            : string.Join(separator, toAdd) + (path.Length > 0 ? separator + path : "");
     }
 
     /// <summary>

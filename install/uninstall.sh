@@ -7,7 +7,7 @@
 set -euo pipefail
 
 BINARY_NAME="dsm"
-INSTALL_DIR="${HOME}/.local/bin"
+INSTALL_DIR="${DSM_INSTALL_DIR:-${HOME}/.local/bin}"
 
 if [ -t 1 ]; then
     GREEN='\033[0;32m' YELLOW='\033[1;33m' RED='\033[0;31m' NC='\033[0m'

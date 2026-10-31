@@ -1,0 +1,217 @@
+name: Smoke test
+
+# Installs dsm through the real install scripts on every supported OS/arch (plus older
+# glibc distros), checks `dsm --version`, drives the installed binary's TUI with hex1b,
+# optionally performs a real runtime install/uninstall through dsm, then uninstalls.
+#
+#   source: artifacts — test the archives uploaded earlier in the calling run (publish.yml)
+#   source: release   — test a published GitHub Release via the public one-liners
+
+on:
+  workflow_call:
+    inputs:
+      source:
+        type: string
+        default: artifacts
+      version:
+        description: Expected version (X.Y.Z). With source=release also selects the tag; empty = latest.
+        type: string
+        default: ''
+      full:
+        description: Also run the full flow (install dotnetup + a runtime through dsm, then uninstall it)
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release to verify (X.Y.Z); empty = latest
+        type: string
+        default: ''
+      full:
+        description: Run the full install/uninstall flow
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  SOURCE: ${{ inputs.source || 'release' }}
+  VERSION: ${{ inputs.version }}
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  native:
+    name: ${{ matrix.rid }} (${{ matrix.os }}, ${{ matrix.shell }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04,     rid: linux-x64,   ext: tar.gz, shell: bash,       full: true }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64, ext: tar.gz, shell: bash,       full: true }
+          - { os: macos-latest,     rid: osx-arm64,   ext: tar.gz, shell: bash,       full: true }
+          - { os: macos-15-intel,   rid: osx-x64,     ext: tar.gz, shell: bash,       full: false }
+          - { os: windows-latest,   rid: win-x64,     ext: zip,    shell: pwsh,       full: true }
+          - { os: windows-latest,   rid: win-x64,     ext: zip,    shell: powershell, full: false }
+          - { os: windows-11-arm,   rid: win-arm64,   ext: zip,    shell: pwsh,       full: true }
+    steps:
+      - uses: actions/checkout@v5
+
+      # Private .NET for building the tests and running hex1b. The E2E fixture strips
+      # every dotnet directory from dsm's PATH, so dsm itself sees a machine without .NET.
+      - uses: actions/setup-dotnet@v5
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
+        with:
+          global-json-file: global.json
+
+      - name: Hide system-wide dotnet
+        if: runner.os != 'Windows'
+        run: sudo rm -f /usr/bin/dotnet /usr/local/bin/dotnet
+
+      - name: Download archive
+        if: env.SOURCE == 'artifacts'
+        uses: actions/download-artifact@v8
+        with:
+          name: dotnet-sdk-tui-${{ matrix.rid }}.${{ matrix.ext }}
+          path: artifacts
+
+      - name: Install (bash)
+        id: install
+        if: runner.os != 'Windows'
+        run: |
+          args=()
+          if [ "$SOURCE" = artifacts ]; then args+=(--archive "artifacts/dotnet-sdk-tui-${{ matrix.rid }}.tar.gz")
+          else args+=(--release ${VERSION:+"v$VERSION"}); fi
+          if [ -n "$VERSION" ]; then args+=(--expect-version "$VERSION"); fi
+          tests/smoke/smoke.sh install "${args[@]}"
+
+      - name: Install (${{ matrix.shell }})
+        id: install-win
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $a = @{ Phase = 'install'; Shell = '${{ matrix.shell }}' }
+          if ($env:SOURCE -eq 'artifacts') { $a.Archive = 'artifacts/dotnet-sdk-tui-${{ matrix.rid }}.zip' }
+          else { $a.Release = $true; if ($env:VERSION) { $a.Tag = "v$env:VERSION" } }
+          if ($env:VERSION) { $a.ExpectVersion = $env:VERSION }
+          ./tests/smoke/smoke.ps1 @a
+
+      # macOS images ship an untracked .NET in ~/.dotnet, which dsm would pick as the install root
+      # (and dotnetup refuses to install into). Hide it before `dotnet tool restore` recreates
+      # ~/.dotnet/toolResolverCache, which `dotnet hex1b` needs.
+      - name: Hide preinstalled user-level .NET
+        if: runner.os != 'Windows'
+        run: if [ -x "$HOME/.dotnet/dotnet" ]; then mv "$HOME/.dotnet" "$HOME/.dotnet-preinstalled"; fi
+
+      - name: Build tests
+        shell: bash
+        run: |
+          dotnet tool restore
+          dotnet build tests/DotnetSdkTui.Tests --configuration Release
+
+      # hex1b 0.164 only recognises `dotnet` (not `dotnet.exe`) as the muxer, so on Windows
+      # `dotnet hex1b terminal start` cannot spawn its host. Its apphost works everywhere.
+      - name: Install hex1b apphost (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (Get-Content .config/dotnet-tools.json -Raw | ConvertFrom-Json).tools.'hex1b.tool'.version
+          $dir = Join-Path $env:RUNNER_TEMP hex1b
+          dotnet tool install hex1b.tool --version $version --tool-path $dir
+          "DSM_E2E_HEX1B=$(Join-Path $dir hex1b.exe)" >> $env:GITHUB_ENV
+
+      - name: TUI tests (installed binary)
+        shell: bash
+        env:
+          DSM_E2E: '1'
+          DSM_E2E_EXPECTED_VERSION: ${{ env.VERSION }}
+        run: tests/smoke/run-tests.sh E2E
+
+      - name: Full flow (install + uninstall a runtime through dsm)
+        if: inputs.full && matrix.full
+        shell: bash
+        env:
+          DSM_E2E: '1'
+          DSM_E2E_FULL: '1'
+        run: tests/smoke/run-tests.sh FullFlow
+
+      - name: Uninstall (bash)
+        if: always() && steps.install.outcome == 'success'
+        run: tests/smoke/smoke.sh uninstall ${{ env.SOURCE == 'release' && '--release' || '' }}
+
+      - name: Uninstall (${{ matrix.shell }})
+        if: always() && steps.install-win.outcome == 'success'
+        shell: pwsh
+        run: ./tests/smoke/smoke.ps1 -Phase uninstall -Shell ${{ matrix.shell }} -Release:$${{ env.SOURCE == 'release' }}
+
+      - name: Upload screenshots and results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-${{ env.SOURCE }}-${{ matrix.rid }}-${{ matrix.shell }}
+          path: |
+            tests/DotnetSdkTui.Tests/test-artifacts/
+            TestResults/
+          if-no-files-found: ignore
+
+  # Install + `dsm --version` on older/other glibc distros: catches glibc floor and
+  # installer dependency (tar/find/curl) problems that the runner images hide.
+  distros:
+    name: ${{ matrix.image }} (linux-x64)
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['debian:12', 'ubuntu:22.04', 'fedora:latest', 'rockylinux:9']
+    steps:
+      - name: Install prerequisites
+        run: |
+          if command -v apt-get >/dev/null; then
+            apt-get update -qq && apt-get install -y -qq bash curl ca-certificates tar gzip findutils >/dev/null
+          else
+            dnf install -y -q --allowerasing bash curl ca-certificates tar gzip findutils
+          fi
+
+      - uses: actions/checkout@v5
+
+      - name: Download archive
+        if: env.SOURCE == 'artifacts'
+        uses: actions/download-artifact@v8
+        with:
+          name: dotnet-sdk-tui-linux-x64.tar.gz
+          path: artifacts
+
+      - name: Install, run, uninstall
+        shell: bash
+        run: |
+          args=()
+          if [ "$SOURCE" = artifacts ]; then args+=(--archive artifacts/dotnet-sdk-tui-linux-x64.tar.gz)
+          else args+=(--release ${VERSION:+"v$VERSION"}); fi
+          if [ -n "$VERSION" ]; then args+=(--expect-version "$VERSION"); fi
+          tests/smoke/smoke.sh all "${args[@]}"
+
+  # dsm ships no musl builds: the installer must refuse with a clear message.
+  musl:
+    name: alpine (musl) is rejected
+    runs-on: ubuntu-24.04
+    container: alpine:3.20
+    timeout-minutes: 10
+    steps:
+      - run: apk add --no-cache bash curl git
+      - uses: actions/checkout@v5
+      - name: Installer exits non-zero with a clear error
+        shell: bash
+        run: |
+          set +e
+          if [ "$SOURCE" = artifacts ]; then out=$(bash install/install.sh 2>&1)
+          else out=$(curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | bash 2>&1); fi
+          code=$?
+          echo "$out"
+          [ "$code" -ne 0 ] || { echo "::error::installer succeeded on musl"; exit 1; }
+          grep -q "musl-based Linux" <<<"$out" || { echo "::error::missing musl error message"; exit 1; }

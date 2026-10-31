@@ -283,7 +283,7 @@ public sealed class App
         // (a) shifts every row up relative to the frame we think we drew — breaking absolute-row
         // mouse hit-testing on the tab strip — and (b) needlessly churns the scrollback. Drop a
         // single trailing newline so the frame occupies exactly its rows and never scrolls.
-        if (bodyText.EndsWith('\n')) bodyText = bodyText[..^1];
+        bodyText = TrimTrailingNewline(bodyText);
 
         // Locate the tab strip's real screen row for click hit-testing. Each '\n' in the emitted body
         // advances one row from cursor-home (row 1), and Spectre may compress the rows above the tab
@@ -635,6 +635,16 @@ public sealed class App
     /// frame. Each newline advances one row from cursor-home (row 1); the tab strip is the first row
     /// containing the first tab's label token. Falls back to <see cref="MainTabRow"/> if not found.
     /// </summary>
+    // Spectre ends lines with Environment.NewLine, so on Windows the frame ends in "\r\n". A
+    // leftover '\r' would park the cursor at column 0 of the last row, and the "\e[0J" that
+    // follows the body would then erase that whole row (the footer).
+    internal static string TrimTrailingNewline(string text)
+    {
+        if (text.EndsWith("\r\n", StringComparison.Ordinal)) return text[..^2];
+        if (text.EndsWith('\n')) return text[..^1];
+        return text;
+    }
+
     private int FindTabRow(string bodyText)
     {
         int row = 1;

@@ -1,0 +1,109 @@
+name: Publish
+
+# Builds the NativeAOT release archives for every supported RID and uploads each
+# as an artifact named after the archive (e.g. dotnet-sdk-tui-linux-x64.tar.gz).
+# Shared by CI (build.yml) and releases (release.yml) so both test the exact same bits.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version stamped into the binary (X.Y.Z)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    # Linux builds link against an old glibc sysroot (Ubuntu 18.04, glibc 2.27) in .NET's
+    # cross-build images, so the binaries run on older distros than the runner's own.
+    # See dotnet/runtime src/coreclr/nativeaot/docs/containers.md.
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            rid: linux-x64
+            artifact: dotnet-sdk-tui-linux-x64.tar.gz
+            container: mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net10.0-cross-amd64
+            sysroot: /crossrootfs/x64
+          - os: ubuntu-24.04
+            rid: linux-arm64
+            artifact: dotnet-sdk-tui-linux-arm64.tar.gz
+            container: mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net10.0-cross-arm64
+            sysroot: /crossrootfs/arm64
+          - os: macos-latest
+            rid: osx-arm64
+            artifact: dotnet-sdk-tui-osx-arm64.tar.gz
+          - os: macos-latest
+            rid: osx-x64
+            artifact: dotnet-sdk-tui-osx-x64.tar.gz
+          - os: windows-latest
+            rid: win-x64
+            artifact: dotnet-sdk-tui-win-x64.zip
+          - os: windows-latest
+            rid: win-arm64
+            artifact: dotnet-sdk-tui-win-arm64.zip
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Publish NativeAOT
+        shell: bash
+        run: >
+          dotnet publish src/DotnetSdkTui/DotnetSdkTui.csproj
+          --configuration Release
+          --runtime ${{ matrix.rid }}
+          --output publish/${{ matrix.rid }}
+          -p:Version=${{ inputs.version }}
+          ${{ matrix.sysroot && format('-p:SysRoot={0} -p:LinkerFlavor=lld', matrix.sysroot) || '' }}
+
+      - name: Check glibc floor (Linux)
+        if: matrix.sysroot
+        shell: bash
+        run: |
+          # Fail if the binary needs a newer glibc than the Ubuntu 18.04 sysroot (2.27).
+          max=$(readelf --dyn-syms -W publish/${{ matrix.rid }}/dotnet-sdk-tui | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          echo "Highest required glibc symbol: $max"
+          [ "$(printf '%s\n' "$max" GLIBC_2.27 | sort -V | tail -1)" = GLIBC_2.27 ] \
+            || { echo "::error::binary requires $max"; exit 1; }
+
+      - name: Sign binary (macOS)
+        if: runner.os == 'macOS'
+        run: codesign --force --sign - publish/${{ matrix.rid }}/dotnet-sdk-tui
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd publish/${{ matrix.rid }}
+          chmod +x dotnet-sdk-tui
+          tar -czf ../../${{ matrix.artifact }} dotnet-sdk-tui
+
+      - name: Sign binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Create a self-signed code signing certificate
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=dsm" -CertStoreLocation Cert:\CurrentUser\My
+          # Sign the binary
+          Set-AuthenticodeSignature -FilePath publish/${{ matrix.rid }}/dotnet-sdk-tui.exe -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish/${{ matrix.rid }}/dotnet-sdk-tui.exe -DestinationPath ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
