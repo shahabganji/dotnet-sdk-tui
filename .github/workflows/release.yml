@@ -14,10 +14,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # Pinned (not ubuntu-latest): the arm64 apt sources below target noble, and the
+          # build host's glibc sets the minimum glibc of the published Linux binaries.
+          - os: ubuntu-24.04
             rid: linux-x64
             artifact: dotnet-sdk-tui-linux-x64.tar.gz
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             rid: linux-arm64
             artifact: dotnet-sdk-tui-linux-arm64.tar.gz
             cross: true
