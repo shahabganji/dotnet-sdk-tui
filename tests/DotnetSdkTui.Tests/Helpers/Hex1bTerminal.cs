@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 
 namespace DotnetSdkTui.Tests.Helpers;
@@ -203,8 +204,9 @@ public sealed class Hex1bTerminal : IAsyncDisposable
 
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start hex1b");
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
-        Task<string> stdout = process.StandardOutput.ReadToEndAsync(cts.Token);
-        Task<string> stderr = process.StandardError.ReadToEndAsync(cts.Token);
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
+        Task pumps = Task.WhenAll(PumpAsync(process.StandardOutput, stdout), PumpAsync(process.StandardError, stderr));
         try
         {
             await process.WaitForExitAsync(cts.Token);
@@ -215,11 +217,36 @@ public sealed class Hex1bTerminal : IAsyncDisposable
             throw new Hex1bCommandException($"hex1b {string.Join(' ', arguments)} timed out after {timeoutSec}s");
         }
 
-        string output = await stdout;
+        // `terminal start` leaves a host process behind. On Windows it inherits our pipe handles, so
+        // the streams never reach EOF; don't wait for it, just drain what was written before exit.
+        await Task.WhenAny(pumps, Task.Delay(TimeSpan.FromSeconds(2)));
+        string output;
+        lock (stdout) output = stdout.ToString();
         if (process.ExitCode != 0)
+        {
+            string error;
+            lock (stderr) error = stderr.ToString();
             throw new Hex1bCommandException(
-                $"hex1b {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {await stderr}{output}");
+                $"hex1b {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {error}{output}");
+        }
         return output.Trim();
+    }
+
+    private static async Task PumpAsync(StreamReader reader, StringBuilder sink)
+    {
+        var buffer = new char[4096];
+        try
+        {
+            int read;
+            while ((read = await reader.ReadAsync(buffer)) > 0)
+            {
+                lock (sink) sink.Append(buffer, 0, read);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            // Stream closed when the Process was disposed.
+        }
     }
 
     private static string FindRepoRoot()

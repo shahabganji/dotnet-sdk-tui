@@ -130,7 +130,11 @@ jobs:
         env:
           DSM_E2E: '1'
           DSM_E2E_FULL: '1'
-        run: tests/smoke/run-tests.sh FullFlow
+        run: |
+          # macOS images ship an untracked .NET in ~/.dotnet, which dsm would pick as the install
+          # root (and dotnetup refuses to install into). Hide it so dsm sees a fresh machine.
+          if [ -d "$HOME/.dotnet" ]; then mv "$HOME/.dotnet" "$HOME/.dotnet-preinstalled"; fi
+          tests/smoke/run-tests.sh FullFlow
 
       - name: Uninstall (bash)
         if: always() && steps.install.outcome == 'success'
