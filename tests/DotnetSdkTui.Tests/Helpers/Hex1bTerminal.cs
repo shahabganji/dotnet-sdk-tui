@@ -20,6 +20,7 @@ public sealed class Hex1bTerminal : IAsyncDisposable
 
     private readonly string _configDir = Path.Combine(Path.GetTempPath(), "dsm-e2e-" + Guid.NewGuid().ToString("N")[..8]);
     private string? _id;
+    private int? _rootPid;
 
     /// <summary>Path of the binary under test, or null to run from source.</summary>
     public static string? Binary => Environment.GetEnvironmentVariable("DSM_E2E_BINARY") is { Length: > 0 } b ? b : null;
@@ -56,6 +57,8 @@ public sealed class Hex1bTerminal : IAsyncDisposable
         using var doc = JsonDocument.Parse(json);
         terminal._id = doc.RootElement.GetProperty("id").GetString()
             ?? throw new InvalidOperationException("hex1b did not return a terminal id");
+        if (doc.RootElement.TryGetProperty("pid", out var pid) && int.TryParse(pid.ToString(), out int rootPid))
+            terminal._rootPid = rootPid;
         return terminal;
     }
 
@@ -166,6 +169,12 @@ public sealed class Hex1bTerminal : IAsyncDisposable
     {
         if (_id is not null)
         {
+            // On Windows `terminal stop` leaves dsm.exe (a grandchild via the shell wrapper) running and
+            // locked against uninstall, so kill the hex1b host's whole process tree first.
+            if (OperatingSystem.IsWindows() && _rootPid is { } rootPid)
+            {
+                try { using var root = Process.GetProcessById(rootPid); root.Kill(entireProcessTree: true); } catch { }
+            }
             try { await RunHex1bAsync(["terminal", "stop", _id]); } catch { }
             _id = null;
         }
