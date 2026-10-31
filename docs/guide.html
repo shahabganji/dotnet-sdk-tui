@@ -671,7 +671,7 @@
     </figure>
     <div class="callout warn">
       <div class="ctitle"><i class="bi bi-exclamation-triangle"></i> Heads up</div>
-      <p>Uninstalling only removes the selected version. Other patch levels and the runtimes used by your remaining SDKs are left untouched.</p>
+      <p>Uninstalling only removes the selected version. Before running dotnetup, dsm pins every other installed SDK and runtime to its exact version, so dotnetup&rsquo;s cleanup of unused installations can&rsquo;t remove other patch levels (for example, older <code>10.0.4xx</code> SDKs after you installed a newer one) or the runtimes used by your remaining SDKs.</p>
     </div>
   </section>
 

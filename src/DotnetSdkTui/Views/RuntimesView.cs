@@ -309,7 +309,7 @@ public sealed class RuntimesView : IView
 
             case ConsoleKey.U:
                 if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
-                await RequestUninstallAsync();
+                RequestUninstall();
                 return KeyResult.Handled;
 
             case ConsoleKey.M:
@@ -345,7 +345,7 @@ public sealed class RuntimesView : IView
         PendingCommand = ("dotnetup", $"runtime install {row.Channel}", null);
     }
 
-    private async Task RequestUninstallAsync()
+    private void RequestUninstall()
     {
         if (_rows.Count == 0 || _selectedIndex >= _rows.Count) return;
         var row = _rows[_selectedIndex];
@@ -364,8 +364,8 @@ public sealed class RuntimesView : IView
             _statusMessage = UnmanagedMessage(row.Version, row.InstallRoot);
             return;
         }
-        string spec = await DotnetUpService.ResolveInstallSpecAsync(row.Version, row.Component);
-        PendingCommand = ("dotnetup", $"runtime uninstall {spec} --source all", null);
+        // Exact component@version; InstallGuard removes only the specs that keep this runtime.
+        PendingCommand = ("dotnetup", InstallGuard.UninstallArgsFor(row.Component, row.Version), null);
     }
 
     /// <summary>

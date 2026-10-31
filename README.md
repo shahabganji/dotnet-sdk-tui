@@ -26,7 +26,7 @@
 - **Setup panel** — Install and manage the `dotnetup` tool itself from within the app
 - **Dark / Light themes** — Press `F6` to toggle. The terminal background adapts via OSC 11
 - **Lifecycle icons** — At-a-glance status for each version: 🍀 Active, 🏭 Preview, 🚧 Maintenance, 👿 End of Life
-- **Smart uninstall** — Automatically resolves dotnetup install specs (feature bands, channels, `latest`) so uninstall just works
+- **Safe install & uninstall** — Before every SDK/runtime install or uninstall, dsm pins your other installed versions so dotnetup's cleanup never removes them; uninstall removes only the version you selected
 - **Scroll windowing** — Panels scroll smoothly when you have many installed versions
 - **Graceful exit** — Goodbye message on both `q` and `Ctrl+C`
 - **NativeAOT compiled** — Fast startup, small binary, no runtime dependency
