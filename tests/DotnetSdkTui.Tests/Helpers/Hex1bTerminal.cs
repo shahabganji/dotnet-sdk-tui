@@ -44,18 +44,31 @@ public sealed class Hex1bTerminal : IAsyncDisposable
             ["DSM_CONFIG_DIR"] = terminal._configDir,
         };
 
+        List<string> command = Binary is { } binary
+            ? [binary]
+            : ["dotnet", "run", "--project", Path.Combine(RepoRoot, "src", "DotnetSdkTui"), "--"];
+        command.AddRange(dsmArgs.Length > 0 ? dsmArgs : ["--no-splash"]);
+
         List<string> args = ["terminal", "start", "--json", "--width", $"{Width}", "--height", $"{Height}", "--"];
-        if (Binary is { } binary)
-            args.Add(binary);
-        else
-            args.AddRange(["dotnet", "run", "--project", Path.Combine(RepoRoot, "src", "DotnetSdkTui"), "--"]);
-        args.AddRange(dsmArgs.Length > 0 ? dsmArgs : ["--no-splash"]);
+        args.AddRange(OperatingSystem.IsWindows() ? WrapInShell(command) : command);
 
         string json = await RunHex1bAsync(args, env, timeoutSec: 60);
         using var doc = JsonDocument.Parse(json);
         terminal._id = doc.RootElement.GetProperty("id").GetString()
             ?? throw new InvalidOperationException("hex1b did not return a terminal id");
         return terminal;
+    }
+
+    /// <summary>
+    /// ConPTY discards whatever its only client wrote just before exiting (e.g. dsm's goodbye text).
+    /// Real users start dsm from a shell that keeps the console alive, so do the same here.
+    /// </summary>
+    private static string[] WrapInShell(List<string> command)
+    {
+        string invocation = "& " + string.Join(' ', command.Select(a => "'" + a.Replace("'", "''") + "'"));
+        string powershell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+        return [powershell, "-NoProfile", "-NonInteractive", "-Command",
+            $"{invocation}; $code = $LASTEXITCODE; Start-Sleep -Seconds 3; exit $code"];
     }
 
     /// <summary>
