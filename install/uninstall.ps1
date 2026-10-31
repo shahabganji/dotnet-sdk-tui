@@ -3,11 +3,13 @@
 #
 # Usage:
 #   irm https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | iex
+#
+# Environment overrides: DSM_INSTALL_DIR (default: %LOCALAPPDATA%\dsm)
 
 $ErrorActionPreference = 'Stop'
 
 $BinaryName = 'dsm'
-$InstallDir = Join-Path $env:LOCALAPPDATA $BinaryName
+$InstallDir = if ($env:DSM_INSTALL_DIR) { $env:DSM_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA $BinaryName }
 $TargetPath = Join-Path $InstallDir "$BinaryName.exe"
 
 if (Test-Path $TargetPath) {

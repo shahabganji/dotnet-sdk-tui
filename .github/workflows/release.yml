@@ -1,117 +1,52 @@
 name: Release
 
+# publish (6 RIDs) -> smoke (install + TUI + full flow on every OS/arch) -> release
+# The GitHub Release is only created if every smoke test passes. Run it manually
+# (workflow_dispatch) from any branch for a dry run: publish + smoke, no release.
+
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to stamp into the dry-run build (X.Y.Z)
+        type: string
+        default: '0.0.0'
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Pinned (not ubuntu-latest): the arm64 apt sources below target noble, and the
-          # build host's glibc sets the minimum glibc of the published Linux binaries.
-          - os: ubuntu-24.04
-            rid: linux-x64
-            artifact: dotnet-sdk-tui-linux-x64.tar.gz
-          - os: ubuntu-24.04
-            rid: linux-arm64
-            artifact: dotnet-sdk-tui-linux-arm64.tar.gz
-            cross: true
-          - os: macos-latest
-            rid: osx-arm64
-            artifact: dotnet-sdk-tui-osx-arm64.tar.gz
-          - os: macos-latest
-            rid: osx-x64
-            artifact: dotnet-sdk-tui-osx-x64.tar.gz
-          - os: windows-latest
-            rid: win-x64
-            artifact: dotnet-sdk-tui-win-x64.zip
-          - os: windows-latest
-            rid: win-arm64
-            artifact: dotnet-sdk-tui-win-arm64.zip
-
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-dotnet@v5
-        with:
-          global-json-file: global.json
-
-      - name: Install cross-compilation toolchain (Linux ARM64)
-        if: matrix.cross
+      - id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          sudo dpkg --add-architecture arm64
-          # Configure arm64 sources alongside amd64 (Ubuntu 24.04 DEB822 format)
-          cat <<'SOURCES' | sudo tee /etc/apt/sources.list.d/arm64-ports.sources
-          Types: deb
-          URIs: http://ports.ubuntu.com/ubuntu-ports/
-          Suites: noble noble-updates
-          Components: main restricted universe
-          Architectures: arm64
-          SOURCES
-          # Restrict existing sources to amd64 only
-          for f in /etc/apt/sources.list.d/*.sources; do
-            [ "$f" = "/etc/apt/sources.list.d/arm64-ports.sources" ] && continue
-            if ! grep -q 'Architectures:' "$f" 2>/dev/null; then
-              sudo sed -i '/^Types:/a Architectures: amd64' "$f" || true
-            fi
-          done
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu zlib1g-dev:arm64
+          if [ "$GITHUB_EVENT_NAME" = push ]; then v="${GITHUB_REF_NAME#v}"; else v="${INPUT_VERSION#v}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
 
-      - name: Determine version from tag
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-        shell: bash
+  publish:
+    needs: version
+    uses: ./.github/workflows/publish.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
 
-      - name: Publish NativeAOT
-        run: >
-          dotnet publish src/DotnetSdkTui/DotnetSdkTui.csproj
-          --configuration Release
-          --runtime ${{ matrix.rid }}
-          --output publish/${{ matrix.rid }}
-          /p:Version=${{ steps.version.outputs.version }}
-          ${{ matrix.cross && '/p:ObjCopyName=aarch64-linux-gnu-objcopy' || '' }}
-      - name: Sign binary (macOS)
-        if: runner.os == 'macOS'
-        run: codesign --force --sign - publish/${{ matrix.rid }}/dotnet-sdk-tui
-
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          cd publish/${{ matrix.rid }}
-          chmod +x dotnet-sdk-tui
-          tar -czf ../../${{ matrix.artifact }} dotnet-sdk-tui
-
-      - name: Sign binary (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          # Create a self-signed code signing certificate
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=dsm" -CertStoreLocation Cert:\CurrentUser\My
-          # Sign the binary
-          Set-AuthenticodeSignature -FilePath publish/${{ matrix.rid }}/dotnet-sdk-tui.exe -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
-
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Compress-Archive -Path publish/${{ matrix.rid }}/dotnet-sdk-tui.exe -DestinationPath ${{ matrix.artifact }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+  smoke:
+    needs: [version, publish]
+    uses: ./.github/workflows/smoke.yml
+    with:
+      source: artifacts
+      version: ${{ needs.version.outputs.version }}
+      full: true
 
   release:
-    needs: build
+    needs: [publish, smoke]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -122,6 +57,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: artifacts
+          pattern: dotnet-sdk-tui-*
           merge-multiple: true
 
       - name: Generate release notes (changes since the previous tag)
@@ -137,3 +73,12 @@ jobs:
         with:
           body_path: notes.md
           files: artifacts/*
+
+  # Not a gate (the release already exists): verifies what users actually run —
+  # the public one-liners downloading the just-published assets.
+  verify-release:
+    needs: [version, release]
+    uses: ./.github/workflows/smoke.yml
+    with:
+      source: release
+      version: ${{ needs.version.outputs.version }}

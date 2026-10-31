@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -35,33 +38,18 @@ jobs:
           name: test-results-${{ matrix.os }}
           path: '**/TestResults/*.xml'
 
-  e2e-test:
-    runs-on: ${{ matrix.os }}
+  # Publish the real NativeAOT archives for every RID, then install them through the
+  # install scripts and drive the installed binary's TUI on each OS/arch.
+  publish:
     needs: build
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v5
+    uses: ./.github/workflows/publish.yml
+    with:
+      version: 0.0.${{ github.run_number }}
 
-      - uses: actions/setup-dotnet@v5
-        with:
-          global-json-file: global.json
-
-      - name: Restore tools
-        run: dotnet tool restore
-
-      - name: Build app
-        run: dotnet build src/DotnetSdkTui --configuration Release
-
-      - name: Run E2E tests
-        run: dotnet test tests/DotnetSdkTui.Tests --configuration Release --filter "Category=E2E" --logger "trx;LogFileName=e2e-results.xml"
-
-      - name: Upload E2E artifacts
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: e2e-artifacts-${{ matrix.os }}
-          path: |
-            tests/DotnetSdkTui.Tests/test-artifacts/
-            **/TestResults/*.xml
+  smoke:
+    needs: publish
+    uses: ./.github/workflows/smoke.yml
+    with:
+      source: artifacts
+      version: 0.0.${{ github.run_number }}
+      full: ${{ github.event_name == 'push' }}

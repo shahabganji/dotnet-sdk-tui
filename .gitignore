@@ -29,3 +29,4 @@ artifacts/
 
 ## BenchmarkDotNet output
 BenchmarkDotNet.Artifacts/
+TestResults/
