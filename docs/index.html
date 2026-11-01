@@ -3,587 +3,392 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>.NET SDK Manager — Terminal UI for .NET SDKs</title>
-  <meta name="description" content="A cross-platform terminal UI for managing .NET SDKs and Runtimes. Install, update, and remove .NET versions from a single keyboard-driven interface.">
+  <title>.NET SDK Manager — every .NET SDK, one keyboard away</title>
+  <meta name="description" content="dsm is a fast, keyboard-driven terminal UI for installing, updating, migrating and removing .NET SDKs, runtimes and workloads on macOS, Linux and Windows.">
+  <script>document.documentElement.classList.add('js');try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+  <link rel="icon" type="image/svg+xml" href="images/mascot.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <style>
-    :root {
-      --bg: #1A1A2E;
-      --bg-surface: #22223a;
-      --bg-card: #2a2a4e;
-      --text: #E0E0E0;
-      --text-muted: #888;
-      --text-dim: #555;
-      --teal: #1DB9A0;
-      --teal-dark: #148F7B;
-      --lime: #C8E64D;
-      --red: #E52521;
-      --green: #43B047;
-      --blue: #049CD8;
-      --gold: #FFD700;
-      --icon: #E8C700;
-      --border: #333;
-      --code-bg: #16162a;
-      --nav-bg: rgba(26, 26, 46, 0.95);
-    }
-
-    [data-theme="light"] {
-      --bg: #F0ECE3;
-      --bg-surface: #E8E4DB;
-      --bg-card: #DEDACE;
-      --text: #1E1E1E;
-      --text-muted: #6B7280;
-      --text-dim: #9CA3AF;
-      --teal: #0E8C76;
-      --teal-dark: #0A6B5A;
-      --lime: #6B8E23;
-      --red: #B91C1C;
-      --green: #15803D;
-      --blue: #0369A1;
-      --gold: #B45309;
-      --icon: #8C7500;
-      --border: #C8C4BB;
-      --code-bg: #D6D2C8;
-      --nav-bg: rgba(240, 236, 227, 0.95);
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.7;
-      transition: background 0.3s, color 0.3s;
-    }
-
-    /* ── Navigation ─────────────────────────── */
-    nav {
-      position: fixed;
-      top: 0;
-      width: 100%;
-      background: var(--nav-bg);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-      z-index: 100;
-      padding: 0 2rem;
-    }
-    nav .nav-inner {
-      max-width: 960px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 60px;
-    }
-    nav .logo {
-      font-weight: 700;
-      font-size: 1.1rem;
-      color: var(--teal);
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.55rem;
-    }
-    nav .logo img { height: 28px; width: 28px; }
-    nav .logo span { color: var(--text); font-weight: 400; }
-    nav .nav-links { display: flex; gap: 1.5rem; align-items: center; }
-    nav .nav-links a {
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 0.9rem;
-      transition: color 0.2s;
-    }
-    nav .nav-links a:hover { color: var(--teal); }
-    .theme-toggle {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.3rem 0.7rem;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.85rem;
-      transition: all 0.2s;
-    }
-    .theme-toggle:hover { border-color: var(--teal); }
-
-    /* ── Layout ──────────────────────────────── */
-    .container { max-width: 960px; margin: 0 auto; padding: 0 2rem; }
-    section { padding: 5rem 0; }
-    section + section { border-top: 1px solid var(--border); }
-
-    /* ── Hero ────────────────────────────────── */
-    .hero {
-      padding-top: 10rem;
-      padding-bottom: 5rem;
-      text-align: center;
-    }
-    .hero h1 {
-      font-size: 3rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: 1rem;
-    }
-    .hero h1 .accent { color: var(--teal); }
-    .hero p {
-      font-size: 1.2rem;
-      color: var(--text-muted);
-      max-width: 600px;
-      margin: 0 auto 2.5rem;
-    }
-    .hero-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-    .btn {
-      display: inline-block;
-      padding: 0.75rem 1.8rem;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      text-decoration: none;
-      transition: all 0.2s;
-    }
-    .btn-primary {
-      background: var(--teal);
-      color: #fff;
-    }
-    .btn-primary:hover { background: var(--teal-dark); }
-    .btn-secondary {
-      background: var(--bg-card);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .btn-secondary:hover { border-color: var(--teal); color: var(--teal); }
-
-    .banner-preview {
-      margin-top: 3rem;
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 2rem;
-      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 0.8rem;
-      line-height: 1.4;
-      overflow-x: auto;
-      text-align: left;
-      color: var(--teal);
-    }
-    .banner-preview .shadow { color: var(--teal-dark); }
-    .banner-preview .label { color: var(--text-muted); }
-
-    /* ── Features ────────────────────────────── */
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-      margin-top: 2rem;
-    }
-    .feature-card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.5rem;
-      transition: border-color 0.2s;
-    }
-    .feature-card:hover { border-color: var(--teal); }
-    .feature-card .icon { font-size: 1.6rem; color: var(--icon); }
-    .feature-card .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; justify-content: inherit; }
-    .feature-card h3 { font-size: 1rem; }
-    .feature-card p { font-size: 0.9rem; color: var(--text-muted); }
-
-    /* ── Headings ────────────────────────────── */
-    .section-label {
-      text-transform: uppercase;
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      color: var(--teal);
-      margin-bottom: 0.5rem;
-    }
-    .section-title {
-      font-size: 2rem;
-      font-weight: 700;
-      margin-bottom: 1rem;
-    }
-    .section-desc {
-      color: var(--text-muted);
-      max-width: 600px;
-      margin-bottom: 2rem;
-    }
-
-    /* ── Code blocks ─────────────────────────── */
-    pre {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1.2rem 1.5rem;
-      overflow-x: auto;
-      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 0.85rem;
-      line-height: 1.6;
-      margin: 1rem 0;
-      position: relative;
-    }
-    pre .comment { color: var(--text-dim); }
-    pre .cmd { color: var(--teal); }
-    pre .flag { color: var(--lime); }
-    pre .arg { color: var(--gold); }
-    code {
-      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-      background: var(--bg-card);
-      padding: 0.15rem 0.4rem;
-      border-radius: 4px;
-      font-size: 0.85em;
-    }
-    .copy-btn {
-      position: absolute;
-      top: 0.6rem;
-      right: 0.6rem;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.75rem;
-      transition: all 0.2s;
-    }
-    .copy-btn:hover { color: var(--teal); border-color: var(--teal); }
-
-    /* ── Table ───────────────────────────────── */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 1rem 0;
-      font-size: 0.9rem;
-    }
-    th, td {
-      text-align: left;
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid var(--border);
-    }
-    th { color: var(--teal); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
-
-    /* ── Install cards ────────────────────────── */
-    .install-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1.5rem;
-    }
-    .install-card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1rem 1.5rem 1.5rem;
-      text-align: center;
-    }
-    .install-card p, .install-card pre { text-align: left; }
-    .install-card pre { margin: 0 0 0.75rem; font-size: 0.75rem; white-space: pre-wrap; word-break: break-all; }
-    @media (max-width: 768px) {
-      .install-grid { grid-template-columns: 1fr; }
-    }
-
-    /* ── Footer ──────────────────────────────── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 3rem 0;
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-    }
-    footer a { color: var(--teal); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-
-    /* ── Responsive ──────────────────────────── */
-    @media (max-width: 640px) {
-      .hero h1 { font-size: 2rem; }
-      .hero p { font-size: 1rem; }
-      nav .nav-links a.hide-mobile { display: none; }
-      .banner-preview { font-size: 0.6rem; padding: 1rem; }
-    }
-  </style>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="stylesheet" href="assets/landing.css">
 </head>
-<body>
+<body data-page="home" class="landing">
 
-<!-- Navigation -->
-<nav>
-  <div class="nav-inner">
-    <a href="#" class="logo"><img src="images/mascot.svg" alt="dsm mascot" />.NET SDK <span>Manager</span></a>
-    <div class="nav-links">
-      <a href="#features" class="hide-mobile">Features</a>
-      <a href="#install">Install</a>
-      <a href="guide.html">.NET Guide</a>
-      <a href="guide-brew.html" class="mac-only" style="display:none">Homebrew Guide</a>
-      <a href="#usage" class="hide-mobile">Usage</a>
-      <a href="#build" class="hide-mobile">Build</a>
-      <a href="#contributing" class="hide-mobile">Contribute</a>
-      <a href="https://github.com/shahabganji/dotnet-sdk-tui" target="_blank">GitHub</a>
-      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><i class="bi bi-moon-stars"></i> / <i class="bi bi-sun"></i></button>
-    </div>
+<header class="sl-header lp-header">
+  <a href="index.html" class="brand"><img src="images/mascot.svg" alt=""><span class="brand-text"><b>.NET SDK</b> Manager</span></a>
+  <div class="header-search">
+    <button class="search-btn" type="button"><i class="bi bi-search"></i><span>Search</span><kbd>⌘ K</kbd></button>
   </div>
-</nav>
-
-<!-- Hero -->
-<section class="hero">
-  <div class="container">
-    <h1><span class="accent">.NET SDK</span> Manager</h1>
-    <p>A cross-platform terminal UI for managing .NET SDKs and Runtimes. Install, update, search, and remove — all from a single keyboard-driven interface.</p>
-    <div class="hero-buttons">
-      <a href="#install" class="btn btn-primary">Get Started</a>
-      <a href="guide.html" class="btn btn-secondary">Step-by-step Guide</a>
-      <a href="https://github.com/shahabganji/dotnet-sdk-tui" class="btn btn-secondary" target="_blank">View on GitHub</a>
-    </div>
-
+  <div class="header-actions">
+    <a class="icon-btn" href="https://github.com/shahabganji/dotnet-sdk-tui/releases" target="_blank" rel="noopener" title="Releases" aria-label="Releases"><i class="bi bi-tag"></i></a>
+    <a class="icon-btn" href="https://github.com/shahabganji/dotnet-sdk-tui" target="_blank" rel="noopener" title="GitHub" aria-label="GitHub"><i class="bi bi-github"></i></a>
+    <button class="icon-btn theme-btn" type="button" title="Toggle dark / light theme" aria-label="Toggle theme"><i class="bi bi-moon-stars"></i><i class="bi bi-sun"></i></button>
+    <a class="btn btn-outline lp-docs-btn" href="docs.html">Docs</a>
+    <a class="btn btn-primary" href="#get-started"><span class="lbl-long">Try .NET SDK Manager</span><span class="lbl-short">Try dsm</span></a>
   </div>
-</section>
+</header>
 
-<!-- Features -->
-<section id="features">
-  <div class="container">
-    <div class="section-label">Features</div>
-    <h2 class="section-title">Everything in one screen</h2>
-    <p class="section-desc">No context switching. See your installed SDKs, available updates, runtimes, and search results — all at a glance.</p>
-
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-box-seam icon"></i><h3>SDK Management</h3></div>
-        <p>View installed SDKs alongside the latest available versions. Install, uninstall, and update with a single keystroke.</p>
-      </div>
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-box-arrow-in-down icon"></i><h3>Migrate Existing SDKs</h3></div>
-        <p>Already have .NET installed outside dotnetup? dsm flags it as <strong>Unmanaged</strong> and brings it under management — one SDK with <code>m</code>, or all of them with <code>Shift+M</code>.</p>
-      </div>
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-gear icon"></i><h3>Runtime Management</h3></div>
-        <p>Full visibility into .NET and ASP.NET Core runtimes. Same install/uninstall/update workflow as SDKs.</p>
-      </div>
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-search icon"></i><h3>Live Search</h3></div>
-        <p>Non-blocking search with debounce. Type to search, results update as you go. Previous requests are automatically cancelled.</p>
-      </div>
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-palette icon"></i><h3>Dark &amp; Light Themes</h3></div>
-        <p>Press <code>F6</code> to toggle. The terminal background adapts automatically for a native look in both modes.</p>
-      </div>
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-cpu icon"></i><h3>Safe Install &amp; Uninstall</h3></div>
-        <p>dsm pins your other installed versions before every install or uninstall, so dotnetup&rsquo;s cleanup only ever removes the version you selected.</p>
-      </div>
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-rocket-takeoff icon"></i><h3>NativeAOT</h3></div>
-        <p>Compiled ahead-of-time for instant startup. Small binary, no runtime dependency required on the target machine.</p>
-      </div>
-    </div>
+<div class="lp-shell" id="_top">
+  <div class="sl-banner" hidden>
+    <span>✨ <strong class="banner-version">dsm</strong> is available!</span>
+    <a class="banner-link" href="https://github.com/shahabganji/dotnet-sdk-tui/releases/latest" target="_blank" rel="noopener">See what's new</a>
+    <button class="banner-close" type="button" aria-label="Dismiss"><i class="bi bi-x"></i></button>
   </div>
-</section>
 
-<!-- Install -->
-<section id="install">
-  <div class="container">
-    <div class="section-label">Get Started</div>
-    <h2 class="section-title">Installation</h2>
-    <p class="section-desc">One command to install. No .NET runtime needed — it's a self-contained native binary. Running the same command again updates to the latest version.</p>
+  <main>
+    <!-- ── Hero ─────────────────────────────────────────── -->
+    <section class="lp-hero">
+      <div class="lp-grid-bg" aria-hidden="true"></div>
 
-    <div class="install-card">
-      <div class="card-header"><i class="bi bi-apple icon" style="font-size:2.8rem;color:var(--icon)"></i><i class="bi bi-ubuntu icon" style="font-size:2.8rem;margin-left:0.5rem;color:var(--icon)"></i></div>
-      <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Works on Bash, Zsh, and Fish. Installs to <code>~/.local/bin</code> and adds it to your PATH automatically.</p>
-      <p style="font-size: 0.8rem; color: var(--teal); margin-bottom: 0.3rem;">Install or update:</p>
-      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></pre>
-      <p style="font-size: 0.8rem; color: var(--icon); margin-bottom: 0.3rem;">Uninstall:</p>
-      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | <span class="cmd">bash</span></pre>
-    </div>
-
-    <div class="install-card">
-      <div class="card-header"><i class="bi bi-windows icon" style="font-size:2.8rem;color:var(--icon)"></i></div>
-      <p style="color: var(--text-muted); margin-bottom: 0.75rem;">PowerShell 7+ or Windows PowerShell 5.1. Installs to <code>%LOCALAPPDATA%\dsm</code> and adds it to your user PATH.</p>
-      <p style="font-size: 0.8rem; color: var(--teal); margin-bottom: 0.3rem;">Install or update:</p>
-      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | <span class="cmd">iex</span></pre>
-      <p style="font-size: 0.8rem; color: var(--icon); margin-bottom: 0.3rem;">Uninstall:</p>
-      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | <span class="cmd">iex</span></pre>
-    </div>
-
-    <p style="color: var(--text-muted); margin-top: 1.5rem;">Native builds for macOS, Linux and Windows on both x64 and ARM64. Linux builds need glibc 2.27 or newer (Ubuntu 18.04+, Debian 10+, RHEL 8+, Fedora…); Alpine/musl isn't supported yet. On Windows, dsm shows symbols instead of emoji icons. Set <code>DSM_VERSION=v0.9.3</code> to install a specific release.</p>
-
-    <p style="color: var(--text-muted); margin-top: 1.5rem;">After installation, open a new terminal and run <code>dsm</code>. The app will notify you when updates are available — press <code>Ctrl+U</code> to self-update.</p>
-
-    <h3 style="margin: 2rem 0 0.5rem;">Troubleshooting</h3>
-    <div class="feature-card" style="border-left: 3px solid var(--gold); margin-top: 0.5rem;">
-      <div class="card-header"><i class="bi bi-exclamation-triangle icon"></i><h3>macOS: <code>killed</code> / “killed: 9” after updating</h3></div>
-      <p style="color: var(--text-muted); margin-bottom: 0.75rem;">If <code>dsm</code> exits immediately with <code>killed</code> (signal 9) right after an update, an older installer replaced the binary in place, which invalidates its code signature on macOS. Re-run the install command to fix it — the installer now replaces the binary atomically, so future updates are safe:</p>
-      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></pre>
-    </div>
-
-    <h3 style="margin: 2rem 0 0.5rem;">Prerequisites</h3>
-    <div class="feature-card" style="margin-top: 0.5rem;">
-      <div class="card-header"><i class="bi bi-box-arrow-up-right icon"></i><h3>dotnetup</h3></div>
-      <p style="color: var(--text-muted);">dsm uses <strong>dotnetup</strong>, the official .NET SDK acquisition tool, for installing and managing SDKs and runtimes. You can install dotnetup from within dsm (press <code>i</code> in the Setup panel; on Windows this runs dotnetup's installer with PowerShell 7 when it's installed, otherwise Windows PowerShell), or set it up manually by following the <a href="https://github.com/dotnet/sdk/tree/release/dnup/documentation/general/dotnetup" style="color: var(--teal);">dotnetup documentation</a>.</p>
-    </div>
-  </div>
-</section>
-
-<!-- Usage -->
-<section id="usage">
-  <div class="container">
-    <div class="section-label">Usage</div>
-    <h2 class="section-title">Keyboard shortcuts</h2>
-    <p class="section-desc">Everything is keyboard-driven. No mouse needed.</p>
-
-    <div class="feature-card" style="border-left: 3px solid var(--teal); margin-bottom: 2rem;">
-      <div class="card-header"><i class="bi bi-camera-reels icon"></i><h3>Prefer a visual walkthrough?</h3></div>
-      <p style="color: var(--text-muted);">The <a href="guide.html" style="color: var(--teal);">.NET step-by-step guide</a> shows every flow with real screenshots — launching dsm, installing dotnetup, migrating SDKs you already have, installing &amp; searching for SDKs, managing workloads per SDK, and uninstalling versions. On macOS, the <a href="guide-brew.html" style="color: var(--teal);">Homebrew guide</a> covers browsing, searching, installing, upgrading, and removing <code>brew</code> packages.</p>
-    </div>
-
-    <table>
-      <thead><tr><th>Key</th><th>Action</th></tr></thead>
-      <tbody>
-        <tr><td><code>↑</code> / <code>↓</code> or <code>j</code> / <code>k</code></td><td>Navigate rows</td></tr>
-        <tr><td><code>Tab</code></td><td>Cycle focus between SDKs, Runtimes, and Setup panels</td></tr>
-        <tr><td><code>i</code></td><td>Install selected SDK, Runtime, or Workload</td></tr>
-        <tr><td><code>u</code></td><td>Uninstall selected SDK, Runtime, or Workload</td></tr>
-        <tr><td><code>p</code></td><td>Update to latest in the channel (SDKs/Runtimes) or update all workloads</td></tr>
-        <tr><td><code>w</code></td><td>Open the Workloads workspace for the selected installed SDK</td></tr>
-        <tr><td><code>Shift+P</code></td><td>Repair workloads (Workloads workspace)</td></tr>
-        <tr><td><code>m</code></td><td>Migrate the selected unmanaged SDK; toggle workload update-mode (Workloads workspace)</td></tr>
-        <tr><td><code>Shift+M</code></td><td>Migrate all unmanaged SDKs (with confirmation)</td></tr>
-        <tr><td><code>r</code></td><td>Refresh data from the network</td></tr>
-        <tr><td><code>F3</code></td><td>Open the search screen</td></tr>
-        <tr><td><code>F6</code></td><td>Toggle dark / light theme</td></tr>
-        <tr><td><code>Ctrl+U</code></td><td>Self-update dsm to latest version</td></tr>
-        <tr><td><code>Esc</code></td><td>Return to main screen from a workspace</td></tr>
-        <tr><td><code>q</code> or <code>Ctrl+C</code></td><td>Quit</td></tr>
-      </tbody>
-    </table>
-
-    <h3 style="margin: 2rem 0 0.5rem;">Search</h3>
-    <p style="color: var(--text-muted); margin-bottom: 1rem;">Open search with <code>F3</code>, then just start typing. Results update live with debounce — no enter key needed.</p>
-    <pre><span class="comment"># Search by channel version</span>
-<span class="arg">/ Search: 10</span>            <span class="comment"># Shows all .NET 10 SDKs and runtimes</span>
-
-<span class="comment"># Search by keyword</span>
-<span class="arg">/ Search: preview</span>       <span class="comment"># Shows all preview/RC versions</span>
-<span class="arg">/ Search: latest</span>        <span class="comment"># Shows latest versions across supported channels</span>
-<span class="arg">/ Search: lts</span>           <span class="comment"># Shows long-term support versions</span></pre>
-
-    <h3 style="margin: 2rem 0 0.5rem;">CLI</h3>
-    <pre><span class="cmd">dsm</span>                <span class="comment"># Launch with animated banner</span>
-<span class="cmd">dsm</span> <span class="flag">--no-splash</span>    <span class="comment"># Skip the banner animation</span>
-<span class="cmd">dsm</span> <span class="flag">--version</span>      <span class="comment"># Print version and exit</span></pre>
-  </div>
-</section>
-
-<!-- Build from source -->
-<section id="build">
-  <div class="container">
-    <div class="section-label">Development</div>
-    <h2 class="section-title">Build from source</h2>
-    <p class="section-desc">Requires <a href="https://dotnet.microsoft.com/download" style="color: var(--teal);">.NET 10 SDK</a> or later.</p>
-
-    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># Clone the repository</span>
-<span class="cmd">git</span> clone https://github.com/shahabganji/dotnet-sdk-tui.git
-<span class="cmd">cd</span> dotnet-sdk-tui
-
-<span class="comment"># Run in development</span>
-<span class="cmd">dotnet</span> run <span class="flag">--project</span> src/DotnetSdkTui
-
-<span class="comment"># Run tests</span>
-<span class="cmd">dotnet</span> test
-
-<span class="comment"># Publish a NativeAOT binary</span>
-<span class="cmd">dotnet</span> publish src/DotnetSdkTui <span class="flag">-c</span> Release <span class="flag">-r</span> <span class="arg">osx-arm64</span></pre>
-  </div>
-</section>
-
-<!-- Contributing -->
-<section id="contributing">
-  <div class="container">
-    <div class="section-label">Open Source</div>
-    <h2 class="section-title">Contributing</h2>
-    <p class="section-desc">Contributions are welcome! Here's how to get involved.</p>
-
-    <div class="features-grid" style="grid-template-columns: repeat(2, 1fr);">
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-git icon"></i><h3>Fork &amp; Clone</h3></div>
-        <p>Fork the <a href="https://github.com/shahabganji/dotnet-sdk-tui" style="color: var(--teal);">repository</a> and clone it locally.</p>
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pulse-dot"></span>Free and open source · MIT</p>
+        <h1 class="hero-title">Every .NET SDK,<br><span class="gradient-text">one keyboard away.</span></h1>
+        <p class="hero-sub">dsm is a fast, keyboard-driven terminal UI for installing, updating, migrating and removing .NET SDKs, runtimes and workloads.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary btn-lg" href="#get-started">Try .NET SDK Manager <i class="bi bi-arrow-right"></i></a>
+          <a class="btn btn-ghost btn-lg" href="docs.html">Explore the docs</a>
+        </div>
       </div>
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-diagram-2 icon"></i><h3>Branch</h3></div>
-        <p>Create a branch from <code>main</code> for your feature or fix.</p>
+
+      <!-- 3D stack of .NET SDK tiles -->
+      <div class="stack-wrap" aria-hidden="true">
+        <div class="stack-glow"></div>
+        <div class="orbit orbit-1"></div>
+        <div class="orbit orbit-2"></div>
+        <div class="stack-float">
+          <div class="stack-scene">
+            <div class="tile" style="--i:0"></div>
+            <div class="tile" style="--i:1"></div>
+            <div class="tile" style="--i:2"></div>
+            <div class="tile" style="--i:3"></div>
+            <div class="tile tile-top" style="--i:4"><span class="tile-net">.NET</span><span class="tile-sdk">SDK</span></div>
+          </div>
+        </div>
       </div>
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-hammer icon"></i><h3>Build &amp; Test</h3></div>
-        <p>Run <code>dotnet test</code> to make sure everything passes.</p>
+
+      <!-- Live preview window -->
+      <div class="lp-window" data-carousel>
+        <div class="win-bar">
+          <span class="win-dots"><i></i><i></i><i></i></span>
+          <span class="win-title">dsm</span>
+          <span class="win-meta">Live preview</span>
+        </div>
+        <div class="win-tabs" role="tablist" aria-label="Screens">
+          <button type="button" role="tab" aria-selected="true"><i class="bi bi-box-seam"></i> SDKs &amp; runtimes</button>
+          <button type="button" role="tab"><i class="bi bi-search"></i> Search</button>
+          <button type="button" role="tab"><i class="bi bi-download"></i> Install</button>
+          <button type="button" role="tab"><i class="bi bi-box-arrow-in-down"></i> Migrate</button>
+          <button type="button" role="tab"><i class="bi bi-puzzle"></i> Workloads</button>
+          <button type="button" role="tab" class="mac-only" style="display:none"><i class="bi bi-cup-hot"></i> Homebrew</button>
+        </div>
+        <div class="win-stage">
+          <figure class="win-slide is-active"><img src="images/02-main-screen.png" alt="dsm main screen listing installed and available .NET SDKs and runtimes" width="2160" height="1368"></figure>
+          <figure class="win-slide"><img src="images/06-search-results.png" alt="Searching for .NET SDK versions in dsm" width="2160" height="1368" loading="lazy"></figure>
+          <figure class="win-slide"><img src="images/10-install-complete.png" alt="An SDK installation completed in dsm" width="2160" height="1368" loading="lazy"></figure>
+          <figure class="win-slide"><img src="images/13-unmanaged-sdks.png" alt="Unmanaged SDKs flagged for migration in dsm" width="2160" height="1584" loading="lazy"></figure>
+          <figure class="win-slide"><img src="images/15-workloads-list.png" alt="The workloads workspace for an installed SDK" width="2160" height="1440" loading="lazy"></figure>
+          <figure class="win-slide mac-only" style="display:none"><img src="images/13-brew-list.png" alt="Managing Homebrew packages in dsm" width="2160" height="1440" loading="lazy"></figure>
+        </div>
+        <div class="win-foot">
+          <p class="win-caption">Installed SDKs next to the latest release of every channel — updates at a glance.</p>
+          <button class="win-pause" type="button" aria-label="Pause slideshow" title="Pause"><i class="bi bi-pause-fill"></i><i class="bi bi-play-fill"></i></button>
+        </div>
+        <div class="win-progress"><span></span></div>
+        <template class="win-captions">
+          <p>Installed SDKs next to the latest release of every channel — updates at a glance.</p>
+          <p>Live, debounced search across every published SDK and runtime version.</p>
+          <p>Install with a single key. dsm pins everything else so nothing gets cleaned up by surprise.</p>
+          <p>Already have .NET? dsm flags it as unmanaged and brings it under management.</p>
+          <p>Install, update, repair and remove workloads per SDK.</p>
+          <p>On macOS, browse and manage Homebrew packages from the same UI.</p>
+        </template>
       </div>
-      <div class="feature-card">
-        <div class="card-header"><i class="bi bi-arrow-up-circle icon"></i><h3>Open a PR</h3></div>
-        <p>Submit a pull request with a clear description of your changes.</p>
+    </section>
+
+    <!-- ── 01 Platforms ────────────────────────────────── -->
+    <section class="lp-section" id="platforms">
+      <div class="lp-container">
+        <div class="sec-head reveal">
+          <p class="kicker"><span>01</span> Runs everywhere</p>
+          <div>
+            <h2 class="sec-title">One native binary.<br><span class="gradient-text">Every platform.</span></h2>
+            <p class="sec-lead">dsm ships as a self-contained NativeAOT executable. You don't need .NET installed to run the tool that installs .NET.</p>
+          </div>
+        </div>
+        <ul class="platform-strip reveal">
+          <li><i class="bi bi-apple"></i><span>macOS</span></li>
+          <li><i class="bi bi-ubuntu"></i><span>Linux</span></li>
+          <li><i class="bi bi-windows"></i><span>Windows</span></li>
+          <li><i class="bi bi-cpu"></i><span>x64</span></li>
+          <li><i class="bi bi-motherboard"></i><span>ARM64</span></li>
+          <li><i class="bi bi-lightning-charge"></i><span>NativeAOT</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ── 02 One command ───────────────────────────────── -->
+    <section class="lp-section" id="one-command">
+      <div class="lp-container split">
+        <div class="split-copy reveal">
+          <p class="kicker"><span>02</span> One command</p>
+          <h2 class="sec-title">From zero to <span class="gradient-text">dsm</span> in seconds.</h2>
+          <p class="sec-lead">A single script detects your OS and CPU, downloads the right build and puts it on your PATH. Run it again any time to update.</p>
+          <dl class="spec-rows">
+            <div><dt>Install</dt><dd>Same command updates in place</dd></div>
+            <div><dt>Location</dt><dd><code>~/.local/bin</code> · <code>%LOCALAPPDATA%\dsm</code></dd></div>
+            <div><dt>Self-update</dt><dd>Press <kbd>Ctrl</kbd>+<kbd>U</kbd> inside the app</dd></div>
+          </dl>
+          <a class="arrow-link" href="docs.html#install">Read the installation guide <i class="bi bi-arrow-right"></i></a>
+        </div>
+        <div class="lp-terminal reveal" data-typing>
+          <div class="win-bar">
+            <span class="win-dots"><i></i><i></i><i></i></span>
+            <span class="win-title">zsh — ~</span>
+            <span class="win-meta"></span>
+          </div>
+          <div class="term-body" aria-label="Terminal running the dsm install script">
+            <div class="term-line"><span class="t-prompt">$</span> <span class="t-type" data-text="curl -fsSL https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | bash"></span></div>
+            <div class="term-out">
+              <div class="t-green">&nbsp; .NET SDK Manager (dsm)</div>
+              <div class="t-dim">&nbsp; Install or update</div>
+              <div>&nbsp;</div>
+              <div class="t-cyan">==&gt; Installing dsm (osx-arm64)</div>
+              <div class="t-cyan">==&gt; Target: ~/.local/bin</div>
+              <div class="t-cyan">==&gt; Downloading latest release</div>
+              <div class="t-cyan">==&gt; Extracting</div>
+              <div>&nbsp;</div>
+              <div class="t-green">Install complete. dsm is ready at ~/.local/bin/dsm</div>
+              <div class="t-green">dsm is on your PATH. Run 'dsm' to get started.</div>
+            </div>
+            <div class="term-line term-last"><span class="t-prompt">$</span> <span class="t-type" data-text="dsm"></span><span class="t-caret"></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 03 Features ─────────────────────────────────── -->
+    <section class="lp-section" id="features">
+      <div class="lp-container">
+        <div class="sec-head reveal">
+          <p class="kicker"><span>03</span> Everything in one screen</p>
+          <div>
+            <h2 class="sec-title">Your whole .NET toolchain,<br><span class="gradient-text">under control.</span></h2>
+            <p class="sec-lead">See installed versions next to the latest releases, then act on them without leaving the keyboard. Every flow has a step-by-step guide.</p>
+          </div>
+        </div>
+        <div class="feature-grid reveal">
+          <a class="feature" href="guide.html#install-sdk">
+            <span class="f-num">01</span>
+            <span class="f-icon"><i class="bi bi-box-seam"></i></span>
+            <h3>Install &amp; update SDKs</h3>
+            <p>Install, update or remove SDKs and runtimes with one keystroke. Updates per channel are always visible.</p>
+            <span class="arrow-link">Explore installing <i class="bi bi-arrow-right"></i></span>
+          </a>
+          <a class="feature" href="guide.html#migrate">
+            <span class="f-num">02</span>
+            <span class="f-icon"><i class="bi bi-box-arrow-in-down"></i></span>
+            <h3>Migrate what you have</h3>
+            <p>SDKs installed outside dotnetup are flagged as <em>Unmanaged</em>. Adopt one with <kbd>m</kbd>, or all of them with <kbd>Shift</kbd>+<kbd>M</kbd>.</p>
+            <span class="arrow-link">Explore migration <i class="bi bi-arrow-right"></i></span>
+          </a>
+          <a class="feature" href="guide.html#search">
+            <span class="f-num">03</span>
+            <span class="f-icon"><i class="bi bi-search"></i></span>
+            <h3>Live search</h3>
+            <p>Find any SDK or runtime version as you type. Searches are debounced and stale requests are cancelled.</p>
+            <span class="arrow-link">Explore search <i class="bi bi-arrow-right"></i></span>
+          </a>
+          <a class="feature" href="guide.html#workloads">
+            <span class="f-num">04</span>
+            <span class="f-icon"><i class="bi bi-puzzle"></i></span>
+            <h3>Workloads per SDK</h3>
+            <p>Open the workloads workspace for any installed SDK to install, update, repair or remove workloads.</p>
+            <span class="arrow-link">Explore workloads <i class="bi bi-arrow-right"></i></span>
+          </a>
+          <a class="feature" href="guide.html#dotnetup">
+            <span class="f-num">05</span>
+            <span class="f-icon"><i class="bi bi-rocket-takeoff"></i></span>
+            <h3>Built on dotnetup</h3>
+            <p>dsm drives dotnetup, the official .NET acquisition tool. No dotnetup yet? Press <kbd>i</kbd> in the Setup panel and dsm installs it for you.</p>
+            <span class="arrow-link">Explore setup <i class="bi bi-arrow-right"></i></span>
+          </a>
+          <a class="feature mac-only" href="guide-brew.html" style="display:none">
+            <span class="f-num">06</span>
+            <span class="f-icon"><i class="bi bi-cup-hot"></i></span>
+            <h3>Homebrew, too</h3>
+            <p>On macOS, browse, search, install, upgrade and remove <code>brew</code> formulae from the same UI.</p>
+            <span class="arrow-link">Explore Homebrew <i class="bi bi-arrow-right"></i></span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 04 Keyboard ─────────────────────────────────── -->
+    <section class="lp-section" id="keyboard">
+      <div class="lp-container">
+        <div class="sec-head reveal">
+          <p class="kicker"><span>04</span> Keyboard-first</p>
+          <div>
+            <h2 class="sec-title">No mouse.<br><span class="gradient-text">No menus to dig through.</span></h2>
+            <p class="sec-lead">Every action is a single key away. Learn a handful of shortcuts and manage your entire .NET setup at the speed of thought.</p>
+          </div>
+        </div>
+      </div>
+      <div class="key-marquee reveal" aria-label="Keyboard shortcuts">
+        <div class="key-track">
+          <span class="keycap"><kbd>i</kbd>Install</span>
+          <span class="keycap"><kbd>u</kbd>Uninstall</span>
+          <span class="keycap"><kbd>p</kbd>Update</span>
+          <span class="keycap"><kbd>w</kbd>Workloads</span>
+          <span class="keycap"><kbd>m</kbd>Migrate</span>
+          <span class="keycap"><kbd>Shift</kbd><kbd>M</kbd>Migrate all</span>
+          <span class="keycap"><kbd>r</kbd>Refresh</span>
+          <span class="keycap"><kbd>F3</kbd>Search</span>
+        </div>
+        <div class="key-track reverse">
+          <span class="keycap"><kbd>Tab</kbd>Switch panel</span>
+          <span class="keycap"><kbd>j</kbd><kbd>k</kbd>Navigate</span>
+          <span class="keycap"><kbd>F6</kbd>Theme</span>
+          <span class="keycap"><kbd>Ctrl</kbd><kbd>U</kbd>Self-update</span>
+          <span class="keycap"><kbd>Shift</kbd><kbd>P</kbd>Repair workloads</span>
+          <span class="keycap"><kbd>Esc</kbd>Back</span>
+          <span class="keycap"><kbd>q</kbd>Quit</span>
+        </div>
+      </div>
+      <div class="lp-container">
+        <a class="arrow-link reveal" href="docs.html#usage">See every shortcut <i class="bi bi-arrow-right"></i></a>
+      </div>
+    </section>
+
+    <!-- ── 05 Safety ───────────────────────────────────── -->
+    <section class="lp-section" id="safety">
+      <div class="lp-container">
+        <div class="sec-head reveal">
+          <p class="kicker"><span>05</span> Safe by design</p>
+          <div>
+            <h2 class="sec-title">Change one version.<br><span class="gradient-text">Keep the rest.</span></h2>
+            <p class="sec-lead">dsm is careful with your machine, so you can be fast without being reckless.</p>
+          </div>
+        </div>
+        <div class="bento reveal">
+          <div class="bento-cell">
+            <i class="bi bi-pin-angle"></i>
+            <h3>Version pinning</h3>
+            <p>Every other installed version is pinned before an install or uninstall, so dotnetup's cleanup only touches the one you picked.</p>
+          </div>
+          <div class="bento-cell">
+            <i class="bi bi-calendar-check"></i>
+            <h3>Lifecycle at a glance</h3>
+            <p>Every row is tagged 🍀 active, 🏭 preview, 🚧 maintenance or 👿 end-of-life — no release notes required.</p>
+          </div>
+          <div class="bento-cell">
+            <i class="bi bi-arrow-repeat"></i>
+            <h3>Self-updating</h3>
+            <p>dsm tells you when a new release is out. Press <kbd>Ctrl</kbd>+<kbd>U</kbd> and it updates itself in place.</p>
+          </div>
+          <div class="bento-cell">
+            <i class="bi bi-palette"></i>
+            <h3>Dark &amp; light</h3>
+            <p>Press <kbd>F6</kbd> to switch themes. The terminal background adapts for a native look in both.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 06 Get started ──────────────────────────────── -->
+    <section class="lp-section lp-cta" id="get-started">
+      <div class="cta-arcs" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="lp-container">
+        <div class="cta-inner reveal">
+          <p class="kicker"><span>06</span> Get started</p>
+          <h2 class="sec-title">Try .NET SDK Manager<br><span class="gradient-text">in one line.</span></h2>
+          <p class="sec-lead">No .NET runtime needed. Open a new terminal afterwards and run <code>dsm</code>.</p>
+
+          <div class="tabs" data-sync="os">
+            <div class="tab-list" role="tablist" aria-label="Operating system">
+              <button type="button" role="tab" data-os="unix"><i class="bi bi-apple"></i> macOS / Linux</button>
+              <button type="button" role="tab" data-os="windows"><i class="bi bi-windows"></i> Windows</button>
+            </div>
+            <div class="tab-panel" role="tabpanel">
+              <div class="code-frame terminal">
+                <div class="frame-header"><span class="frame-title"><i class="bi bi-terminal"></i> Bash · Zsh · Fish</span></div>
+                <pre class="wrap"><code><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></code></pre>
+              </div>
+            </div>
+            <div class="tab-panel" role="tabpanel" hidden>
+              <div class="code-frame terminal">
+                <div class="frame-header"><span class="frame-title"><i class="bi bi-terminal"></i> PowerShell</span></div>
+                <pre class="wrap"><code><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | <span class="cmd">iex</span></code></pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="cta-buttons">
+            <a class="btn btn-primary btn-lg" href="guide.html">Take the guided tour <i class="bi bi-arrow-right"></i></a>
+            <a class="btn btn-ghost btn-lg" href="docs.html">Read the docs</a>
+            <a class="btn btn-ghost btn-lg" href="https://github.com/shahabganji/dotnet-sdk-tui" target="_blank" rel="noopener"><i class="bi bi-github"></i> View on GitHub</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── Footer ──────────────────────────────────────── -->
+  <footer class="lp-footer">
+    <div class="lp-container foot-grid">
+      <div class="foot-brand">
+        <a href="index.html" class="brand"><img src="images/mascot.svg" alt=""><span><b>.NET SDK</b> Manager</span></a>
+        <p>A cross-platform terminal UI for managing .NET SDKs, runtimes and workloads.</p>
+        <div class="foot-social">
+          <a class="icon-btn" href="https://github.com/shahabganji/dotnet-sdk-tui" target="_blank" rel="noopener" aria-label="GitHub"><i class="bi bi-github"></i></a>
+          <a class="icon-btn" href="https://github.com/shahabganji/dotnet-sdk-tui/releases" target="_blank" rel="noopener" aria-label="Releases"><i class="bi bi-tag"></i></a>
+          <a class="icon-btn" href="https://github.com/shahabganji/dotnet-sdk-tui/issues" target="_blank" rel="noopener" aria-label="Issues"><i class="bi bi-bug"></i></a>
+        </div>
+      </div>
+      <nav class="foot-col" aria-label="Docs">
+        <h4>Docs</h4>
+        <a href="docs.html">Overview</a>
+        <a href="docs.html#install">Installation</a>
+        <a href="docs.html#usage">Keyboard shortcuts</a>
+        <a href="docs.html#cli">Command line</a>
+      </nav>
+      <nav class="foot-col" aria-label="Guides">
+        <h4>Guides</h4>
+        <a href="guide.html">.NET guide</a>
+        <a href="guide-brew.html" class="mac-only" style="display:none">Homebrew guide</a>
+        <a href="docs.html#troubleshooting">Troubleshooting</a>
+        <a href="docs.html#contributing">Contributing</a>
+      </nav>
+      <div class="foot-col">
+        <h4>Preferences</h4>
+        <div class="theme-seg" role="radiogroup" aria-label="Theme">
+          <button type="button" role="radio" data-theme-set="dark"><i class="bi bi-moon-stars"></i> Dark</button>
+          <button type="button" role="radio" data-theme-set="light"><i class="bi bi-sun"></i> Light</button>
+        </div>
       </div>
     </div>
+    <div class="lp-container">
+      <div class="foot-bottom">
+        <span>Made with <span class="heart">❤</span> by <a href="https://shahab-the-guy.dev" target="_blank" rel="noopener">Shahab the Guy</a></span>
+        <span>MIT License</span>
+      </div>
+    </div>
+  </footer>
+</div>
 
-    <h3 style="margin: 2rem 0 0.5rem;">Areas where help is appreciated</h3>
-    <ul style="color: var(--text-muted); padding-left: 1.5rem; line-height: 2;">
-      <li>New platform support — test and report issues on platforms you use</li>
-      <li>Accessibility — keyboard navigation, screen reader improvements</li>
-      <li>Themes — new color palettes or refinements</li>
-      <li>Offline mode — better UX without network connectivity</li>
-      <li><a href="https://github.com/shahabganji/dotnet-sdk-tui/issues" style="color: var(--teal);">Bug reports</a> — if something doesn't work, let us know</li>
-    </ul>
+<button class="to-top" type="button" aria-label="Back to top" hidden><i class="bi bi-chevron-up"></i></button>
+
+<div class="search-dialog" id="search-dialog" role="dialog" aria-modal="true" aria-label="Search docs" hidden>
+  <div class="search-panel">
+    <label class="search-input-row"><i class="bi bi-search"></i><input type="search" placeholder="Search docs…" aria-label="Search docs"><kbd>Esc</kbd></label>
+    <ul class="search-results"></ul>
+    <div class="search-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>Esc</kbd> close</span></div>
   </div>
-</section>
+</div>
 
-<!-- Footer -->
-<footer>
-  <div class="container">
-    <p style="margin-bottom: 0.5rem;">
-      Made with ❤ by <a href="https://shahab-the-guy.dev">Shahab the Guy</a>
-    </p>
-    <p>
-      <a href="https://github.com/shahabganji/dotnet-sdk-tui">GitHub</a>
-      &nbsp;&middot;&nbsp;
-      <a href="https://shahab-the-guy.dev">Blog</a>
-      &nbsp;&middot;&nbsp;
-      MIT License
-    </p>
-  </div>
-</footer>
-
-<script>
-  function toggleTheme() {
-    const html = document.documentElement;
-    const current = html.getAttribute('data-theme');
-    html.setAttribute('data-theme', current === 'light' ? 'dark' : 'light');
-    localStorage.setItem('theme', html.getAttribute('data-theme'));
-  }
-
-  // Restore saved theme
-  const saved = localStorage.getItem('theme');
-  // Dark theme is default — only switch to light if explicitly saved
-  if (saved) document.documentElement.setAttribute('data-theme', saved);
-
-  function copyCode(btn) {
-    const pre = btn.parentElement;
-    const text = pre.textContent.replace('Copy', '').trim();
-    navigator.clipboard.writeText(text).then(() => {
-      btn.textContent = 'Copied!';
-      setTimeout(() => btn.textContent = 'Copy', 1500);
-    });
-  }
-
-  // Smooth scroll for nav links
-  document.querySelectorAll('a[href^="#"]').forEach(a => {
-    a.addEventListener('click', e => {
-      e.preventDefault();
-      const target = document.querySelector(a.getAttribute('href'));
-      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  });
-
-  // Homebrew is macOS-only — reveal its menu links only on macOS.
-  (function () {
-    const ua = navigator.userAgent || '';
-    const plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
-    const isMac = /Mac/i.test(plat + ' ' + ua) && !/iPhone|iPad|iPod/i.test(ua);
-    if (isMac) document.querySelectorAll('.mac-only').forEach(el => { el.style.display = ''; });
-  })();
-</script>
-
+<script src="assets/site.js"></script>
+<script src="assets/landing.js"></script>
 </body>
 </html>
