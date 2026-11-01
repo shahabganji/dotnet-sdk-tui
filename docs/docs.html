@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation — .NET SDK Manager</title>
+  <meta name="description" content="A cross-platform terminal UI for managing .NET SDKs and Runtimes. Install, update, and remove .NET versions from a single keyboard-driven interface.">
+  <script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);if(localStorage.getItem('sidebar-collapsed')==='1')document.documentElement.setAttribute('data-sidebar-collapsed','')}catch(e){}</script>
+  <link rel="icon" type="image/svg+xml" href="images/mascot.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body data-page="docs">
+
+<header class="sl-header">
+  <div style="display:flex;align-items:center">
+    <button class="icon-btn menu-btn" type="button" aria-label="Open navigation" aria-expanded="false"><i class="bi bi-list"></i></button>
+    <a href="index.html" class="brand"><img src="images/mascot.svg" alt=""><span class="brand-text"><b>.NET SDK</b> Manager</span></a>
+  </div>
+  <div class="header-search">
+    <button class="icon-btn sidebar-toggle" type="button" title="Toggle sidebar" aria-label="Toggle sidebar"><i class="bi bi-layout-sidebar-inset"></i></button>
+    <button class="search-btn" type="button"><i class="bi bi-search"></i><span>Search</span><kbd>⌘ K</kbd></button>
+  </div>
+  <div class="header-actions">
+    <a class="icon-btn" href="https://github.com/shahabganji/dotnet-sdk-tui/releases" target="_blank" rel="noopener" title="Releases" aria-label="Releases"><i class="bi bi-tag"></i></a>
+    <a class="icon-btn" href="https://github.com/shahabganji/dotnet-sdk-tui" target="_blank" rel="noopener" title="GitHub" aria-label="GitHub"><i class="bi bi-github"></i></a>
+    <button class="icon-btn theme-btn" type="button" title="Toggle dark / light theme" aria-label="Toggle theme"><i class="bi bi-moon-stars"></i><i class="bi bi-sun"></i></button>
+    <a class="btn btn-outline" href="guide.html">Guide</a>
+    <a class="btn btn-primary" href="#install"><span class="lbl-long">Try .NET SDK Manager</span><span class="lbl-short">Try dsm</span></a>
+  </div>
+</header>
+<div class="sidebar-backdrop"></div>
+<aside class="sl-sidebar" id="sidebar" aria-label="Site navigation"></aside>
+
+<main class="sl-main" id="_top">
+  <div class="sl-banner" hidden>
+    <span>✨ <strong class="banner-version">dsm</strong> is available!</span>
+    <a class="banner-link" href="https://github.com/shahabganji/dotnet-sdk-tui/releases/latest" target="_blank" rel="noopener">See what's new</a>
+    <button class="banner-close" type="button" aria-label="Dismiss"><i class="bi bi-x"></i></button>
+  </div>
+  <details class="mobile-toc" hidden>
+    <summary><span class="mt-toggle">On this page <i class="bi bi-chevron-right"></i></span><span class="mt-current">Overview</span></summary>
+    <ul class="toc-list"></ul>
+  </details>
+
+  <div class="sl-page">
+    <div class="sl-content-col">
+      <header class="page-header">
+        <h1>.NET SDK Manager documentation</h1>
+      </header>
+
+      <div class="sl-content">
+
+        <!-- Hero -->
+        <div class="hero-card" id="overview">
+          <i class="bi bi-rocket-takeoff hero-deco" style="right:15%;top:14%"></i>
+          <i class="bi bi-gear hero-deco" style="right:5%;top:30%;font-size:2.4rem"></i>
+          <i class="bi bi-box-seam hero-deco" style="right:14%;top:52%"></i>
+          <i class="bi bi-terminal hero-deco" style="right:5%;top:72%"></i>
+          <div class="hero-logo"><img src="images/mascot.svg" alt="dsm mascot"></div>
+          <h2>Every .NET SDK, <span class="gradient-text">one keyboard away.</span></h2>
+          <p>A cross-platform terminal UI for managing .NET SDKs and Runtimes. Install, update, search, and remove — all from a single keyboard-driven interface.</p>
+          <div class="hero-actions">
+            <a href="#install" class="btn btn-primary btn-lg">Try .NET SDK Manager <i class="bi bi-arrow-right"></i></a>
+            <a href="guide.html" class="btn btn-outline btn-lg">Take the guided tour</a>
+          </div>
+        </div>
+
+        <!-- Choose your path -->
+        <h2 id="paths">Choose your path</h2>
+        <ul class="paths">
+          <li>
+            <span class="path-icon"><i class="bi bi-download"></i></span>
+            <a class="card-link" href="#install">
+              <span class="path-title">Install dsm <i class="bi bi-arrow-right"></i></span>
+              <span class="path-desc">One command on macOS, Linux, or Windows — a self-contained native binary, no .NET runtime required.</span>
+            </a>
+          </li>
+          <li>
+            <span class="path-icon"><i class="bi bi-terminal"></i></span>
+            <a class="card-link" href="guide.html">
+              <span class="path-title">Tour the .NET workspace <i class="bi bi-arrow-right"></i></span>
+              <span class="path-desc">Launch dsm, set up dotnetup, migrate the SDKs you already have, then install, search, manage workloads, and uninstall — with real screenshots.</span>
+            </a>
+          </li>
+          <li class="mac-only" style="display:none">
+            <span class="path-icon"><i class="bi bi-cup-hot"></i></span>
+            <a class="card-link" href="guide-brew.html">
+              <span class="path-title">Manage Homebrew packages <i class="bi bi-arrow-right"></i></span>
+              <span class="path-desc">On macOS, browse, search, install, upgrade, and remove <code>brew</code> formulae from the same UI.</span>
+            </a>
+          </li>
+          <li>
+            <span class="path-icon"><i class="bi bi-keyboard"></i></span>
+            <a class="card-link" href="#usage">
+              <span class="path-title">Learn the shortcuts <i class="bi bi-arrow-right"></i></span>
+              <span class="path-desc">Everything is keyboard-driven. Keep the cheat sheet handy.</span>
+            </a>
+          </li>
+          <li>
+            <span class="path-icon"><i class="bi bi-git"></i></span>
+            <a class="card-link" href="#contributing">
+              <span class="path-title">Contribute <i class="bi bi-arrow-right"></i></span>
+              <span class="path-desc">Build from source, run the tests, and open a pull request.</span>
+            </a>
+          </li>
+        </ul>
+
+        <!-- Features -->
+        <h2 id="features">Everything in one screen</h2>
+        <p>No context switching. See your installed SDKs, available updates, runtimes, and search results — all at a glance.</p>
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-title"><i class="bi bi-box-seam"></i>SDK Management</div>
+            <p>View installed SDKs alongside the latest available versions. Install, uninstall, and update with a single keystroke.</p>
+          </div>
+          <div class="card">
+            <div class="card-title"><i class="bi bi-box-arrow-in-down"></i>Migrate Existing SDKs</div>
+            <p>Already have .NET installed outside dotnetup? dsm flags it as <strong>Unmanaged</strong> and brings it under management — one SDK with <code>m</code>, or all of them with <code>Shift+M</code>.</p>
+          </div>
+          <div class="card">
+            <div class="card-title"><i class="bi bi-gear"></i>Runtime Management</div>
+            <p>Full visibility into .NET and ASP.NET Core runtimes. Same install/uninstall/update workflow as SDKs.</p>
+          </div>
+          <div class="card">
+            <div class="card-title"><i class="bi bi-search"></i>Live Search</div>
+            <p>Non-blocking search with debounce. Type to search, results update as you go. Previous requests are automatically cancelled.</p>
+          </div>
+          <div class="card">
+            <div class="card-title"><i class="bi bi-palette"></i>Dark &amp; Light Themes</div>
+            <p>Press <code>F6</code> to toggle. The terminal background adapts automatically for a native look in both modes.</p>
+          </div>
+          <div class="card">
+            <div class="card-title"><i class="bi bi-shield-check"></i>Safe Install &amp; Uninstall</div>
+            <p>dsm pins your other installed versions before every install or uninstall, so dotnetup&rsquo;s cleanup only ever removes the version you selected.</p>
+          </div>
+          <div class="card">
+            <div class="card-title"><i class="bi bi-rocket-takeoff"></i>NativeAOT</div>
+            <p>Compiled ahead-of-time for instant startup. Small binary, no runtime dependency required on the target machine.</p>
+          </div>
+        </div>
+
+        <!-- Install -->
+        <h2 id="install">Installation</h2>
+        <p>One command to install. No .NET runtime needed — it's a self-contained native binary. Running the same command again updates to the latest version.</p>
+
+        <div class="tabs" data-sync="os">
+          <div class="tab-list" role="tablist" aria-label="Operating system">
+            <button type="button" role="tab" data-os="unix"><i class="bi bi-apple"></i> macOS / Linux</button>
+            <button type="button" role="tab" data-os="windows"><i class="bi bi-windows"></i> Windows</button>
+          </div>
+          <div class="tab-panel" role="tabpanel">
+            <p class="muted">Works on Bash, Zsh, and Fish. Installs to <code>~/.local/bin</code> and adds it to your PATH automatically.</p>
+            <div class="code-frame terminal">
+              <div class="frame-header"><span class="frame-title"><i class="bi bi-terminal"></i> Install or update</span></div>
+              <pre class="wrap"><code><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></code></pre>
+            </div>
+            <div class="code-frame terminal">
+              <div class="frame-header"><span class="frame-title"><i class="bi bi-trash3"></i> Uninstall</span></div>
+              <pre class="wrap"><code><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.sh | <span class="cmd">bash</span></code></pre>
+            </div>
+          </div>
+          <div class="tab-panel" role="tabpanel" hidden>
+            <p class="muted">PowerShell 7+ or Windows PowerShell 5.1. Installs to <code>%LOCALAPPDATA%\dsm</code> and adds it to your user PATH.</p>
+            <div class="code-frame terminal">
+              <div class="frame-header"><span class="frame-title"><i class="bi bi-terminal"></i> Install or update</span></div>
+              <pre class="wrap"><code><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.ps1 | <span class="cmd">iex</span></code></pre>
+            </div>
+            <div class="code-frame terminal">
+              <div class="frame-header"><span class="frame-title"><i class="bi bi-trash3"></i> Uninstall</span></div>
+              <pre class="wrap"><code><span class="cmd">irm</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/uninstall.ps1 | <span class="cmd">iex</span></code></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout note">
+          <div class="ctitle"><i class="bi bi-cpu"></i> Supported platforms</div>
+          <p>Native builds for macOS, Linux and Windows on both x64 and ARM64. Linux builds need glibc 2.27 or newer (Ubuntu 18.04+, Debian 10+, RHEL 8+, Fedora…); Alpine/musl isn't supported yet. On Windows, dsm shows symbols instead of emoji icons. Set <code>DSM_VERSION=v0.9.3</code> to install a specific release.</p>
+        </div>
+
+        <p>After installation, open a new terminal and run <code>dsm</code>. The app will notify you when updates are available — press <code>Ctrl+U</code> to self-update.</p>
+
+        <h3 id="prerequisites">Prerequisites</h3>
+        <div class="callout tip">
+          <div class="ctitle"><i class="bi bi-box-arrow-up-right"></i> dotnetup</div>
+          <p>dsm uses <strong>dotnetup</strong>, the official .NET SDK acquisition tool, for installing and managing SDKs and runtimes. You can install dotnetup from within dsm (press <code>i</code> in the Setup panel; on Windows this runs dotnetup's installer with PowerShell 7 when it's installed, otherwise Windows PowerShell), or set it up manually by following the <a href="https://github.com/dotnet/sdk/tree/release/dnup/documentation/general/dotnetup">dotnetup documentation</a>.</p>
+        </div>
+
+        <h3 id="troubleshooting">Troubleshooting</h3>
+        <div class="callout caution">
+          <div class="ctitle"><i class="bi bi-exclamation-triangle"></i> macOS: <code>killed</code> / “killed: 9” after updating</div>
+          <p>If <code>dsm</code> exits immediately with <code>killed</code> (signal 9) right after an update, an older installer replaced the binary in place, which invalidates its code signature on macOS. Re-run the install command to fix it — the installer now replaces the binary atomically, so future updates are safe:</p>
+          <div class="code-frame terminal">
+            <div class="frame-header"><span class="frame-title"><i class="bi bi-terminal"></i> Terminal</span></div>
+            <pre class="wrap"><code><span class="cmd">curl</span> <span class="flag">-fsSL</span> https://raw.githubusercontent.com/shahabganji/dotnet-sdk-tui/main/install/install.sh | <span class="cmd">bash</span></code></pre>
+          </div>
+        </div>
+
+        <!-- Usage -->
+        <h2 id="usage">Keyboard shortcuts</h2>
+        <p>Everything is keyboard-driven. No mouse needed.</p>
+
+        <div class="callout tip">
+          <div class="ctitle"><i class="bi bi-camera-reels"></i> Prefer a visual walkthrough?</div>
+          <p>The <a href="guide.html">.NET step-by-step guide</a> shows every flow with real screenshots — launching dsm, installing dotnetup, migrating SDKs you already have, installing &amp; searching for SDKs, managing workloads per SDK, and uninstalling versions.<span class="mac-only" style="display:none"> On macOS, the <a href="guide-brew.html">Homebrew guide</a> covers browsing, searching, installing, upgrading, and removing <code>brew</code> packages.</span></p>
+        </div>
+
+        <table>
+          <thead><tr><th>Key</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>↑</kbd> / <kbd>↓</kbd> or <kbd>j</kbd> / <kbd>k</kbd></td><td>Navigate rows</td></tr>
+            <tr><td><kbd>Tab</kbd></td><td>Cycle focus between SDKs, Runtimes, and Setup panels</td></tr>
+            <tr><td><kbd>i</kbd></td><td>Install selected SDK, Runtime, or Workload</td></tr>
+            <tr><td><kbd>u</kbd></td><td>Uninstall selected SDK, Runtime, or Workload</td></tr>
+            <tr><td><kbd>p</kbd></td><td>Update to latest in the channel (SDKs/Runtimes) or update all workloads</td></tr>
+            <tr><td><kbd>w</kbd></td><td>Open the Workloads workspace for the selected installed SDK</td></tr>
+            <tr><td><kbd>Shift+P</kbd></td><td>Repair workloads (Workloads workspace)</td></tr>
+            <tr><td><kbd>m</kbd></td><td>Migrate the selected unmanaged SDK; toggle workload update-mode (Workloads workspace)</td></tr>
+            <tr><td><kbd>Shift+M</kbd></td><td>Migrate all unmanaged SDKs (with confirmation)</td></tr>
+            <tr><td><kbd>r</kbd></td><td>Refresh data from the network</td></tr>
+            <tr><td><kbd>F3</kbd></td><td>Open the search screen</td></tr>
+            <tr><td><kbd>F6</kbd></td><td>Toggle dark / light theme</td></tr>
+            <tr><td><kbd>Ctrl+U</kbd></td><td>Self-update dsm to latest version</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Return to main screen from a workspace</td></tr>
+            <tr><td><kbd>q</kbd> or <kbd>Ctrl+C</kbd></td><td>Quit</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="search-syntax">Search syntax</h3>
+        <p>Open search with <kbd>F3</kbd>, then just start typing. Results update live with debounce — no enter key needed.</p>
+        <div class="code-frame" data-nocopy>
+          <div class="frame-header"><span class="frame-tab"><i class="bi bi-search"></i> Search examples</span></div>
+          <pre><code><span class="comment"># Search by channel version</span>
+<span class="arg">/ Search: 10</span>            <span class="comment"># Shows all .NET 10 SDKs and runtimes</span>
+
+<span class="comment"># Search by keyword</span>
+<span class="arg">/ Search: preview</span>       <span class="comment"># Shows all preview/RC versions</span>
+<span class="arg">/ Search: latest</span>        <span class="comment"># Shows latest versions across supported channels</span>
+<span class="arg">/ Search: lts</span>           <span class="comment"># Shows long-term support versions</span></code></pre>
+        </div>
+
+        <h3 id="cli">Command line</h3>
+        <div class="code-frame terminal">
+          <div class="frame-header"><span class="frame-title"><i class="bi bi-terminal"></i> Terminal</span></div>
+          <pre><code><span class="cmd">dsm</span>                <span class="comment"># Launch with animated banner</span>
+<span class="cmd">dsm</span> <span class="flag">--no-splash</span>    <span class="comment"># Skip the banner animation</span>
+<span class="cmd">dsm</span> <span class="flag">--version</span>      <span class="comment"># Print version and exit</span></code></pre>
+        </div>
+
+        <!-- Build from source -->
+        <h2 id="build">Build from source</h2>
+        <p>Requires the <a href="https://dotnet.microsoft.com/download">.NET 10 SDK</a> or later.</p>
+        <div class="code-frame terminal">
+          <div class="frame-header"><span class="frame-title"><i class="bi bi-terminal"></i> Terminal</span></div>
+          <pre><code><span class="comment"># Clone the repository</span>
+<span class="cmd">git</span> clone https://github.com/shahabganji/dotnet-sdk-tui.git
+<span class="cmd">cd</span> dotnet-sdk-tui
+
+<span class="comment"># Run in development</span>
+<span class="cmd">dotnet</span> run <span class="flag">--project</span> src/DotnetSdkTui
+
+<span class="comment"># Run tests</span>
+<span class="cmd">dotnet</span> test
+
+<span class="comment"># Publish a NativeAOT binary</span>
+<span class="cmd">dotnet</span> publish src/DotnetSdkTui <span class="flag">-c</span> Release <span class="flag">-r</span> <span class="arg">osx-arm64</span></code></pre>
+        </div>
+
+        <!-- Contributing -->
+        <h2 id="contributing">Contributing</h2>
+        <p>Contributions are welcome! Here's how to get involved.</p>
+        <ol class="mini-steps">
+          <li><span class="ms-title">Fork &amp; clone</span><p>Fork the <a href="https://github.com/shahabganji/dotnet-sdk-tui">repository</a> and clone it locally.</p></li>
+          <li><span class="ms-title">Branch</span><p>Create a branch from <code>main</code> for your feature or fix.</p></li>
+          <li><span class="ms-title">Build &amp; test</span><p>Run <code>dotnet test</code> to make sure everything passes.</p></li>
+          <li><span class="ms-title">Open a PR</span><p>Submit a pull request with a clear description of your changes.</p></li>
+        </ol>
+
+        <h3 id="help-wanted">Areas where help is appreciated</h3>
+        <ul>
+          <li>New platform support — test and report issues on platforms you use</li>
+          <li>Accessibility — keyboard navigation, screen reader improvements</li>
+          <li>Themes — new color palettes or refinements</li>
+          <li>Offline mode — better UX without network connectivity</li>
+          <li><a href="https://github.com/shahabganji/dotnet-sdk-tui/issues">Bug reports</a> — if something doesn't work, let us know</li>
+        </ul>
+
+        <nav class="pager" aria-label="Pagination">
+          <a class="next" href="guide.html"><span class="pager-label">Next <i class="bi bi-arrow-right"></i></span>.NET step-by-step guide</a>
+        </nav>
+
+        <footer class="sl-footer">
+          <span>Made with ❤ by <a href="https://shahab-the-guy.dev">Shahab the Guy</a> · MIT License</span>
+          <span class="footer-links">
+            <a href="https://github.com/shahabganji/dotnet-sdk-tui/edit/main/docs/docs.html" target="_blank" rel="noopener"><i class="bi bi-pencil-square"></i> Edit page</a>
+            <a href="https://github.com/shahabganji/dotnet-sdk-tui">GitHub</a>
+            <a href="https://shahab-the-guy.dev">Blog</a>
+          </span>
+        </footer>
+      </div>
+    </div>
+
+    <aside class="sl-toc" aria-label="On this page">
+      <div class="sl-toc-inner">
+        <h2>On this page</h2>
+        <ul class="toc-list"></ul>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<div class="search-dialog" id="search-dialog" role="dialog" aria-modal="true" aria-label="Search docs" hidden>
+  <div class="search-panel">
+    <label class="search-input-row"><i class="bi bi-search"></i><input type="search" placeholder="Search docs…" aria-label="Search docs"><kbd>Esc</kbd></label>
+    <ul class="search-results"></ul>
+    <div class="search-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>Esc</kbd> close</span></div>
+  </div>
+</div>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

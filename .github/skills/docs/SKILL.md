@@ -10,25 +10,51 @@ how to capture **screenshots of the TUI that render emoji/symbols correctly**.
 
 ## Site structure
 
-- `docs/index.html` — landing page (features, install, usage shortcuts, links to guides).
+The site is plain static HTML (deployed as-is to Azure Static Web Apps — **no build step**),
+modelled on aspire.dev (marketing home + Starlight docs) with the dsm teal/lime palette.
+
+- `docs/index.html` — **landing page** (`<body data-page="home" class="landing">`): hero whose copy
+  fades/blurs on scroll, auto-hiding header, CSS-3D stack of ".NET SDK" tiles, a "Live preview"
+  window cycling TUI screenshots, numbered `.lp-section`s (`.kicker` + `.sec-title`), footer.
+  Its ids are its own (`#get-started`, `#features`, …); any **other** hash (e.g. old `index.html#install`)
+  is redirected to `docs.html#…` by `landing.js` — never reuse a docs id on the landing page.
+- `docs/assets/landing.css` / `landing.js` — landing-only styles/behaviour, loaded **after**
+  `site.css`/`site.js` (which still provide tokens, header, buttons, tabs, code frames, search, banner).
+- `docs/docs.html` — docs home (hero, "Choose your path", features, install, reference, contributing).
 - `docs/guide.html` — the **.NET** step-by-step guide.
-- `docs/guide-brew.html` — the **Homebrew** guide.
+- `docs/guide-brew.html` — the **Homebrew** guide (macOS-only).
+- `docs/assets/site.css` — **all** styles: design tokens (`:root` dark default, `[data-theme="light"]`),
+  shell layout, components, responsive rules. Pages have **no** inline `<style>` blocks.
+- `docs/assets/site.js` — **all** behavior. The `NAV` array at the top is the single source of truth
+  for the left sidebar (topics → groups → items `{title, page, hash, badge, badgeKind, macOnly}`);
+  every `hash` must exist as an `id` on that page. It also builds the right/mobile "On this page" TOC,
+  heading anchors, code-frame copy buttons, tabs, scrollspy, the ⌘K search dialog, theme toggle,
+  sidebar collapse/drawer, `.mac-only` reveal and the latest-release banner (skipped on `file:`).
 - `docs/images/NN-name.png` — screenshots, numbered sequentially (`01`–`12` .NET, `13`+ brew).
 
-**One guide page per package manager.** Each guide is a standalone HTML file that
-duplicates the same `<style>` block (keep them in sync when editing CSS) and reuses the
-same components:
+**Page shell** (identical across pages — copy it verbatim): inline head script (applies saved
+`theme`/`sidebar-collapsed` before paint) → `header.sl-header` → `.sidebar-backdrop` →
+`aside#sidebar.sl-sidebar` (filled by JS) → `main.sl-main#_top` containing `.sl-banner[hidden]`,
+`details.mobile-toc[hidden]`, and `.sl-page > .sl-content-col (header.page-header + .sl-content)`
++ `aside.sl-toc` → `#search-dialog` → `<script src="assets/site.js">`. `<body data-page="...">`
+tells JS which sidebar topic is active (`docs`, `guide`, `guide-brew` — the `page` values in `NAV`
+are file names without `.html`). The brand link goes to `index.html` (landing); "Overview" is `docs.html`.
+Header CTA: `<span class="lbl-long">Try .NET SDK Manager</span><span class="lbl-short">Try dsm</span>`
+(short label below 64rem).
 
-- Fixed top `nav` with `.nav-links` (cross-link every guide + Features/Install/GitHub).
-- A sticky table-of-contents `aside.side-toc > nav > ol` (auto-numbered via CSS counter; the
-  `<li><a href="#anchor">` entries must match the `.step[id]` sections — scrollspy keys off them).
-- `.step` sections with `.step-header > .step-num` + `<h2>`, `<p class="lead">`, `<figure><img><figcaption>`,
-  `<ul>` of `<kbd>` key badges, and `.callout` / `.callout.warn` boxes.
-- An optional `.legend` card explaining icons/columns.
-- `.guide-end` nav buttons + `<footer>`, then the theme-toggle + scrollspy `<script>`.
+**Components** (classes in `site.css`):
 
-When adding a guide, copy `guide.html`'s skeleton, swap the steps, and **cross-link it** from
-the nav and end buttons of the other guides and from `index.html` (nav + the usage callout).
+- `.step[id] > .step-header > .step-num + h2` — numbered Starlight-style steps (scrollspy marks `.is-current`).
+- `.callout.tip|.note|.warn|.caution|.danger` with a `.ctitle` — asides.
+- `.code-frame.terminal` (window dots + `.frame-title`) or `.code-frame` (`.frame-tab`); bare `<pre>`
+  is auto-framed. `data-nocopy` disables the copy button. Syntax spans: `.cmd .flag .arg .comment`.
+- `.tabs[data-sync="key"]` with `role="tab" data-os="mac|win"` buttons — synced/persisted across pages.
+- `.spotlight`, `.legend`, `.card-grid > .card`, `ul.paths` (timeline links), `.hero-card`, `.badge`.
+- `ol.breadcrumbs`, `.page-actions` (Edit page / `[data-copy-link]`), `.pager` (`a.prev`/`a.next`), `.sl-footer`.
+- TOC includes every `.sl-content h2, h3` except inside `.hero-card`, `.callout`, `.card`, `.spotlight`, `.no-toc`.
+
+When adding a guide, copy `guide.html`, swap the steps, add a topic (and groups) to `NAV` in
+`site.js`, and update the `.pager` prev/next links on neighbouring pages.
 
 ## Capturing TUI screenshots with emoji (IMPORTANT)
 
@@ -106,7 +132,8 @@ Notes:
 ## Gating doc content to a platform (e.g. macOS-only)
 
 Homebrew is macOS-only, so its menu links only show on macOS. The docs are static, so detect
-client-side: mark elements `class="mac-only" style="display:none"` and reveal them with a script:
+client-side: mark elements `class="mac-only" style="display:none"` (or `macOnly: true` in `NAV`);
+`site.js` reveals them with:
 
 ```js
 (function () {
@@ -124,6 +151,8 @@ reachable by direct URL — only the menu link is gated.
 
 - Documentation for app features lives in `docs/` (the site), **not** the README. Keep README focused
   on install/build/contribute.
-- Key badges use `<kbd>`; inline commands/paths use `<code>`; tips/warnings use `.callout`/`.callout.warn`.
+- Key badges use `<kbd>`; inline commands/paths use `<code>`; tips/warnings use `.callout.tip`/`.callout.warn` etc.
+- Edit styles/behavior only in `docs/assets/site.css` / `site.js`; don't add per-page `<style>`/`<script>` blocks (beyond the shell's theme head script).
+- Verify visually in dark **and** light themes and at mobile width (~400px) before committing.
 - New screenshots: next sequential number in `docs/images/`, referenced from a `<figure>` with a `<figcaption>`.
 - Related testing tool: see the [hex1b skill](../hex1b/SKILL.md) for the full terminal-automation reference.
