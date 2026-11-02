@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/mascot.png" alt="dsm mascot" width="160" />
+<img src="docs/images/mascot.png" alt=".NET SDK Manager icon" width="160" />
 
 # .NET SDK Manager
 
@@ -17,6 +17,8 @@
 
 ## Features
 
+<img src="docs/images/stax.svg" alt="Stax, the dsm mascot, waving" width="150" align="right" />
+
 - **Animated startup banner** — Aspire-style block letter animation with a teal-lime shine sweep
 - **Tabbed workspace** — Copilot-CLI-style tab strip switches between SDKs, Runtimes, and Search with a single `Tab` press
 - **SDKs tab** — View installed SDKs alongside the latest available versions for active and preview channels. Install, uninstall, and update with a single keystroke
@@ -25,6 +27,7 @@
 - **Live search tab** — Non-blocking search with debounce and request cancellation. Type to search, results update as you go — the terminal never freezes
 - **Setup panel** — Install and manage the `dotnetup` tool itself from within the app
 - **Dark / Light themes** — Press `F6` to toggle. The terminal background adapts via OSC 11
+- **Meet Stax** — the SDK-stack mascot waves hello on the splash screen (and keeps you company in the docs)
 - **Lifecycle icons** — At-a-glance status for each version: 🍀 Active, 🏭 Preview, 🚧 Maintenance, 👿 End of Life
 - **Safe install & uninstall** — Before every SDK/runtime install or uninstall, dsm pins your other installed versions so dotnetup's cleanup never removes them; uninstall removes only the version you selected
 - **Scroll windowing** — Panels scroll smoothly when you have many installed versions
