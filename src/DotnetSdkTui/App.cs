@@ -379,14 +379,11 @@ public sealed class App
         root["TopPad"].Update(new Text(""));
         root["TabsPad"].Update(new Text(""));
 
-        // Top row: mascot column + Welcome (left) + Setup panel (right).
-        // The mascot lives outside the Welcome panel so the panel's title stays on ONE line.
+        // Top row: Welcome (left) + Setup panel (right).
         root["Top"].SplitColumns(
-            new Layout("Mascot").Size(9),
             new Layout("Welcome"),
             new Layout("Setup"));
 
-        root["Top"]["Mascot"].Update(Ui.MascotArt());
         root["Top"]["Welcome"].Update(Ui.WelcomePanel());
         root["Top"]["Setup"].Update(_setupView.Render(_setupFocused));
 

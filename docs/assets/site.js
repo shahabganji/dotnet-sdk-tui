@@ -516,4 +516,13 @@
       })
       .catch(function () {});
   }
+
+  // ── Buddy: animated mascot (docs pages only, never the landing page) ──
+  var self = document.currentScript;
+  if (self && document.body.getAttribute('data-page') !== 'home') {
+    var buddy = document.createElement('script');
+    buddy.src = self.src.replace(/site\.js(\?.*)?$/, 'buddy.js');
+    buddy.setAttribute('data-mount', '');
+    document.body.appendChild(buddy);
+  }
 })();

@@ -147,12 +147,20 @@ public static class Ui
                     await BannerDelayAsync(35);
                 }
 
-                // Final frame (no shine) — hold briefly
-                ctx.UpdateTarget(CreateBannerPanel(CreateFullFrame(welcomeText, versionText, versionPadding, -1)));
-                await BannerDelayAsync(800);
+                // Final frame (no shine) — hold briefly while Stax waves
+                await WaveAsync(ctx, CreateFullFrame(welcomeText, versionText, versionPadding, -1), 4);
             });
 
         AnsiConsole.Clear();
+    }
+
+    private static async Task WaveAsync(LiveDisplayContext ctx, IRenderable frame, int beats)
+    {
+        for (int i = 0; i < beats; i++)
+        {
+            ctx.UpdateTarget(CreateBannerPanel(frame, waving: i % 2 == 0));
+            await BannerDelayAsync(200);
+        }
     }
 
     private static async Task BannerDelayAsync(int ms)
@@ -161,8 +169,16 @@ public static class Ui
         catch (TaskCanceledException) { }
     }
 
-    private static Panel CreateBannerPanel(IRenderable content)
+    private static Panel CreateBannerPanel(IRenderable content, bool waving = false)
     {
+        // Stax stands left of the banner when the terminal is wide enough for both.
+        int needed = MascotWidth + 3 + BannerLines[0].Length + 2 + 4;
+        if (AnsiConsole.Profile.Width >= needed)
+        {
+            var grid = new Grid().AddColumn(new GridColumn().NoWrap().PadRight(3)).AddColumn();
+            grid.AddRow(MascotArt(waving), content);
+            content = grid;
+        }
         return new Panel(content)
             .Border(BoxBorder.Rounded)
             .BorderColor(Color.Grey)
@@ -297,50 +313,104 @@ public static class Ui
         return positions.ToArray();
     }
 
-    // ── Mascot palette (brand teal + lime, matches the SVG/PNG mascot) ─────
-    // Every colour is theme-adaptive so the rocket keeps enough contrast on both the
-    // navy dark-mode background and the cream light-mode one.
-
-    /// <summary>Main teal for the fuselage / body walls.</summary>
-    private static string MascotTeal =>
-        ThemeManager.IsAccessible ? "#56B4E9"
-        : ThemeManager.Current == AppTheme.Dark ? "#1DB9A0" : "#0F7A68";
-
-    /// <summary>Deeper teal shadow (currently unused, kept for future accents).</summary>
-    private static string MascotShadow =>
-        ThemeManager.IsAccessible ? "#0072B2"
-        : ThemeManager.Current == AppTheme.Dark ? "#0F7A68" : "#062822";
-
-    /// <summary>Lime accent for the porthole, nose, and flame — darkened on light bg.</summary>
-    private static string MascotBandana =>
-        ThemeManager.IsAccessible ? "#F0E442"
-        : ThemeManager.Current == AppTheme.Dark ? "#C8E64D" : "#4E6E10";
-
-    /// <summary>Knot-tail / secondary lime shade — even darker for light mode contrast.</summary>
-    private static string MascotBandanaDk =>
-        ThemeManager.IsAccessible ? "#E69F00"
-        : ThemeManager.Current == AppTheme.Dark ? "#9BC02E" : "#2E4200";
-
-    /// <summary>
-    /// A compact 3-row Unicode block-art mascot: our brand rocket, matching the SVG/PNG
-    /// mascot in docs/images. A tiny nose sits atop a mechanical fuselage, and a wide flame
-    /// plume flares out at the base — the flaring exhaust is what stops the silhouette
-    /// reading as a person wearing a hat.
-    /// Colours flip between themes so the mascot stays legible on both dark and light backgrounds.
-    /// </summary>
-    public static IRenderable MascotArt()
+    // ── Mascot: Stax (the same character as the docs, see docs/assets/buddy.js) ──
+    // Pixel letters: L lime (joints, claws), T/G Stax's top tile and its green layer,
+    // M/m/h/k teal body (base, shade, highlight, layer), d dark base, W visor, E eyes, B limbs,
+    // s shins, b boots, '.' empty. Colours adapt to the active theme.
+    private static string? MascotColor(char pixel)
     {
-        // Row 1: nose cone with slanted shoulders that connect down into the body walls.
-        // Row 2: mechanical fuselage with heavy vertical walls and a lime porthole.
-        // Row 3: flame plume — flares OUT wider than the body, in bold lime.
-        string row1 = $" [{MascotTeal}]╱[/][{MascotBandana} bold]▲[/][{MascotTeal}]╲[/] ";
-        string row2 = $" [{MascotTeal}]║[/][{MascotBandana} bold]◉[/][{MascotTeal}]║[/] ";
-        string row3 = $"[{MascotBandana} bold]╲▓█▓╱[/]";
-        return new Markup($"{row1}\n{row2}\n{row3}");
+        bool accessible = ThemeManager.IsAccessible, dark = ThemeManager.Current == AppTheme.Dark;
+        string Pick(string a11y, string onDark, string onLight) => accessible ? a11y : dark ? onDark : onLight;
+        return pixel switch
+        {
+            'L' => Pick("#F0E442", "#C8E64D", "#7FAE22"),
+            'T' => Pick("#F7F0A0", "#E4F59A", "#B9DB5C"),
+            'G' => Pick("#D5C21F", "#7CC94D", "#5E9A2F"),
+            'M' => Pick("#56B4E9", "#1DB9A0", "#0F9A84"),
+            'm' => Pick("#0072B2", "#0E8C76", "#0B6F60"),
+            'h' => Pick("#A6D8F5", "#7DEBD3", "#3CC9AE"),
+            'k' => Pick("#3C9BD6", "#139A85", "#12907C"),
+            'd' => Pick("#004C7A", "#0B4F47", "#062E29"),
+            'W' => Pick("#FFFFFF", "#EAFBF5", "#FFFFFF"),
+            'E' => Pick("#000000", "#062822", "#062822"),
+            'B' => Pick("#0072B2", "#0E6F61", "#0B4F47"),
+            's' => Pick("#56B4E9", "#17A58E", "#0F7A68"),
+            'b' => Pick("#004C7A", "#0B4F47", "#062E29"),
+            _ => null,
+        };
     }
 
+    // Stax is drawn for the splash in half-block pixels (2 per text row, 16 rows → 8 text rows),
+    // standing and waving.
+    private static readonly string[] StaxBody =
+        [
+        "....TTTTTTTTT....",
+        "..TTTTTTTTTTTTT..",
+        "..GGTTTTTTTTTGG..",
+        "..hhGGGGGGGGGhh..",
+        "..kkhhhhhhhhhkk..",
+        ".BMMkkkkkkkkkMMB.",
+        ".BMWWWWWWWWWWWMB.",
+        "B.MWWEWWWWWEWWM.B",
+        "B.mWWEWWWWWEWWm.B",
+        "B.mmWWWWWWWWWmm.B",
+        "LL.ddmmmmmmmdd.LL",
+        "L.L..dd...dd..L.L",
+        ".....sMs.sMs.....",
+        ".....sMs.sMs.....",
+        "....bbbL.Lbbb....",
+        "....bbbb.bbbb....",
+        ];
+
+    private static readonly string[] StaxWave =
+        [
+        "....TTTTTTTTT.L.L",
+        "..TTTTTTTTTTTTT.L",
+        "..GGTTTTTTTTTGG.B",
+        "..hhGGGGGGGGGhh.B",
+        "..kkhhhhhhhhhkk.B",
+        ".BMMkkkkkkkkkMMBB",
+        ".BMWWWWWWWWWWWMB.",
+        "B.MWWEWWWWWEWWM..",
+        "B.mWWEWWWWWEWWm..",
+        "B.mmWWWWWWWWWmm..",
+        "LL.ddmmmmmmmdd...",
+        "L.L..dd...dd.....",
+        ".....sMs.sMs.....",
+        ".....sMs.sMs.....",
+        "....bbbL.Lbbb....",
+        "....bbbb.bbbb....",
+        ];
+
+    /// <summary>Stax's full body drawn with half-block pixels (8 rows tall), optionally waving.</summary>
+    public static IRenderable MascotArt(bool waving = false)
+    {
+        var px = waving ? StaxWave : StaxBody;
+        var sb = new StringBuilder();
+        for (int row = 0; row < px.Length; row += 2)
+        {
+            if (row > 0) sb.Append('\n');
+            for (int col = 0; col < px[row].Length; col++)
+            {
+                string? upper = MascotColor(px[row][col]), lower = MascotColor(px[row + 1][col]);
+                sb.Append((upper, lower) switch
+                {
+                    (null, null) => " ",
+                    (null, _) => $"[{lower}]\u2584[/]",                          // ▄
+                    (_, null) => $"[{upper}]\u2580[/]",                          // ▀
+                    _ when upper == lower => $"[{upper}]\u2588[/]",              // █
+                    _ => $"[{upper} on {lower}]\u2580[/]",
+                });
+            }
+        }
+        return new Markup(sb.ToString());
+    }
+
+    /// <summary>Width of <see cref="MascotArt"/> in terminal cells.</summary>
+    public static int MascotWidth => StaxBody[0].Length;
+
     /// <summary>
-    /// Renders the welcome info panel (right of the mascot in the top row). The panel body
+    /// Renders the welcome info panel (left of the Setup panel in the top row). The panel body
     /// keeps the original single-line "made with ❤" tagline unchanged.
     /// </summary>
     public static IRenderable WelcomePanel()

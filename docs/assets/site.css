@@ -130,7 +130,7 @@ code, kbd, pre { font-family: var(--mono); }
   white-space: nowrap;
   letter-spacing: -0.01em;
 }
-.brand img { width: 30px; height: 38px; object-fit: contain; }
+.brand img { width: 32px; height: 32px; object-fit: contain; }
 .brand b { color: var(--accent); font-weight: 600; }
 
 .header-search {
@@ -956,7 +956,7 @@ pre .arg { color: var(--gold); }
   background: var(--accent-low);
   margin-bottom: 1.6rem;
 }
-.hero-logo img { width: 1.8rem; height: 2.3rem; object-fit: contain; }
+.hero-logo img { width: 2.6rem; height: 2.6rem; object-fit: contain; }
 .sl-content .hero-card h2 {
   margin: 0 0 1rem;
   font-size: clamp(1.8rem, 1.2rem + 1.8vw, 2.6rem);
@@ -1178,6 +1178,129 @@ pre .arg { color: var(--gold); }
 .muted { color: var(--text-muted); }
 .sidebar-backdrop { display: none; }
 
+/* ── Buddy (animated mascot, assets/buddy.js) ───────── */
+/* Docs pages only, and only where there is room (tablet and up). */
+.dsm-buddy {
+  --bd-size: 6.5rem;
+  position: fixed;
+  right: 1.25rem;
+  bottom: 0.5rem;
+  z-index: 45;
+  width: var(--bd-size);
+  display: none;
+  animation: bd-enter 0.7s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+@media (min-width: 48rem) { .dsm-buddy { display: block; } }
+.dsm-buddy.is-inline { position: relative; right: auto; bottom: auto; display: block; animation: none; }
+
+.dsm-buddy-figure {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.dsm-buddy-figure:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 1rem; }
+.bd-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.bd-svg :is(.bd-figure, .bd-body, .bd-legs, .bd-leg, .bd-arm, .bd-eyes, .bd-pupils, .bd-shadow) {
+  transform-box: view-box;
+}
+.bd-figure { transform-origin: 100px 190px; }
+.bd-shadow { transform-origin: 100px 192px; }
+.bd-pupils { transition: transform 0.12s ease-out; }
+.bd-eyes { animation: bd-blink 4.6s infinite; }
+
+.dsm-buddy-bubble {
+  --bd-bubble-bg: color-mix(in srgb, var(--accent) 14%, var(--bg-surface));
+  --bd-bubble-edge: color-mix(in srgb, var(--accent) 65%, transparent);
+  position: absolute;
+  right: 0.25rem;
+  bottom: calc(100% + 0.35rem);
+  width: max-content;
+  max-width: 15rem;
+  padding: 0.6rem 0.95rem;
+  border: 1.5px solid var(--bd-bubble-edge);
+  border-radius: 1.25rem;
+  background: var(--bd-bubble-bg);
+  box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.55), 0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(6px) scale(.96);
+  transform-origin: 85% 100%;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+}
+/* Tail: a rotated square sharing the bubble's fill and outline, so the outline flows into it. */
+.dsm-buddy-bubble::after {
+  content: '';
+  position: absolute;
+  right: 2.4rem;
+  top: 100%;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: calc(-0.475rem - 0.75px);
+  border-right: 1.5px solid var(--bd-bubble-edge);
+  border-bottom: 1.5px solid var(--bd-bubble-edge);
+  border-bottom-right-radius: 0.2rem;
+  background: var(--bd-bubble-bg);
+  transform: rotate(45deg);
+}
+[data-theme="light"] .dsm-buddy-bubble {
+  --bd-bubble-bg: #FFFFFF;
+  --bd-bubble-edge: var(--accent);
+  box-shadow: 0 10px 26px -10px rgba(14, 140, 118, 0.45), 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.dsm-buddy.is-talking .dsm-buddy-bubble { opacity: 1; transform: none; pointer-events: auto; }
+.dsm-buddy-bubble { padding-right: 1.9rem; }
+.dsm-buddy-hush {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 1.3rem;
+  height: 1.3rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.dsm-buddy-hush:hover, .dsm-buddy-hush:focus-visible { background: rgba(127, 127, 127, 0.18); color: var(--text); }
+.dsm-buddy-hush:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+
+/* Stax breathes, waves every few seconds (eagerly while hovered) and its eyes follow the pointer.
+   buddy.js also leans .bd-figure towards the pointer; clicking makes it jump. */
+.dsm-buddy .bd-body { animation: bd-breathe 3s ease-in-out infinite; }
+.dsm-buddy .bd-arm-r { animation: bd-wave 6s ease-in-out infinite 0.8s; }
+.dsm-buddy:is(:hover, :focus-within) .bd-arm-r { animation: bd-wave-eager 1.6s ease-in-out infinite; }
+.dsm-buddy .bd-figure { transition: transform 0.4s ease-out; }
+.dsm-buddy.is-excited .bd-figure { animation: bd-jump 0.6s ease-out; }
+
+@keyframes bd-enter { from { opacity: 0; transform: translateY(40%); } }
+@keyframes bd-blink { 0%, 93%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes bd-breathe { 50% { transform: translateY(1.5px); } }
+@keyframes bd-wave {
+  0%, 45%, 100% { transform: rotate(0); }
+  8% { transform: rotate(-118deg); }
+  14%, 26% { transform: rotate(-96deg); }
+  20%, 32% { transform: rotate(-122deg); }
+  38% { transform: rotate(-110deg); }
+}
+@keyframes bd-wave-eager {
+  0%, 100% { transform: rotate(-110deg); }
+  25%, 75% { transform: rotate(-94deg); }
+  50% { transform: rotate(-124deg); }
+}
+@keyframes bd-jump { 30% { transform: translateY(-16px) rotate(-4deg); } 60% { transform: translateY(0) scale(1.04, 0.95); } }
+
+@media print { .dsm-buddy { display: none !important; } }
+
 /* ── Responsive ─────────────────────────────────────── */
 @media (min-width: 120rem) {
   :root { --content-max: 64rem; }
@@ -1229,4 +1352,5 @@ pre .arg { color: var(--gold); }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   * { transition: none !important; }
+  .dsm-buddy, .dsm-buddy * { animation: none !important; }
 }
