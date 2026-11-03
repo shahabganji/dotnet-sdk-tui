@@ -21,7 +21,7 @@ where the real bugs live (they cost this project a full debugging session).
 | --- | --- | --- |
 | Enable/disable mouse reporting | `src/DotnetSdkTui/Services/MouseInput.cs` — `EnableSequence` / `DisableSequence` | SGR 1006 + button tracking 1000. Already written to the console on startup and around interactive suspends in `App.RunAsync` / `RunInteractiveAndRefreshAsync`. |
 | Parse a click into an event | `MouseInput.ParseSgr` / `ParseX10` → `MouseEvent(Button, Column, Row, IsPress)` with `IsLeftPress` | Coordinates are **1-based**, matching the terminal. `IsLeftPress` already filters out motion/wheel/non-left buttons. |
-| Read & decode input in the loop | `App.TryReadInput` (+ `TryReadCharWithin`) | Turns a raw `ESC[<…M/m` sequence into a `MouseEvent`; hands everything else back as a `ConsoleKeyInfo`. You rarely need to touch this. |
+| Read & decode input in the loop | `InputReader.TryRead` (`src/DotnetSdkTui/Services/InputReader.cs`) | Turns a raw `ESC[<…M/m` sequence into a `MouseEvent`; hands everything else back as a `ConsoleKeyInfo` (a key that follows a lone Esc is kept, not swallowed). You rarely need to touch this. |
 | Dispatch to a handler | `App` poll loop → `HandleMouseAsync(MouseEvent)` | This is where you add new hit-testing. |
 
 So: **the event already arrives at `HandleMouseAsync` with a correct 1-based column and row.**
@@ -174,7 +174,7 @@ Reason about it in this order — each step isolates one layer:
 
 1. **Is the event arriving?** If unsure, temporarily log inside `HandleMouseAsync` (gate behind
    an env var like the project has done before, and remove it after). No event → mouse reporting
-   isn't enabled for that screen, or the sequence isn't being decoded (`TryReadInput`).
+   isn't enabled for that screen, or the sequence isn't being decoded (`InputReader.TryRead`).
 2. **Do the columns match but the row is off by one?** That's the trailing-newline scroll —
    confirm `EmitFrame` still strips it, and that your row detection reads the emitted `bodyText`.
 3. **Is the row right but columns are off?** Emoji/width math — audit your `VisibleWidth` usage
@@ -188,7 +188,8 @@ or `dotnet hex1b … -- dotnet run …`, and never overwrite the user's installe
 
 ## Key files
 - `src/DotnetSdkTui/Services/MouseInput.cs` — enable/disable, `MouseEvent`, `ParseSgr`, `ParseX10`.
-- `src/DotnetSdkTui/App.cs` — `TryReadInput`, `HandleMouseAsync`, `FindTabRow`, `EmitFrame`
+- `src/DotnetSdkTui/Services/InputReader.cs` — key/mouse decoding (`TryRead`).
+- `src/DotnetSdkTui/App.cs` — `HandleMouseAsync`, `FindTabRow`, `EmitFrame`
   (trailing-newline strip + row detection), and the mouse enable/disable calls.
 - `src/DotnetSdkTui/Theme/Ui.cs` — `TabHitRegion`, `ComputeTabHitRegions`, `VisibleWidth`, `IsWide`.
 - `tests/DotnetSdkTui.Tests/Theme/TabHitRegionTests.cs`, `tests/.../Services/MouseInputTests.cs`.

@@ -222,9 +222,9 @@ public sealed class App
 
                 try
                 {
-                    if (Console.KeyAvailable)
+                    if (InputReader.Console.KeyAvailable)
                     {
-                        if (TryReadInput(out var key, out var mouse))
+                        if (InputReader.Console.TryRead(out var key, out var mouse))
                         {
                             if (mouse is { } m) await HandleMouseAsync(m);
                             else await HandleKeyAsync(key);
@@ -562,69 +562,6 @@ public sealed class App
         if (m.Row >= _setupTopRow && m.Row <= _setupBottomRow
             && m.Column >= _setupHitRegion.Start && m.Column < _setupHitRegion.EndExclusive)
             _setupFocused = true;
-    }
-
-    /// <summary>
-    /// Reads the next input. Most keys pass straight through, but a mouse report — either SGR
-    /// (<c>ESC [ &lt; Cb ; Cx ; Cy M|m</c>) or legacy X10 (<c>ESC [ M b x y</c>) — is decoded into
-    /// <paramref name="mouse"/> (see <see cref="MouseInput"/>). A lone Escape or an unrecognised escape
-    /// sequence is returned as the Escape key. Returns <c>false</c> only when no input was pending.
-    /// </summary>
-    private static bool TryReadInput(out ConsoleKeyInfo key, out MouseInput.MouseEvent? mouse)
-    {
-        key = default;
-        mouse = null;
-
-        if (!Console.KeyAvailable) return false;
-
-        ConsoleKeyInfo first = Console.ReadKey(true);
-        if (first.Key != ConsoleKey.Escape)
-        {
-            key = first;
-            return true;
-        }
-
-        // Possible mouse sequence. The continuation bytes usually arrive in the same terminal write
-        // as the ESC, but we wait briefly for each so a split read doesn't misfire a lone Escape.
-        if (!TryReadCharWithin(40, out char c1)) { key = first; return true; }
-        if (c1 != '[') { key = first; return true; }
-
-        if (!TryReadCharWithin(40, out char c2)) { key = first; return true; }
-
-        if (c2 == '<')
-        {
-            // SGR (1006) extended encoding.
-            var body = new StringBuilder();
-            while (TryReadCharWithin(40, out char c))
-            {
-                body.Append(c);
-                if (c is 'M' or 'm') break;
-            }
-            mouse = MouseInput.ParseSgr(body.ToString());
-        }
-        else if (c2 == 'M')
-        {
-            // Legacy X10 encoding: exactly three bytes follow.
-            var body = new StringBuilder();
-            for (int i = 0; i < 3 && TryReadCharWithin(40, out char c); i++) body.Append(c);
-            mouse = MouseInput.ParseX10(body.ToString());
-        }
-
-        if (mouse is null) key = first; // not a mouse report — treat the leading ESC as a plain key
-        return true;
-    }
-
-    /// <summary>Reads the next key's character within <paramref name="ms"/> milliseconds, if one arrives.</summary>
-    private static bool TryReadCharWithin(int ms, out char ch)
-    {
-        ch = '\0';
-        DateTime end = DateTime.UtcNow.AddMilliseconds(ms);
-        while (DateTime.UtcNow < end)
-        {
-            if (Console.KeyAvailable) { ch = Console.ReadKey(true).KeyChar; return true; }
-            System.Threading.Thread.Sleep(1);
-        }
-        return false;
     }
 
     /// <summary>
