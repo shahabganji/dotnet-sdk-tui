@@ -495,24 +495,29 @@
   if (banner && window.fetch && location.protocol !== 'file:') {
     var cached = null;
     try { cached = JSON.parse(sessionStorage.getItem('dsm-latest-release') || 'null'); } catch (e) {}
+    var currentRelease = null;
     var show = function (rel) {
       if (!rel || !rel.tag || load('banner-dismissed') === rel.tag) return;
+      currentRelease = rel;
       $('.banner-version', banner).textContent = 'dsm ' + rel.tag;
       $('.banner-link', banner).href = rel.url;
       banner.hidden = false;
-      $('.banner-close', banner).addEventListener('click', function () {
-        banner.hidden = true;
-        store('banner-dismissed', rel.tag);
-      });
     };
+    var closeBtn = $('.banner-close', banner);
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function () {
+        banner.hidden = true;
+        if (currentRelease && currentRelease.tag) store('banner-dismissed', currentRelease.tag);
+      });
+    }
     if (cached) show(cached);
-    else fetch('https://api.github.com/repos/' + REPO + '/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+    fetch('https://api.github.com/repos/' + REPO + '/releases/latest', { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         if (!j || !j.tag_name) return;
         var rel = { tag: j.tag_name, url: j.html_url };
         try { sessionStorage.setItem('dsm-latest-release', JSON.stringify(rel)); } catch (e) {}
-        show(rel);
+        if (!cached || cached.tag !== rel.tag || cached.url !== rel.url) show(rel);
       })
       .catch(function () {});
   }
