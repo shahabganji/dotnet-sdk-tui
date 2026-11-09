@@ -55,4 +55,44 @@ public class SetupViewTests
         var hints = view.GetStatusHints();
         Assert.Contains("Refresh", hints);
     }
+
+    // --- Install-folder diagnostics ---
+
+    private const string AppSupport = "/Users/jane/Library/Application Support/dotnet";
+    private const string DotDotnet = "/Users/jane/.dotnet";
+
+    [Fact]
+    public void BuildRootLineModel_ActiveRootManaged_SingleCalmLine()
+    {
+        var lines = SetupView.BuildRootLineModel(AppSupport, [AppSupport], rememberedRoot: null);
+
+        var line = Assert.Single(lines);
+        Assert.Equal(AppSupport, line.Path);
+        Assert.False(line.Warn);
+    }
+
+    [Fact]
+    public void BuildRootLineModel_ActiveRootDiffersFromTracked_WarnsWithBothFolders()
+    {
+        var lines = SetupView.BuildRootLineModel(DotDotnet, [AppSupport], rememberedRoot: null);
+
+        Assert.Equal([DotDotnet, AppSupport], lines.Select(l => l.Path));
+        Assert.All(lines, l => Assert.True(l.Warn));
+    }
+
+    [Fact]
+    public void BuildRootLineModel_RememberedRoot_AddsForgetHint()
+    {
+        var lines = SetupView.BuildRootLineModel(AppSupport, [AppSupport], rememberedRoot: AppSupport);
+
+        Assert.Equal(2, lines.Count);
+        Assert.Contains("f:forget", lines[1].Suffix);
+    }
+
+    [Fact]
+    public void FitPath_KeepsDistinctiveTail()
+    {
+        Assert.Equal("…Support/dotnet", SetupView.FitPath("~/Library/Application Support/dotnet", 15));
+        Assert.Equal("~/.dotnet", SetupView.FitPath("~/.dotnet", 15));
+    }
 }

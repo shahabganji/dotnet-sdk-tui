@@ -152,7 +152,14 @@ public static class WorkloadService
         ProcessResult r = await ProcessRunner.RunAsync("dotnet", "workload list", workingDirectory: cwd, ct: ct);
         if (r.ExitCode != 0 || string.IsNullOrWhiteSpace(r.Output)) return result;
 
-        foreach (string[] cells in WorkloadTableParser.ParseTable(r.Output, "Installed Workload Id"))
+        return ParseInstalledList(r.Output);
+    }
+
+    /// <summary>Parses <c>dotnet workload list</c> output into id → (manifest version, install source).</summary>
+    internal static Dictionary<string, InstalledRow> ParseInstalledList(string output)
+    {
+        var result = new Dictionary<string, InstalledRow>(StringComparer.OrdinalIgnoreCase);
+        foreach (string[] cells in WorkloadTableParser.ParseTable(output, "Installed Workload Id"))
         {
             if (cells.Length < 1 || string.IsNullOrWhiteSpace(cells[0])) continue;
             string id      = cells[0].Trim();
@@ -160,8 +167,51 @@ public static class WorkloadService
             string source  = cells.Length > 2 ? cells[2].Trim() : "";
             result[id] = new InstalledRow(version, source);
         }
-
         return result;
+    }
+
+    /// <summary>
+    /// The workload ids installed for SDK <paramref name="sdkVersion"/> in the dotnet folder <paramref name="root"/>
+    /// (which needn't be the dotnet on PATH). Asks that folder's own <c>dotnet workload list</c>, pinned to the
+    /// SDK; falls back to the install records on disk when that fails. Null when neither can be read.
+    /// </summary>
+    public static async Task<IReadOnlyList<string>?> ListInstalledIdsInRootAsync(string root, string sdkVersion, CancellationToken ct = default)
+    {
+        string muxer = Path.Combine(root, DotnetUpService.MuxerFileName(OperatingSystem.IsWindows()));
+        if (File.Exists(muxer))
+        {
+            ProcessResult r = await ProcessRunner.RunAsync(muxer, "workload list", EnsureSdkPinDirectory(sdkVersion), ct);
+            if (r.ExitCode == 0)
+                return ParseInstalledList(r.Output).Keys.Order(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        return ReadInstalledIdsFromDisk(root, DeriveFeatureBand(sdkVersion), InstallRemoval.CliHomeDotnetDir());
+    }
+
+    /// <summary>
+    /// Reads file-based workload install records (<c>metadata/workloads/&lt;band&gt;/InstalledWorkloads/&lt;id&gt;</c>),
+    /// following the band's <c>userlocal</c> marker to the CLI's per-user folder. Null when the records can't be read.
+    /// </summary>
+    internal static IReadOnlyList<string>? ReadInstalledIdsFromDisk(string root, string band, string cliHomeDotnet)
+    {
+        try
+        {
+            string bandDir = Path.Combine(root, "metadata", "workloads", band);
+            var dirs = new List<string> { Path.Combine(bandDir, "InstalledWorkloads") };
+            if (File.Exists(Path.Combine(bandDir, "userlocal")))
+                dirs.Add(Path.Combine(cliHomeDotnet, "metadata", "workloads", band, "InstalledWorkloads"));
+
+            return dirs.Where(Directory.Exists)
+                .SelectMany(Directory.EnumerateFiles)
+                .Select(Path.GetFileName)
+                .OfType<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Order(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

@@ -149,7 +149,7 @@
           </figure>
 
           <h3>Migrate one SDK</h3>
-          <p>Focus the <strong>SDKs</strong> panel, highlight an <span style="color:var(--gold)">Unmanaged</span> version, and press <kbd>m</kbd>. dsm installs that exact version into dotnetup's directory so it becomes managed. Your original copy is left exactly where it was — dsm tells you where, and how to remove it, when it finishes.</p>
+          <p>Focus the <strong>SDKs</strong> panel, highlight an <span style="color:var(--gold)">Unmanaged</span> version, and press <kbd>m</kbd>. dsm installs that exact version into dotnetup's directory so it becomes managed, then reinstalls any workloads the old copy had (MAUI, wasm-tools, …) on the new one. A system-installed original is left exactly where it was — dsm tells you where, and how to remove it, when it finishes.</p>
 
           <h3>Migrate them all at once</h3>
           <p>Press <kbd>Shift</kbd>+<kbd>M</kbd> from anywhere on the main screen to migrate every unmanaged SDK in one go. dsm first shows a confirmation dialog summarising exactly what will happen:</p>
@@ -157,16 +157,27 @@
             <img src="images/14-bulk-migrate.png" alt="Bulk-migrate confirmation dialog listing the unmanaged SDKs and what migrating will do">
             <figcaption>The bulk-migrate dialog lists every unmanaged SDK and what will happen. It defaults to <kbd>n</kbd>, so an accidental keypress backs out safely.</figcaption>
           </figure>
-          <p>Confirm with <kbd>y</kbd> and dsm hands off to <code>dotnetup sdk install &lt;channels&gt; --migrate-from-system</code>, migrating each SDK and updating it to the latest patch.</p>
+          <p>Confirm with <kbd>y</kbd> and dsm hands off to <code>dotnetup sdk install &lt;channels&gt;</code> (with <code>--migrate-from-system</code> when system installs are involved), migrating each SDK and updating it to the latest patch. Each old SDK's workloads are then reinstalled on the SDK that replaced it.</p>
 
           <div class="callout warn">
             <div class="ctitle"><i class="bi bi-exclamation-triangle"></i> Heads up</div>
             <p>Migrating installs a fresh, managed copy — your original install stays on disk. Once you've confirmed the managed version works, remove the old one with the official .NET uninstall tool (e.g. <code>dotnet-core-uninstall remove --sdk &lt;version&gt;</code>). That location often holds several versions, so never delete the whole folder.</p>
           </div>
 
+          <h3>SDKs in another folder</h3>
+          <p>dsm also checks the other places .NET usually lives — <code>DOTNET_ROOT</code>, dotnetup's default folder and older user folders such as <code>~/.dotnet</code> (left behind by the <code>dotnet-install</code> script). SDKs and runtimes found there that the <code>dotnet</code> on your PATH doesn't use are listed as <strong>Other location</strong>, with their folder shown under the table. Migrate them with <kbd>m</kbd> or <kbd>Shift</kbd>+<kbd>M</kbd> like unmanaged ones. Once the install (and workload restore) succeeds, dsm shows what deleting the old copy would remove and asks before doing it (<kbd>y</kbd>/<kbd>N</kbd>, default no) — one prompt per folder.</p>
+          <p>Don't want to migrate a copy at all? Press <kbd>D</kbd> on an <strong>Other location</strong> row to delete it outright, after the same confirmation. <kbd>D</kbd> never touches your active <code>dotnet</code> or a folder dotnetup manages.</p>
+          <p>Deleting is version-aware: an SDK goes together with the runtimes it ships with (plus their host resolver, targeting packs and templates), unless another SDK left in that folder ships the same runtime. A runtime that a remaining SDK ships with is never deleted on its own — delete or migrate the SDK instead. Its workloads' files go too, unless something else still uses them. When nothing is left, the <code>dotnet</code> host goes as well, but dsm never deletes the folder itself: <code>~/.dotnet</code> also holds your global tools and caches.</p>
+
+          <h3>Choosing the install folder</h3>
+          <p>dsm installs into the folder your <code>dotnet</code> already uses, so dotnetup takes that folder over instead of starting a second one next to it. If dotnetup already manages installs in a <em>different</em> folder, dsm asks before installing or migrating: press <kbd>1</kbd> for the folder on your PATH or <kbd>2</kbd> for the one dotnetup manages (<kbd>Esc</kbd> cancels). Whichever folder you pick becomes your default <code>dotnet</code>; installs in the other one stay on disk but are no longer used. Press <kbd>y</kbd> to remember the choice so dsm stops asking.</p>
+          <p>The Setup panel shows the folder your <code>dotnet</code> uses and whether dotnetup manages it, highlights it when the two differ, and shows any remembered folder. Press <kbd>s</kbd> then <kbd>f</kbd> to forget the remembered folder.</p>
+
           <ul>
-            <li><kbd>m</kbd> &mdash; <strong>migrate</strong> the selected unmanaged SDK (exact version)</li>
-            <li><kbd>Shift</kbd>+<kbd>M</kbd> &mdash; <strong>migrate all</strong> unmanaged SDKs, with a confirmation dialog</li>
+            <li><kbd>m</kbd> &mdash; <strong>migrate</strong> the selected unmanaged or other-location SDK (exact version)</li>
+            <li><kbd>Shift</kbd>+<kbd>M</kbd> &mdash; <strong>migrate all</strong> unmanaged and other-location SDKs, with a confirmation dialog</li>
+            <li><kbd>D</kbd> &mdash; <strong>delete</strong> the selected other-location SDK or runtime, with confirmation</li>
+            <li><kbd>f</kbd> (Setup focused) &mdash; <strong>forget</strong> the remembered install folder</li>
           </ul>
         </section>
 

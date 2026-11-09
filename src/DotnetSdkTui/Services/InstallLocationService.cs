@@ -125,6 +125,65 @@ public static class InstallLocationService
     }
 
     /// <summary>
+    /// Directory of the <c>dotnet</c> muxer resolved on PATH (symlinks followed), with no
+    /// user-profile restriction — the root <c>dotnet --list-sdks</c> actually reads. Null when
+    /// no muxer is on PATH.
+    /// </summary>
+    public static string? GetActiveMuxerDirectory()
+    {
+        string? muxer = FindDotnetMuxerOnPath();
+        if (muxer is null) return null;
+        int lastSeparator = muxer.AsSpan().LastIndexOfAny('/', '\\');
+        return lastSeparator > 0 ? Normalize(muxer[..lastSeparator]) : null;
+    }
+
+    /// <summary>
+    /// True when the dotnetup command would be pinned to a root by dsm — an SDK/runtime install
+    /// with no explicit <c>--install-path</c>. Only these go through <see cref="DecideInstallTarget"/>.
+    /// </summary>
+    public static bool NeedsInstallTarget(string command, string arguments) =>
+        ShouldAugmentInstall(command, arguments);
+
+    /// <summary>
+    /// Chooses the folder an unpinned dotnetup install should target.
+    /// <list type="number">
+    /// <item><description>A remembered folder (Setup → forget to reset) that still exists wins.</description></item>
+    /// <item><description>No user-level active root: null — dotnetup picks its own default.</description></item>
+    /// <item><description>dotnetup tracks nothing yet, or already tracks the active root: the active root
+    /// (PR #21: dotnetup adopts the folder the user already uses instead of creating an orphaned one).</description></item>
+    /// <item><description>Otherwise the active root differs from where dotnetup already keeps installs:
+    /// the user must choose, since either choice leaves the other folder's installs unmanaged by it.</description></item>
+    /// </list>
+    /// </summary>
+    public static InstallTargetDecision DecideInstallTarget(
+        string? activeRoot,
+        IEnumerable<string> trackedRoots,
+        string? rememberedRoot,
+        Func<string, bool> directoryExists)
+    {
+        string remembered = Normalize(rememberedRoot);
+        if (remembered.Length > 0 && directoryExists(remembered))
+            return new InstallTargetDecision(remembered, []);
+
+        if (activeRoot is null)
+            return new InstallTargetDecision(null, []);
+
+        string active = Normalize(activeRoot);
+        var tracked = new List<string>();
+        foreach (string root in trackedRoots)
+        {
+            string r = Normalize(root);
+            if (r.Length > 0 && !tracked.Contains(r, StringComparer.OrdinalIgnoreCase))
+                tracked.Add(r);
+        }
+
+        if (tracked.Count == 0 || tracked.Contains(active, StringComparer.OrdinalIgnoreCase))
+            return new InstallTargetDecision(active, []);
+
+        return new InstallTargetDecision(null, [active, .. tracked]);
+    }
+
+    /// <summary>
     /// True when the command is a dotnetup install whose arguments carry no explicit
     /// <c>--install-path</c> — the only case augmentation (and the install-root probe) applies to.
     /// </summary>
@@ -176,7 +235,7 @@ public static class InstallLocationService
     /// Finds the <c>dotnet</c> muxer on PATH, resolving symlinks (e.g. Homebrew shims) so the
     /// containing directory reflects the real install root.
     /// </summary>
-    private static string? FindDotnetMuxerOnPath()
+    internal static string? FindDotnetMuxerOnPath()
     {
         string fileName = OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
         string path = Environment.GetEnvironmentVariable("PATH") ?? "";
@@ -202,4 +261,14 @@ public static class InstallLocationService
 
         return null;
     }
+}
+
+/// <summary>
+/// Outcome of <see cref="InstallLocationService.DecideInstallTarget"/>: when <see cref="Choices"/>
+/// is empty, install into <see cref="Root"/> (null = dotnetup's default); otherwise ask the user
+/// which of <see cref="Choices"/> to use (first = folder the active dotnet uses).
+/// </summary>
+public sealed record InstallTargetDecision(string? Root, IReadOnlyList<string> Choices)
+{
+    public bool NeedsConsent => Choices.Count > 0;
 }

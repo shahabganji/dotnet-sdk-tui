@@ -23,7 +23,8 @@ public sealed class RuntimesView : IView
         string InstallRoot,
         string Architecture,
         string LifecycleIcon,
-        string Description);
+        string Description,
+        bool IsOtherLocation = false);
 
     public string Name => "Runtimes";
     public string Icon => " ";
@@ -40,6 +41,16 @@ public sealed class RuntimesView : IView
     /// <c>Note</c>, when present, is printed in the terminal after the command succeeds.
     /// </summary>
     internal (string Command, string Args, string? Note)? PendingCommand { get; private set; }
+
+    /// <summary>Set by <c>m</c>: a dotnetup migration, which App follows with an offer to clean up the old copy.</summary>
+    internal MigrationRequest? PendingMigration { get; private set; }
+
+    /// <summary>Set by <c>D</c> on an "Other location" row: App confirms and deletes that runtime from its folder.</summary>
+    internal MigrationItem? PendingDelete { get; private set; }
+
+    internal void ClearPendingMigration() => PendingMigration = null;
+
+    internal void ClearPendingDelete() => PendingDelete = null;
 
     public bool NeedsLiveUpdate => _loading;
     public bool IsTextInputActive => false;
@@ -94,11 +105,14 @@ public sealed class RuntimesView : IView
                 .Where(r => !string.IsNullOrWhiteSpace(r))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            // Installs in other dotnet folders (e.g. a stale ~/.dotnet) the active dotnet doesn't see.
+            List<SdkInfo> other = await DotnetUpService.ListOtherRootInstallsAsync(managedRoots);
 
             var rows = new List<RuntimeRow>();
 
             // Show installed runtimes (not SDKs)
-            foreach (var rt in installed.Where(s => !string.Equals(s.Component, "SDK", StringComparison.OrdinalIgnoreCase)))
+            foreach (var (rt, isOther) in installed.Select(s => (s, false)).Concat(other.Select(s => (s, true)))
+                .Where(e => !string.Equals(e.Item1.Component, "SDK", StringComparison.OrdinalIgnoreCase)))
             {
                 string channel = GuessChannel(rt.Version);
                 var channelInfo = channels.FirstOrDefault(c =>
@@ -106,8 +120,9 @@ public sealed class RuntimesView : IView
 
                 // Without dotnetup the managed/unmanaged distinction is meaningless (nothing can be
                 // managed), so don't flag installs as unmanaged — keep the plain "Installed" status.
-                bool isManaged = !DotnetUpService.IsInstalled()
-                    || DotnetUpService.IsManagedInstallRoot(rt.InstallRoot, managedRoots);
+                bool isManaged = !isOther
+                    && (!DotnetUpService.IsInstalled()
+                        || DotnetUpService.IsManagedInstallRoot(rt.InstallRoot, managedRoots));
 
                 string supportPhase = channelInfo is not null
                     ? FormatSupportPhase(channelInfo.SupportPhase)
@@ -116,7 +131,9 @@ public sealed class RuntimesView : IView
                 string lifecycleIcon = GetLifecycleIcon(channelInfo?.SupportPhase, channelInfo?.EolDate);
                 string description = isManaged
                     ? $".NET {channel} {rt.DisplayComponent} - {supportPhase}"
-                    : $"Unmanaged - installed outside dotnetup at {rt.InstallRoot}. Press m to let dotnetup manage (migrate) it.";
+                    : isOther
+                        ? $"Other location - {rt.InstallRoot} is not used by the dotnet on your PATH. Press m to migrate it to dotnetup, or D to delete it."
+                        : $"Unmanaged - installed outside dotnetup at {rt.InstallRoot}. Press m to let dotnetup manage (migrate) it.";
 
                 rows.Add(new RuntimeRow(
                     rt.DisplayComponent,
@@ -129,7 +146,8 @@ public sealed class RuntimesView : IView
                     rt.InstallRoot,
                     rt.Architecture.Length > 0 ? rt.Architecture : System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant(),
                     lifecycleIcon,
-                    description));
+                    description,
+                    isOther));
             }
 
             // Show latest available runtime for channels where it's not already installed
@@ -226,7 +244,12 @@ public sealed class RuntimesView : IView
 
             string statusText;
             string statusColor;
-            if (row.IsInstalled && !row.IsManaged)
+            if (row.IsOtherLocation)
+            {
+                statusColor = Ui.Brown;
+                statusText = "Other location";
+            }
+            else if (row.IsInstalled && !row.IsManaged)
             {
                 statusColor = Ui.Gold;
                 statusText = "Unmanaged";
@@ -280,8 +303,10 @@ public sealed class RuntimesView : IView
             return "up/down:Navigate  r:Refresh  (install dotnetup to manage runtimes)";
 
         // Surface the migrate action only when the selected runtime is unmanaged.
-        if (_selectedIndex < _rows.Count && _rows[_selectedIndex] is { IsInstalled: true, IsManaged: false })
-            return "up/down:Navigate  m:Migrate to dotnetup  r:Refresh";
+        if (_selectedIndex < _rows.Count && _rows[_selectedIndex] is { IsInstalled: true, IsManaged: false } sel)
+            return sel.IsOtherLocation
+                ? "up/down:Navigate  m:Migrate to dotnetup  D:Delete  r:Refresh"
+                : "up/down:Navigate  m:Migrate to dotnetup  r:Refresh";
 
         return "up/down:Navigate  i:Install  u:Uninstall  r:Refresh";
     }
@@ -315,6 +340,10 @@ public sealed class RuntimesView : IView
             case ConsoleKey.M:
                 if (!DotnetUpService.IsInstalled()) { _statusMessage = "dotnetup required. Install it from the Setup panel."; return KeyResult.Handled; }
                 RequestMigrate();
+                return KeyResult.Handled;
+
+            case ConsoleKey.D when key.KeyChar == 'D' || key.Modifiers.HasFlag(ConsoleModifiers.Shift):
+                RequestDelete();
                 return KeyResult.Handled;
 
             case ConsoleKey.R:
@@ -401,14 +430,51 @@ public sealed class RuntimesView : IView
             ? $"aspnetcore@{row.Version}"
             : row.Version;
 
-        string note =
-            $"dotnetup now manages {row.Component} {row.Version} in its own directory. " +
-            $"The original copy is still at {row.InstallRoot}; remove it with the official " +
-            ".NET uninstall tool if you no longer need it. " +
-            "That location may hold other system-installed versions, so don't delete the whole folder.";
+        // Other-location copies are offered for deletion after the install; system copies need the uninstall tool.
+        string? note = row.IsOtherLocation
+            ? null
+            : $"dotnetup now manages {row.Component} {row.Version} in its own directory. " +
+              $"The original copy is still at {row.InstallRoot}; remove it with the official " +
+              ".NET uninstall tool if you no longer need it. " +
+              "That location may hold other system-installed versions, so don't delete the whole folder.";
 
-        PendingCommand = ("dotnetup", $"runtime install {spec}", note);
+        PendingMigration = new MigrationRequest($"runtime install {spec}", note, [ToMigrationItem(row)]);
     }
+
+    /// <summary>
+    /// Handles <c>D</c>: deletes the selected runtime — only from an "Other location" folder. A runtime an SDK
+    /// in that folder ships with stays (the SDK needs it); delete or migrate the SDK instead.
+    /// </summary>
+    private void RequestDelete()
+    {
+        if (_rows.Count == 0 || _selectedIndex >= _rows.Count) return;
+
+        RuntimeRow row = _rows[_selectedIndex];
+        if (!row.IsOtherLocation)
+        {
+            _statusMessage = row switch
+            {
+                { IsInstalled: false } => $"{row.Version} is not installed.",
+                { IsManaged: true } => $"D only deletes Other location runtimes - press u to uninstall {row.Version} with dotnetup.",
+                _ => $"D only deletes Other location runtimes - {row.Version} is in your active dotnet; press m to migrate it.",
+            };
+            return;
+        }
+
+        MigrationItem item = ToMigrationItem(row);
+        IReadOnlyList<string> sdks = InstallRemoval.FindBundlingSdks(item.Root, new RuntimeRef(item.Framework!, item.Version));
+        if (sdks.Count > 0)
+        {
+            _statusMessage = $"{row.Component} {row.Version} ships with SDK {string.Join(", ", sdks)} in {item.Root} - " +
+                             "delete (D) or migrate (m) that SDK on the SDKs tab instead.";
+            return;
+        }
+
+        PendingDelete = item;
+    }
+
+    private static MigrationItem ToMigrationItem(RuntimeRow row) =>
+        new(row.Version, row.Channel, row.InstallRoot, row.IsOtherLocation, InstallRemoval.FrameworkOf(row.InstallRoot));
 
     private static IRenderable RenderPanel(bool focused, IRenderable content) =>
         Ui.ViewPanel(Ui.IconRuntimes, "Runtimes", content, focused);
