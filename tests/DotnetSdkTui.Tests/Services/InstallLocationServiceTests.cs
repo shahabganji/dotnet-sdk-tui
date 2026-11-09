@@ -230,4 +230,69 @@ public class InstallLocationServiceTests
 
         Assert.Equal("/Users/jane/.dotnet", root);
     }
+
+    // --- DecideInstallTarget: consent when the active root and dotnetup's tracked root differ ---
+
+    private const string TrackedRoot = "/Users/jane/Library/Application Support/dotnetup/dotnet";
+
+    [Fact]
+    public void DecideInstallTarget_TrackedRootIsActiveRoot_UsesActiveRootWithoutPrompt()
+    {
+        InstallTargetDecision d = InstallLocationService.DecideInstallTarget(
+            ActiveRoot, [ActiveRoot + "/"], rememberedRoot: null, directoryExists: _ => true);
+
+        Assert.False(d.NeedsConsent);
+        Assert.Equal(ActiveRoot, d.Root);
+    }
+
+    [Fact]
+    public void DecideInstallTarget_NothingTracked_AdoptsActiveRoot()
+    {
+        InstallTargetDecision d = InstallLocationService.DecideInstallTarget(
+            ActiveRoot, [], rememberedRoot: null, directoryExists: _ => true);
+
+        Assert.False(d.NeedsConsent);
+        Assert.Equal(ActiveRoot, d.Root);
+    }
+
+    [Fact]
+    public void DecideInstallTarget_ActiveRootDiffersFromTracked_AsksWithActiveFirst()
+    {
+        InstallTargetDecision d = InstallLocationService.DecideInstallTarget(
+            ActiveRoot, [TrackedRoot, TrackedRoot], rememberedRoot: null, directoryExists: _ => true);
+
+        Assert.True(d.NeedsConsent);
+        Assert.Null(d.Root);
+        Assert.Equal([ActiveRoot, TrackedRoot], d.Choices);
+    }
+
+    [Fact]
+    public void DecideInstallTarget_RememberedRootExists_WinsWithoutPrompt()
+    {
+        InstallTargetDecision d = InstallLocationService.DecideInstallTarget(
+            ActiveRoot, [TrackedRoot], rememberedRoot: TrackedRoot, directoryExists: _ => true);
+
+        Assert.False(d.NeedsConsent);
+        Assert.Equal(TrackedRoot, d.Root);
+    }
+
+    [Fact]
+    public void DecideInstallTarget_StaleRememberedRoot_IsIgnored()
+    {
+        InstallTargetDecision d = InstallLocationService.DecideInstallTarget(
+            ActiveRoot, [TrackedRoot], rememberedRoot: "/Users/jane/gone",
+            directoryExists: p => p != "/Users/jane/gone");
+
+        Assert.True(d.NeedsConsent);
+    }
+
+    [Fact]
+    public void DecideInstallTarget_NoActiveRoot_LetsDotnetUpChoose()
+    {
+        InstallTargetDecision d = InstallLocationService.DecideInstallTarget(
+            null, [TrackedRoot], rememberedRoot: null, directoryExists: _ => true);
+
+        Assert.False(d.NeedsConsent);
+        Assert.Null(d.Root);
+    }
 }

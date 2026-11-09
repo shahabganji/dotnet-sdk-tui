@@ -46,6 +46,29 @@ public class ThemePersistenceTests : IDisposable
         Assert.Null(SettingsStore.Load().Theme);
     }
 
+    [Fact]
+    public void SettingsStore_Update_PreservesOtherPreferences()
+    {
+        SettingsStore.Save(new UserSettings { Theme = "Mint" });
+
+        SettingsStore.Update(s => s.InstallRoot = "/Users/jane/.dotnet");
+
+        UserSettings loaded = SettingsStore.Load();
+        Assert.Equal("Mint", loaded.Theme);
+        Assert.Equal("/Users/jane/.dotnet", loaded.InstallRoot);
+    }
+
+    [Fact]
+    public void Cycle_KeepsRememberedInstallRootSavedAfterRestore()
+    {
+        ThemeManager.Restore();
+        SettingsStore.Update(s => s.InstallRoot = "/Users/jane/dotnet");
+
+        ThemeManager.Cycle();
+
+        Assert.Equal("/Users/jane/dotnet", SettingsStore.Load().InstallRoot);
+    }
+
     // ── ThemeManager restore / defaults ─────────────────────────────────
 
     [Fact]

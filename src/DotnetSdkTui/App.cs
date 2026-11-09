@@ -4,6 +4,7 @@ using Spectre.Console.Rendering;
 using DotnetSdkTui.Views;
 using DotnetSdkTui.Theme;
 using DotnetSdkTui.Services;
+using DotnetSdkTui.Models;
 
 namespace DotnetSdkTui;
 
@@ -76,7 +77,7 @@ public sealed class App
     private string? _lastFrame;
 
     // Set when the user requests bulk migration (Shift+M); handled by CheckBulkMigrateAsync.
-    private IReadOnlyList<SdksView.SdkMigration>? _pendingBulkMigrate;
+    private IReadOnlyList<MigrationItem>? _pendingBulkMigrate;
 
     public App(bool skipSplash = false)
     {
@@ -182,6 +183,14 @@ public sealed class App
             {
                 AnsiConsole.Clear();
                 _lastFrame = null;          // force a real write on the first frame after the prompt
+                continue;
+            }
+
+            // Check for a pending delete of an "Other location" SDK/runtime (D)
+            if (await CheckPendingDeleteAsync())
+            {
+                AnsiConsole.Clear();
+                _lastFrame = null;
                 continue;
             }
 
@@ -371,7 +380,8 @@ public sealed class App
         var root = new Layout("Root")
             .SplitRows(
                 new Layout("TopPad").Size(1),
-                new Layout("Top").Size(3),
+                // Setup grows with its folder diagnostics (borders + content lines).
+                new Layout("Top").Size(2 + _setupView.ContentLineCount),
                 new Layout("TabsPad").Size(1),
                 new Layout("Body").MinimumSize(10),
                 new Layout("Footer").Size(2));
@@ -864,6 +874,16 @@ public sealed class App
     {
         (string cmd, string args, string? note, string? cwd)? pending = null;
 
+        MigrationRequest? migration = _sdksView.PendingMigration ?? _runtimesView.PendingMigration;
+        if (migration is not null)
+        {
+            _sdksView.ClearPendingMigration();
+            _runtimesView.ClearPendingMigration();
+            await RunInteractiveAndRefreshAsync("dotnetup", migration.Args, migration.Note,
+                afterSuccess: chosenRoot => AfterMigrationAsync(migration.Items, chosenRoot));
+            return true;
+        }
+
         if (_sdksView.PendingCommand is not null)
         {
             var p = _sdksView.PendingCommand.Value;
@@ -912,10 +932,44 @@ public sealed class App
     /// Exits the TUI, runs an external command with real terminal output, optionally prints a
     /// follow-up note on success, then restores the TUI and refreshes all views.
     /// </summary>
-    private async Task RunInteractiveAndRefreshAsync(string cmd, string args, string? note, string? cwd = null)
+    /// <param name="afterSuccess">
+    /// Runs in the terminal session after the command succeeds, before the note — given the folder the install
+    /// targeted (null when dotnetup chose). Used by migrations to restore workloads and offer clean-up.
+    /// </param>
+    private async Task RunInteractiveAndRefreshAsync(
+        string cmd, string args, string? note, string? cwd = null, Func<string?, Task>? afterSuccess = null)
     {
-        // Pin dotnetup installs to the active dotnet root so they show up in `dotnet --list-sdks`.
-        args = InstallLocationService.AugmentInstallArgs(cmd, args);
+        // Pin dotnetup installs to the active dotnet root so they show up in `dotnet --list-sdks` —
+        // unless dotnetup already keeps installs in a different folder, then the user decides.
+        string? chosenRoot = null;
+        if (InstallLocationService.NeedsInstallTarget(cmd, args))
+        {
+            List<SdkInfo> tracked = await DotnetUpService.ListTrackedAsync();
+            InstallTargetDecision decision = InstallLocationService.DecideInstallTarget(
+                InstallLocationService.GetActiveInstallRoot(),
+                tracked.Select(t => t.InstallRoot),
+                SettingsStore.Load().InstallRoot,
+                Directory.Exists);
+
+            chosenRoot = decision.Root;
+            if (decision.NeedsConsent)
+            {
+                chosenRoot = PromptInstallRoot(decision.Choices, tracked, $"{cmd} {args}");
+                if (chosenRoot is null)
+                {
+                    // Cancelled — nothing ran; restore the TUI.
+                    ThemeManager.ApplyBackground();
+                    try { Console.CursorVisible = false; } catch (IOException) { }
+                    try { Console.Write(MouseInput.EnableSequence); } catch (IOException) { }
+                    return;
+                }
+            }
+            args = InstallLocationService.AugmentInstallArgs(cmd, args, chosenRoot);
+        }
+        else
+        {
+            args = InstallLocationService.AugmentInstallArgs(cmd, args);
+        }
 
         // Exit TUI, restore terminal to original settings for the external command
         ThemeManager.ResetBackground();
@@ -945,6 +999,19 @@ public sealed class App
         Console.WriteLine();
         Console.WriteLine(new string('-', 60));
 
+        if (exitCode == 0 && afterSuccess is not null)
+        {
+            try
+            {
+                await afterSuccess(chosenRoot);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                Console.WriteLine($"Follow-up step failed: {e.Message}");
+            }
+            Console.WriteLine(new string('-', 60));
+        }
+
         if (exitCode == 0 && !string.IsNullOrWhiteSpace(note))
         {
             Console.WriteLine(note);
@@ -970,6 +1037,11 @@ public sealed class App
         }
         else
         {
+            // dotnetup made the chosen folder the default dotnet (--set-default-install); read it
+            // from now on in this session too, even if another dotnet comes first on PATH.
+            if (exitCode == 0 && chosenRoot is not null)
+                DotnetUpService.PreferRootOnPath(chosenRoot);
+
             // Refresh PATH (add dotnetup + dotnet to process PATH and shell profile)
             DotnetUpService.RefreshPath();
             DotnetUpService.EnsurePathInShellProfile();
@@ -980,6 +1052,82 @@ public sealed class App
             _dotnetUpStatus = DotnetUpService.IsInstalled() ? "installed" : "not found";
             _ = LoadSetupInfoAsync();
         }
+    }
+
+    /// <summary>
+    /// Asks which folder a dotnetup install should target when the dotnet the user runs
+    /// (<paramref name="choices"/>[0]) differs from where dotnetup already keeps installs, then
+    /// offers to remember the answer. Returns the chosen folder, or null when cancelled.
+    /// </summary>
+    private static string? PromptInstallRoot(IReadOnlyList<string> choices, IReadOnlyList<SdkInfo> tracked, string command)
+    {
+        // Mouse reports are digit-laden escape sequences; a stray click must not pick a folder.
+        try { Console.Write(MouseInput.DisableSequence); } catch (IOException) { }
+        AnsiConsole.Clear();
+        Console.CursorVisible = true;
+
+        var rows = new List<IRenderable>
+        {
+            new Markup($"[{Ui.White} bold]Where should dotnetup install?[/]"),
+            new Text(""),
+            new Markup($"[{Ui.White}]The dotnet you run and the folder dotnetup manages are different:[/]"),
+            new Text(""),
+        };
+        for (int i = 0; i < choices.Count; i++)
+        {
+            string root = choices[i];
+            int count = tracked.Count(t => DotnetUpService.IsManagedInstallRoot(t.InstallRoot, [root]));
+            string what = i == 0
+                ? "the dotnet on your PATH now — dotnetup adopts this folder"
+                : $"where dotnetup already manages {count} install(s)";
+            rows.Add(new Markup($"  [{Ui.Green} bold]{i + 1}[/]  [{Ui.White}]{Markup.Escape(root)}[/]"));
+            rows.Add(new Markup($"     [{Ui.Gray}]{Markup.Escape(what)}[/]"));
+        }
+        rows.Add(new Text(""));
+        rows.Add(new Markup($"[{Ui.Yellow}]Installs in the folder you don't pick stay on disk, but the chosen folder becomes your default dotnet (PATH/DOTNET_ROOT), so they won't be used or managed from here.[/]"));
+        rows.Add(new Text(""));
+        rows.Add(new Markup($"[{Ui.Gray}]Runs: {Markup.Escape(command)} --install-path <folder> --set-default-install[/]"));
+
+        var dialog = new Panel(new Rows(rows))
+            .Header($"[{Ui.Yellow} bold] Install folder [/]")
+            .Border(BoxBorder.Double)
+            .BorderColor(ThemeManager.PanelBorderColor)
+            .Padding(2, 1);
+        AnsiConsole.Write(new DropShadow(dialog, ThemeManager.ShadowColor, ThemeManager.ModalBackgroundColor));
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"[{Ui.White}]Choose a folder[/] [{Ui.Gray}](1-{choices.Count}, Esc to cancel)[/]");
+
+        string? chosen = null;
+        while (chosen is null)
+        {
+            ConsoleKeyInfo k;
+            try { k = Console.ReadKey(intercept: true); }
+            catch (InvalidOperationException) { return null; }
+
+            if (k.Key == ConsoleKey.Escape || k.KeyChar is 'n' or 'N' or 'q' or 'Q')
+                return null;
+            if (k.KeyChar >= '1' && k.KeyChar - '1' < choices.Count)
+                chosen = choices[k.KeyChar - '1'];
+        }
+
+        AnsiConsole.MarkupLine($"[{Ui.White}]Remember[/] [{Ui.Green}]{Markup.Escape(chosen)}[/] [{Ui.White}]for future installs?[/] [{Ui.Gray}](y/N — reset it from Setup)[/]");
+        while (true)
+        {
+            ConsoleKeyInfo k;
+            try { k = Console.ReadKey(intercept: true); }
+            catch (InvalidOperationException) { break; }
+
+            if (k.KeyChar is 'y' or 'Y')
+            {
+                string root = chosen;
+                SettingsStore.Update(s => s.InstallRoot = root);
+                break;
+            }
+            if (k.Key is ConsoleKey.Escape or ConsoleKey.Enter || k.KeyChar is 'n' or 'N')
+                break;
+        }
+
+        return chosen;
     }
 
     /// <summary>
@@ -1002,20 +1150,31 @@ public sealed class App
         var summary = new Table()
             .Border(TableBorder.Rounded)
             .AddColumn("Channel")
-            .AddColumn("Current version");
+            .AddColumn("Current version")
+            .AddColumn("Location");
         foreach (var m in plan)
-            summary.AddRow(Markup.Escape(m.Channel), Markup.Escape(m.CurrentVersion));
+            summary.AddRow(Markup.Escape(m.Channel), Markup.Escape(m.Version), Markup.Escape(m.Root));
 
-        var body = new Rows(
+        bool anySystem = plan.Any(m => !m.IsOtherLocation);
+        bool anyOther = plan.Any(m => m.IsOtherLocation);
+        var lines = new List<IRenderable>
+        {
             new Markup($"[{Ui.White} bold]Migrate {plan.Count} unmanaged SDK(s) to dotnetup[/]"),
             new Text(""),
             summary,
             new Text(""),
             new Markup($"[{Ui.Yellow}]This will:[/]"),
-            new Markup($"[{Ui.White}]  • Migrate these system SDKs into dotnetup, updating each to the latest patch[/]"),
-            new Markup($"[{Ui.White}]  • Possibly include other system installs dotnetup detects[/]"),
-            new Markup($"[{Ui.White}]  • Leave your existing copies in place until you remove them yourself[/]"),
-            new Markup($"[{Ui.Gray}]dsm keeps dotnetup's dotnet on your PATH. Downloads may be several hundred MB per SDK.[/]"));
+            new Markup($"[{Ui.White}]  • Install each channel's latest patch with dotnetup[/]"),
+        };
+        if (anySystem)
+            lines.Add(new Markup($"[{Ui.White}]  • Possibly include other system installs dotnetup detects[/]"));
+        lines.Add(new Markup($"[{Ui.White}]  • Reinstall the workloads those SDKs had on the new ones[/]"));
+        if (anyOther)
+            lines.Add(new Markup($"[{Ui.White}]  • Then offer to delete the old copies in other folders (you confirm first)[/]"));
+        if (anySystem)
+            lines.Add(new Markup($"[{Ui.White}]  • Leave system copies in place until you remove them yourself[/]"));
+        lines.Add(new Markup($"[{Ui.Gray}]dsm keeps dotnetup's dotnet on your PATH. Downloads may be several hundred MB per SDK.[/]"));
+        var body = new Rows(lines);
 
         var dialog = new Panel(body)
             .Header($"[{Ui.Yellow} bold] Bulk migrate [/]")
@@ -1037,13 +1196,287 @@ public sealed class App
         }
 
         string channels = string.Join(' ', plan.Select(m => m.Channel).Distinct());
-        const string note =
-            "dotnetup now manages these SDKs. Your original copies remain on disk; remove the ones you no " +
-            "longer need with the official .NET uninstall tool (e.g. 'sudo dotnet-core-uninstall remove " +
-            "--sdk <version>'). Those locations may hold other system-installed versions, so don't delete " +
-            "whole folders.";
+        string? note = anySystem
+            ? "dotnetup now manages these SDKs. The system copies remain on disk; remove the ones you no " +
+              "longer need with the official .NET uninstall tool (e.g. 'sudo dotnet-core-uninstall remove " +
+              "--sdk <version>'). Those locations may hold other system-installed versions, so don't delete " +
+              "whole folders."
+            : null;
+        string args = anySystem ? $"sdk install {channels} --migrate-from-system" : $"sdk install {channels}";
 
-        await RunInteractiveAndRefreshAsync("dotnetup", $"sdk install {channels} --migrate-from-system", note);
+        await RunInteractiveAndRefreshAsync("dotnetup", args, note,
+            afterSuccess: chosenRoot => AfterMigrationAsync(plan, chosenRoot));
+        return true;
+    }
+
+    /// <summary>
+    /// After a successful migration install: reinstalls the old SDKs' workloads on their dotnetup replacements,
+    /// then offers (per folder, default No) to delete the old copies from "Other location" folders.
+    /// </summary>
+    private static async Task AfterMigrationAsync(IReadOnlyList<MigrationItem> items, string? chosenRoot)
+    {
+        if (chosenRoot is not null)
+            DotnetUpService.PreferRootOnPath(chosenRoot);
+        DotnetUpService.RefreshPath();
+
+        List<SdkInfo>? trackedOrNull = await DotnetUpService.TryListTrackedAsync();
+        List<SdkInfo> tracked = trackedOrNull ?? [];
+        var workloadIssues = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (MigrationItem sdk in items.Where(i => i.IsSdk))
+        {
+            string? issue = await RestoreWorkloadsAsync(sdk, tracked);
+            if (issue is not null)
+            {
+                if (!workloadIssues.TryGetValue(sdk.Root, out List<string>? list))
+                    workloadIssues[sdk.Root] = list = [];
+                list.Add(issue);
+            }
+        }
+
+        if (trackedOrNull is null)
+        {
+            if (items.Any(i => i.IsOtherLocation))
+                Console.WriteLine("Couldn't read dotnetup's list of installs, so dsm won't delete the old copy now. Press D on its rows in dsm later.");
+            return;
+        }
+
+        IReadOnlyList<string> inUse = RootsInUse(tracked);
+        foreach (IGrouping<string, MigrationItem> group in items.Where(i => i.IsOtherLocation)
+                     .GroupBy(i => i.Root, StringComparer.OrdinalIgnoreCase))
+        {
+            string root = group.Key;
+            if (inUse.Any(r => InstallRemoval.SamePath(r, root)))
+            {
+                Console.WriteLine($"The old copy is in {root}, which is now in use; dsm won't delete from it.");
+                continue;
+            }
+
+            RemovalPlan removal = PlanRemoval(root, group, inUse);
+            List<string> warnings = workloadIssues.GetValueOrDefault(root) ?? [];
+            if (removal.IsEmpty)
+            {
+                WriteKept(removal);
+                continue;
+            }
+
+            if (!ConfirmRemoval(removal, $"Delete the old copy from {root}?", warnings))
+            {
+                Console.WriteLine($"Kept {root}. Press D on its rows in dsm to delete it later.");
+                continue;
+            }
+            WriteRemovalResult(removal, InstallRemoval.Execute(removal));
+        }
+    }
+
+    /// <summary>
+    /// Reinstalls the workloads SDK <paramref name="old"/> had on the dotnetup SDK that replaced it.
+    /// Returns a problem description, or null when there was nothing to do or it worked.
+    /// </summary>
+    private static async Task<string?> RestoreWorkloadsAsync(MigrationItem old, IReadOnlyList<SdkInfo> tracked)
+    {
+        SdkInfo? target = MigrationTargets.PickTargetSdk(old, tracked);
+        if (target is null)
+            return $"dotnetup doesn't list an SDK replacing {old.Version}, so its workloads weren't reinstalled.";
+
+        string targetRoot = InstallRemoval.DotnetRootOf(target.InstallRoot);
+        if (InstallRemoval.SamePath(targetRoot, old.Root) && target.Version == old.Version)
+            return null;
+
+        IReadOnlyList<string>? ids = await WorkloadService.ListInstalledIdsInRootAsync(old.Root, old.Version);
+        if (ids is null)
+            return $"Couldn't read the workloads of SDK {old.Version}; check them before deleting it.";
+        if (ids.Count == 0)
+            return null;
+
+        string muxer = Path.Combine(targetRoot, DotnetUpService.MuxerFileName(OperatingSystem.IsWindows()));
+        string pin = WorkloadService.EnsureSdkPinDirectory(target.Version);
+        ProcessResult present = await ProcessRunner.RunAsync(muxer, "workload list", pin);
+        var installed = present.ExitCode == 0
+            ? WorkloadService.ParseInstalledList(present.Output).Keys.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : [];
+        List<string> missing = ids.Where(id => !installed.Contains(id)).ToList();
+        if (missing.Count == 0)
+        {
+            Console.WriteLine($"Workloads of SDK {old.Version} are already on SDK {target.Version}: {string.Join(", ", ids)}");
+            return null;
+        }
+
+        string install = $"workload install {string.Join(' ', missing)}";
+        Console.WriteLine($"Reinstalling workloads of SDK {old.Version} on SDK {target.Version}: {string.Join(", ", missing)}");
+        Console.WriteLine($"Running: {muxer} {install}");
+        int exit = await ProcessRunner.RunInteractiveAsync(muxer, install, workingDirectory: pin);
+        return exit == 0
+            ? null
+            : $"Reinstalling workloads ({string.Join(", ", missing)}) on SDK {target.Version} failed (exit code {exit}).";
+    }
+
+    /// <summary>
+    /// dotnet folders dsm must never delete from: the active dotnet, dotnetup's default and remembered install
+    /// folders, and every folder dotnetup manages.
+    /// </summary>
+    private static IReadOnlyList<string> RootsInUse(IEnumerable<SdkInfo> tracked) =>
+        new[]
+            {
+                InstallLocationService.GetActiveInstallRoot(),
+                InstallLocationService.GetActiveMuxerDirectory(),
+                SettingsStore.Load().InstallRoot,
+                DotnetUpService.GetDotnetUpDefaultInstallRoot(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    Environment.GetEnvironmentVariable("XDG_DATA_HOME"),
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    OperatingSystem.IsWindows(),
+                    OperatingSystem.IsMacOS()),
+            }
+            .Concat(tracked.Select(t => InstallRemoval.DotnetRootOf(t.InstallRoot)))
+            .OfType<string>()
+            .Where(r => r.Length > 0)
+            .ToList();
+
+    private static RemovalPlan PlanRemoval(string root, IEnumerable<MigrationItem> items, IEnumerable<string> otherRoots)
+    {
+        List<MigrationItem> list = items.ToList();
+        IEnumerable<string> others = otherRoots
+            .Concat(InstallRemoval.SystemDotnetRoots())
+            .Append(Environment.GetEnvironmentVariable("DOTNET_ROOT") ?? "");
+        return InstallRemoval.Plan(
+            root,
+            list.Where(i => i.IsSdk).Select(i => i.Version),
+            list.Where(i => !i.IsSdk).Select(i => new RuntimeRef(i.Framework!, i.Version)),
+            InstallRemoval.UserLocalBandGuard(root, others));
+    }
+
+    /// <summary>Shows what a removal deletes and keeps, and asks y/N (default No).</summary>
+    private static bool ConfirmRemoval(RemovalPlan plan, string question, IReadOnlyList<string> warnings)
+    {
+        var rows = new List<IRenderable>
+        {
+            new Markup($"[{Ui.White} bold]{Markup.Escape(plan.Root)}[/]"),
+            new Text(""),
+            new Markup($"[{Ui.Yellow}]Deletes:[/]"),
+        };
+        rows.AddRange(plan.Removed.Select(r => new Markup($"[{Ui.White}]  • {Markup.Escape(r)}[/]")));
+        if (plan.Kept.Count > 0)
+        {
+            rows.Add(new Text(""));
+            rows.Add(new Markup($"[{Ui.Green}]Keeps:[/]"));
+            rows.AddRange(plan.Kept.Select(k => new Markup($"[{Ui.White}]  • {Markup.Escape(k)}[/]")));
+        }
+        if (warnings.Count > 0)
+        {
+            rows.Add(new Text(""));
+            rows.AddRange(warnings.Select(w => new Markup($"[{Ui.Red}]! {Markup.Escape(w)}[/]")));
+        }
+        rows.Add(new Text(""));
+        rows.Add(new Markup($"[{Ui.Gray}]Frees about {InstallRemoval.FormatBytes(InstallRemoval.MeasureBytes(plan))}. " +
+                            (plan.RemovesWholeInstall
+                                ? "Global tools, caches and other files in this folder aren't touched.[/]"
+                                : "Other SDKs and runtimes in this folder aren't touched.[/]")));
+
+        var dialog = new Panel(new Rows(rows))
+            .Header($"[{Ui.Yellow} bold] Delete old installation [/]")
+            .Border(BoxBorder.Double)
+            .BorderColor(ThemeManager.PanelBorderColor)
+            .Padding(2, 1);
+        AnsiConsole.Write(dialog);
+
+        // Typed answer confirmed with Enter, so a stray keypress can't delete anything.
+        try
+        {
+            return AnsiConsole.Prompt(
+                new ConfirmationPrompt($"[{Ui.White}]{Markup.Escape(question)}[/]") { DefaultValue = false });
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static void WriteKept(RemovalPlan plan)
+    {
+        Console.WriteLine($"Nothing to delete in {plan.Root}:");
+        foreach (string k in plan.Kept)
+            Console.WriteLine($"  • {k}");
+    }
+
+    private static void WriteRemovalResult(RemovalPlan plan, RemovalResult result)
+    {
+        if (result.Errors.Count == 0)
+        {
+            Console.WriteLine($"Deleted from {plan.Root}: {string.Join("; ", plan.Removed)}.");
+            return;
+        }
+        Console.WriteLine($"Deleted {result.Deleted} of {plan.Paths.Count} item(s) from {plan.Root}; some couldn't be removed:");
+        foreach (string e in result.Errors)
+            Console.WriteLine($"  ! {e}");
+    }
+
+    /// <summary>
+    /// If <c>D</c> staged an "Other location" SDK/runtime, shows what deleting it removes (bundled runtimes,
+    /// workloads) and deletes it on confirmation. Folders in use (the active dotnet, dotnetup's) are refused.
+    /// </summary>
+    private async Task<bool> CheckPendingDeleteAsync()
+    {
+        MigrationItem? item = _sdksView.PendingDelete ?? _runtimesView.PendingDelete;
+        _sdksView.ClearPendingDelete();
+        _runtimesView.ClearPendingDelete();
+        if (item is null) return false;
+
+        // Mouse reports are escape sequences full of digits/letters; a stray click must not answer the prompt.
+        try { Console.Write(MouseInput.DisableSequence); } catch (IOException) { }
+        AnsiConsole.Clear();
+        Console.CursorVisible = true;
+
+        bool deleted = false, pause = true;
+        List<SdkInfo>? tracked = await DotnetUpService.TryListTrackedAsync();
+        IReadOnlyList<string> inUse = RootsInUse(tracked ?? []);
+        if (tracked is null)
+        {
+            Console.WriteLine("Couldn't read dotnetup's list of installs, so dsm can't tell whether this folder is managed; nothing was deleted.");
+        }
+        else if (inUse.Any(r => InstallRemoval.SamePath(r, item.Root)))
+        {
+            Console.WriteLine($"{item.Root} is in use (your active dotnet or managed by dotnetup); dsm won't delete from it.");
+        }
+        else
+        {
+            RemovalPlan removal = PlanRemoval(item.Root, [item], inUse);
+            var warnings = new List<string>();
+            if (item.IsSdk && await WorkloadService.ListInstalledIdsInRootAsync(item.Root, item.Version) is { Count: > 0 } ids)
+                warnings.Add($"Its workloads ({string.Join(", ", ids)}) go too. Press m instead to migrate the SDK and keep them.");
+
+            if (removal.IsEmpty)
+            {
+                WriteKept(removal);
+            }
+            else if (ConfirmRemoval(removal, $"Delete {item.Display} from {item.Root}?", warnings))
+            {
+                WriteRemovalResult(removal, InstallRemoval.Execute(removal));
+                deleted = true;
+            }
+            else
+            {
+                pause = false;
+            }
+        }
+
+        if (pause)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Press any key to continue...");
+            try { Console.ReadKey(true); } catch (InvalidOperationException) { }
+        }
+
+        try { Console.CursorVisible = false; } catch (IOException) { }
+        try { Console.Write(MouseInput.EnableSequence); } catch (IOException) { }
+        ThemeManager.ApplyBackground();
+
+        if (deleted)
+        {
+            _sdksView.Refresh();
+            _runtimesView.Refresh();
+            _setupView.Refresh();
+            _workloadsView.Refresh();
+        }
         return true;
     }
 

@@ -25,7 +25,9 @@
 - **Runtimes tab** — Same experience for .NET and ASP.NET Core runtimes
 - **Workloads workspace** — Press `w` on any installed SDK row to manage its workloads (MAUI, Android, iOS, wasm-tools, Aspire, …). Wraps the native `dotnet workload` CLI and scopes every command to that SDK's feature band via a scratch `global.json` — so multi-band installs are cleanly isolated
 - **Live search tab** — Non-blocking search with debounce and request cancellation. Type to search, results update as you go — the terminal never freezes
-- **Setup panel** — Install and manage the `dotnetup` tool itself from within the app
+- **Setup panel** — Install and manage the `dotnetup` tool itself from within the app, and see which dotnet folder dsm uses and whether dotnetup manages it
+- **Migrate existing SDKs** — SDKs installed outside dotnetup show as *Unmanaged*, and SDKs in other dotnet folders (e.g. a leftover `~/.dotnet`) show as *Other location*; press `m` for one or `Shift+M` for all. Workloads the old SDKs had are reinstalled on the new ones, and dsm offers (with confirmation) to delete the old copies from other folders — SDKs together with the runtimes they ship with
+- **One install folder** — dsm installs into the folder your `dotnet` already uses. If dotnetup manages a different folder, it asks which to use and can remember the answer
 - **Dark / Light themes** — Press `F6` to toggle. The terminal background adapts via OSC 11
 - **Meet Stax** — the SDK-stack mascot waves hello on the splash screen (and keeps you company in the docs)
 - **Lifecycle icons** — At-a-glance status for each version: 🍀 Active, 🏭 Preview, 🚧 Maintenance, 👿 End of Life
@@ -47,7 +49,10 @@
 | `Shift+P` | Repair workloads (Workloads workspace) |
 | `m` | Toggle workload update-mode `manifests` ↔ `workload-set` (with confirm) |
 | `r` | Refresh data |
+| `Shift+M` | Migrate all unmanaged / other-location SDKs (with confirm) |
+| `D` | Delete the selected *Other location* SDK / runtime (with confirm) |
 | `s` | Toggle focus on the Setup panel |
+| `f` | Forget the remembered install folder (Setup panel) |
 | `Esc` | Clear search query (on the Search tab) |
 | `F6` | Toggle dark/light theme |
 | `Esc` | Return to main screen from a workspace |

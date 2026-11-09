@@ -8,6 +8,12 @@ public sealed class UserSettings
 {
     /// <summary>Name of the last selected theme (see ThemeManager). Null until the user changes it.</summary>
     public string? Theme { get; set; }
+
+    /// <summary>
+    /// Folder the user chose (and asked dsm to remember) for dotnetup installs when the active dotnet
+    /// root and dotnetup's tracked root differ. Null = decide per install. Cleared from Setup.
+    /// </summary>
+    public string? InstallRoot { get; set; }
 }
 
 /// <summary>Source-generated JSON context so settings (de)serialize under Native AOT.</summary>
@@ -60,5 +66,16 @@ public static class SettingsStore
             File.WriteAllText(path, json);
         }
         catch { /* best-effort persistence — ignore I/O failures */ }
+    }
+
+    /// <summary>
+    /// Re-reads the saved settings, applies <paramref name="mutate"/>, and saves — so independent
+    /// preferences (theme, install folder) never overwrite each other with stale copies.
+    /// </summary>
+    public static void Update(Action<UserSettings> mutate)
+    {
+        UserSettings settings = Load();
+        mutate(settings);
+        Save(settings);
     }
 }

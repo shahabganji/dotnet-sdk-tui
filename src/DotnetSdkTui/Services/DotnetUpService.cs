@@ -45,18 +45,26 @@ public static class DotnetUpService
     /// Returns an empty list when dotnetup tracks nothing or the command fails — callers should
     /// treat an empty result as "dotnetup manages no installations".
     /// </summary>
-    public static async Task<List<SdkInfo>> ListTrackedAsync(CancellationToken ct = default)
+    public static async Task<List<SdkInfo>> ListTrackedAsync(CancellationToken ct = default) =>
+        await TryListTrackedAsync(ct) ?? [];
+
+    /// <summary>
+    /// Like <see cref="ListTrackedAsync"/>, but null when dotnetup couldn't be asked (missing, failed,
+    /// or unexpected output) — callers deleting files must not mistake that for "manages nothing".
+    /// </summary>
+    public static async Task<List<SdkInfo>?> TryListTrackedAsync(CancellationToken ct = default)
     {
         var tracked = new List<SdkInfo>();
         try
         {
             ProcessResult result = await ProcessRunner.RunAsync("dotnetup", "list --format Json", ct: ct);
             if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.Output))
-                return tracked;
+                return null;
 
             using var doc = System.Text.Json.JsonDocument.Parse(result.Output);
-            if (!doc.RootElement.TryGetProperty("installations", out var installations))
-                return tracked;
+            if (!doc.RootElement.TryGetProperty("installations", out var installations)
+                || installations.ValueKind != System.Text.Json.JsonValueKind.Array)
+                return null;
 
             foreach (var inst in installations.EnumerateArray())
             {
@@ -69,9 +77,99 @@ public static class DotnetUpService
                 tracked.Add(new SdkInfo(component, version, installRoot, arch));
             }
         }
-        catch { }
+        catch
+        {
+            return null;
+        }
 
         return tracked;
+    }
+
+    /// <summary>
+    /// Lists SDKs/runtimes in well-known dotnet folders that are neither the dotnet on PATH nor
+    /// tracked by dotnetup (e.g. a leftover <c>~/.dotnet</c> from the dotnet-install script) — they
+    /// are invisible to <c>dotnet --list-sdks</c> but still on disk. Each folder's own muxer lists
+    /// them. Empty when dotnetup isn't installed: there's nothing to migrate them into.
+    /// </summary>
+    public static async Task<List<SdkInfo>> ListOtherRootInstallsAsync(
+        IEnumerable<string> trackedRoots, CancellationToken ct = default)
+    {
+        var found = new List<SdkInfo>();
+        if (!IsInstalled()) return found;
+
+        bool isWindows = OperatingSystem.IsWindows();
+        IReadOnlyList<string> roots = GetOtherRootCandidates(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.GetEnvironmentVariable("XDG_DATA_HOME"),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            isWindows,
+            OperatingSystem.IsMacOS(),
+            Environment.GetEnvironmentVariable("DOTNET_ROOT"),
+            SettingsStore.Load().InstallRoot,
+            InstallLocationService.GetActiveMuxerDirectory(),
+            trackedRoots,
+            File.Exists);
+
+        string? activeDir = InstallLocationService.GetActiveMuxerDirectory();
+        foreach (string root in roots)
+        {
+            string muxer = Path.Combine(root, MuxerFileName(isWindows));
+            string realRoot = InstallRemoval.Canonical(root);
+            if (activeDir is not null && InstallRemoval.SamePath(realRoot, activeDir))
+                continue;
+            try
+            {
+                // The muxer reports its real path (e.g. /private/tmp for /tmp), so match both spellings.
+                ProcessResult sdks = await ProcessRunner.RunAsync(muxer, "--list-sdks", ct: ct);
+                if (sdks.ExitCode == 0)
+                    found.AddRange(ParseDotnetSdkList(sdks.Output).Where(i => IsManagedInstallRoot(i.InstallRoot, [root, realRoot])));
+
+                ProcessResult runtimes = await ProcessRunner.RunAsync(muxer, "--list-runtimes", ct: ct);
+                if (runtimes.ExitCode == 0)
+                    found.AddRange(ParseDotnetRuntimeList(runtimes.Output).Where(i => IsManagedInstallRoot(i.InstallRoot, [root, realRoot])));
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                // Best effort: a broken or foreign-architecture muxer just means that folder isn't listed.
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// Well-known dotnet folders (DOTNET_ROOT, remembered install folder, dotnetup default, legacy
+    /// roots) that hold a muxer but are neither the active muxer's folder nor managed by dotnetup.
+    /// </summary>
+    internal static IReadOnlyList<string> GetOtherRootCandidates(
+        string home, string? xdgDataHome, string localAppData, bool isWindows, bool isMacOS,
+        string? dotnetRootEnv, string? rememberedRoot, string? activeMuxerDir,
+        IEnumerable<string> trackedRoots, Func<string, bool> fileExists)
+    {
+        var candidates = new List<string?>
+        {
+            dotnetRootEnv,
+            rememberedRoot,
+            GetDotnetUpDefaultInstallRoot(home, xdgDataHome, localAppData, isWindows, isMacOS),
+        };
+        candidates.AddRange(GetLegacyDotnetRoots(home, isWindows));
+
+        string active = activeMuxerDir?.Trim().TrimEnd('/', '\\') ?? "";
+        List<string> tracked = trackedRoots.ToList();
+        string muxer = MuxerFileName(isWindows);
+        var roots = new List<string>();
+        foreach (string? candidate in candidates)
+        {
+            string root = candidate?.Trim().TrimEnd('/', '\\') ?? "";
+            if (root.Length == 0
+                || roots.Contains(root, StringComparer.OrdinalIgnoreCase)
+                || root.Equals(active, StringComparison.OrdinalIgnoreCase)
+                || IsManagedInstallRoot(root, tracked)
+                || !fileExists(Path.Combine(root, muxer)))
+                continue;
+            roots.Add(root);
+        }
+        return roots;
     }
 
     /// <summary>
@@ -178,40 +276,23 @@ public static class DotnetUpService
     }
 
     /// <summary>
-    /// Adds ~/.dotnetup to the shell profile and current process PATH if not already present.
-    /// </summary>
-    /// <summary>
-    /// Ensures dotnetup and dotnet paths are in the shell profile (.zshrc/.bashrc/fish).
-    /// Call after any install that may have added dotnetup or dotnet.
+    /// Ensures dotnetup and (when no dotnet is resolvable on PATH yet) a dotnet root are on the
+    /// current process PATH and in the shell profile (.zshrc/.bashrc/fish). Uses the same
+    /// never-shadow rule as <see cref="RefreshPath"/>. Call after any install that may have added
+    /// dotnetup or dotnet.
     /// </summary>
     public static void EnsurePathInShellProfile()
     {
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string dotnetupDir = Path.Combine(home, ".dotnetup");
 
-        // Collect directories to add
-        var dirsToAdd = new List<string>();
-        if (Directory.Exists(dotnetupDir)) dirsToAdd.Add(dotnetupDir);
-
-        // Also add dotnet managed installation path
-        if (!OperatingSystem.IsWindows())
-        {
-            string dotnetDir = Path.Combine(home, "Library", "Application Support", "dotnet");
-            if (Directory.Exists(dotnetDir)) dirsToAdd.Add(dotnetDir);
-            string linuxDotnet = Path.Combine(home, ".dotnet");
-            if (Directory.Exists(linuxDotnet)) dirsToAdd.Add(linuxDotnet);
-        }
-
+        var dirsToAdd = GetCurrentPathCandidates().Where(Directory.Exists).ToList();
         if (dirsToAdd.Count == 0) return;
 
         // Add to current process PATH
         string currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-        foreach (var dir in dirsToAdd)
-        {
-            if (!currentPath.Contains(dir))
-                currentPath = $"{dir}:{currentPath}";
-        }
-        Environment.SetEnvironmentVariable("PATH", currentPath);
+        string updated = PrependMissingDirs(currentPath, dirsToAdd, Directory.Exists, Path.PathSeparator);
+        if (!ReferenceEquals(updated, currentPath))
+            Environment.SetEnvironmentVariable("PATH", updated);
 
         // Add to shell profile
         string shell = Path.GetFileName(Environment.GetEnvironmentVariable("SHELL") ?? "/bin/bash");
@@ -241,24 +322,80 @@ public static class DotnetUpService
     /// </summary>
     public static void RefreshPath()
     {
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        // Only when dsm lets dotnetup pick its default root (no user-level active root, see
-        // InstallLocationService) — otherwise installs are pinned to the active root and PATH
-        // must keep pointing at it.
-        bool includeDotnetUpRoot = InstallLocationService.GetActiveInstallRoot() is null;
-        IReadOnlyList<string> candidates = GetPathCandidates(
-            home,
-            Environment.GetEnvironmentVariable("XDG_DATA_HOME"),
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            OperatingSystem.IsWindows(),
-            OperatingSystem.IsMacOS(),
-            includeDotnetUpRoot);
+        // The install folder the user explicitly chose (and asked dsm to remember) wins over
+        // whatever dotnet PATH resolves first, so dsm lists what it installs.
+        string? remembered = SettingsStore.Load().InstallRoot;
+        if (remembered is not null)
+            PreferRootOnPath(remembered);
 
         string currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        IReadOnlyList<string> candidates = GetCurrentPathCandidates();
         string updated = PrependMissingDirs(currentPath, candidates, Directory.Exists, Path.PathSeparator);
         if (!ReferenceEquals(updated, currentPath))
             Environment.SetEnvironmentVariable("PATH", updated);
     }
+
+    /// <summary>
+    /// Puts <paramref name="root"/> first on the current process PATH (session only) when it holds a
+    /// <c>dotnet</c> muxer — used after dotnetup installed into an explicitly chosen folder with
+    /// <c>--set-default-install</c>, so dsm immediately reads the folder new shells will use.
+    /// </summary>
+    public static void PreferRootOnPath(string root)
+    {
+        string? preferred = GetPreferredRootOnPath(root, File.Exists);
+        if (preferred is null) return;
+
+        string currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        string updated = PrependMissingDirs(
+            RemovePathEntry(currentPath, preferred, Path.PathSeparator), [preferred], Directory.Exists, Path.PathSeparator);
+        Environment.SetEnvironmentVariable("PATH", updated);
+    }
+
+    /// <summary>Normalized <paramref name="root"/> when it contains a <c>dotnet</c> muxer, otherwise null.</summary>
+    internal static string? GetPreferredRootOnPath(string? root, Func<string, bool> fileExists)
+    {
+        string normalized = root?.Trim().TrimEnd('/', '\\') ?? "";
+        return normalized.Length > 0 && fileExists(Path.Combine(normalized, MuxerFileName(OperatingSystem.IsWindows())))
+            ? normalized
+            : null;
+    }
+
+    /// <summary>Removes every entry equal to <paramref name="dir"/> (ignoring trailing separators) from a PATH string.</summary>
+    internal static string RemovePathEntry(string path, string dir, char separator)
+    {
+        StringComparison comparison = separator == ';' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        string target = dir.TrimEnd('/', '\\');
+        return string.Join(separator, path
+            .Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(e => !e.TrimEnd('/', '\\').Equals(target, comparison)));
+    }
+
+    /// <summary>
+    /// The PATH candidates for this machine's environment, evaluated against the current process PATH.
+    /// </summary>
+    private static IReadOnlyList<string> GetCurrentPathCandidates()
+    {
+        // Only when dsm lets dotnetup pick its default root (no user-level active root, see
+        // InstallLocationService) — otherwise installs are pinned to the active root and PATH
+        // must keep pointing at it.
+        string? activeRoot = InstallLocationService.GetActiveInstallRoot();
+        // Any dotnet on PATH (user-level or system-wide) must never be shadowed by a fallback root.
+        bool dotnetOnPath = InstallLocationService.FindDotnetMuxerOnPath() is not null;
+
+        return GetPathCandidates(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.GetEnvironmentVariable("XDG_DATA_HOME"),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            OperatingSystem.IsWindows(),
+            OperatingSystem.IsMacOS(),
+            includeDotnetUpRoot: activeRoot is null,
+            dotnetOnPath,
+            Environment.GetEnvironmentVariable("DOTNET_ROOT"),
+            File.Exists);
+    }
+
+    /// <summary>The platform's <c>dotnet</c> muxer file name.</summary>
+    internal static string MuxerFileName(bool isWindows) => isWindows ? "dotnet.exe" : "dotnet";
 
     /// <summary>
     /// dotnetup's default .NET installation root — where it installs when no
@@ -282,21 +419,41 @@ public static class DotnetUpService
     /// <c>--set-default-install</c> become the user's default dotnet in new shells, so dsm must
     /// see them immediately too.
     /// </summary>
+    /// <remarks>
+    /// A fallback dotnet root is added only when no <c>dotnet</c> (user-level or system-wide) is
+    /// already resolvable on PATH — never ahead of it — and then just one: <c>DOTNET_ROOT</c> when it holds a muxer, else the
+    /// first legacy root (pre-0.2.0 dotnetup, dotnet-install script) that does. Prepending every
+    /// existing legacy folder let a stale <c>~/.dotnet</c> shadow the user's real dotnet, so dsm listed
+    /// the wrong SDKs as unmanaged and pinned migrations to a folder dotnetup doesn't track.
+    /// </remarks>
     internal static IReadOnlyList<string> GetPathCandidates(
         string home, string? xdgDataHome, string localAppData, bool isWindows, bool isMacOS,
-        bool includeDotnetUpRoot)
+        bool includeDotnetUpRoot, bool dotnetOnPath, string? dotnetRootEnv, Func<string, bool> fileExists)
     {
         var dirs = new List<string> { Path.Combine(home, ".dotnetup") };
         if (includeDotnetUpRoot)
             dirs.Add(GetDotnetUpDefaultInstallRoot(home, xdgDataHome, localAppData, isWindows, isMacOS));
-        if (!isWindows)
-        {
-            // Pre-0.2.0 dotnetup roots and the dotnet-install script default.
-            dirs.Add(Path.Combine(home, "Library", "Application Support", "dotnet"));
-            dirs.Add(Path.Combine(home, ".dotnet"));
-        }
+
+        if (dotnetOnPath)
+            return dirs;
+
+        var fallbacks = new List<string>();
+        if (!string.IsNullOrWhiteSpace(dotnetRootEnv))
+            fallbacks.Add(dotnetRootEnv.Trim().TrimEnd('/', '\\'));
+        fallbacks.AddRange(GetLegacyDotnetRoots(home, isWindows));
+
+        string muxer = MuxerFileName(isWindows);
+        string? fallback = fallbacks.FirstOrDefault(d => fileExists(Path.Combine(d, muxer)));
+        if (fallback is not null)
+            dirs.Add(fallback);
         return dirs;
     }
+
+    /// <summary>Pre-0.2.0 dotnetup roots and the dotnet-install script default (Unix only).</summary>
+    internal static IReadOnlyList<string> GetLegacyDotnetRoots(string home, bool isWindows) =>
+        isWindows
+            ? []
+            : [Path.Combine(home, "Library", "Application Support", "dotnet"), Path.Combine(home, ".dotnet")];
 
     /// <summary>
     /// Prepends each existing directory not already on <paramref name="path"/> (compared entry by
