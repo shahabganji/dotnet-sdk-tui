@@ -108,7 +108,7 @@ public sealed class InstallRemovalTests : IDisposable
     [InlineData("/home/u/.dotnet/shared/Microsoft.NETCore.App/", "/home/u/.dotnet")]
     public void DotnetRootOf_ListedPath_ReturnsFolder(string listed, string expected)
     {
-        Assert.Equal(expected, InstallRemoval.DotnetRootOf(listed));
+        Assert.Equal(Path.GetFullPath(expected), Path.GetFullPath(InstallRemoval.DotnetRootOf(listed)));
     }
 
     // --- SDK removal ---
